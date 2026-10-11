@@ -2,7 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/theme/querya_editor_theme.dart';
 import 'package:querya_desktop/core/theme/querya_theme.dart';
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 import 'querya_code_language.dart';
 import 'querya_highlight_controller.dart';
@@ -60,212 +60,159 @@ class QueryaCodeEditor extends StatefulWidget {
 }
 
 class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
-  material.TextEditingController? _plainController;
-  QueryaHighlightController? _highlightController;
-  bool _ownsPlainController = false;
-  bool _ownsHighlightController = false;
-  bool _syncing = false;
-  QueryaEditorTheme? _highlightEditorTheme;
-  QueryaCodeLanguage? _highlightLanguage;
-  int _highlightTokenColorsHash = 0;
+  material.TextEditingController? _internalController;
+  QueryaEditorTheme? _lastEditorTheme;
+  int _lastTokenColorsHash = 0;
+  String? _lastText;
 
-  material.TextEditingController get _activeController =>
-      _highlightController ?? _plainController!;
-
-  bool get _useHighlighting =>
-      widget.enableHighlighting &&
-      widget.language != QueryaCodeLanguage.plain &&
-      SyntaxHighlightService.isInitialized;
+  material.TextEditingController get _effectiveController =>
+      widget.controller ?? _internalController!;
 
   @override
   void initState() {
     super.initState();
-    if (!_useHighlighting) {
-      _initPlainController(widget.controller);
-      _plainController!.addListener(_onTextChanged);
+    _initControllerIfNeeded();
+    _attachListener();
+  }
+
+  void _initControllerIfNeeded() {
+    if (widget.controller == null) {
+      _internalController = _createInternalController();
     }
   }
 
-  void _initPlainController(material.TextEditingController? external) {
-    if (external == null) {
-      _plainController = material.TextEditingController();
-      _ownsPlainController = true;
-    } else {
-      _plainController = external;
-      _ownsPlainController = false;
+  material.TextEditingController _createInternalController({
+    String? text,
+  }) {
+    if (!widget.enableHighlighting) {
+      return material.TextEditingController(text: text);
     }
+    return SyntaxHighlightService.createHighlightController(
+      language: widget.language,
+      text: text,
+    );
+  }
+
+  void _attachListener() {
+    if (widget.onChanged == null) return;
+    _lastText = _effectiveController.text;
+    _effectiveController.addListener(_onTextChanged);
+  }
+
+  void _detachListener([material.TextEditingController? target]) {
+    (target ?? _effectiveController).removeListener(_onTextChanged);
+    _lastText = null;
   }
 
   void _onTextChanged() {
-    widget.onChanged?.call(_activeController.text);
-  }
-
-  void _syncFromExternal() {
-    final external = widget.controller;
-    final highlight = _highlightController;
-    if (external == null || highlight == null || _syncing) return;
-    if (external.text == highlight.text &&
-        external.selection == highlight.selection) {
+    if (widget.onChanged == null) return;
+    final currentText = _effectiveController.text;
+    if (identical(currentText, _lastText)) return;
+    if (_lastText != null && currentText.length != _lastText!.length) {
+      _lastText = currentText;
+      widget.onChanged!(currentText);
       return;
     }
-    _syncing = true;
-    highlight.value = external.value;
-    _syncing = false;
+    if (currentText == _lastText) return;
+    _lastText = currentText;
+    widget.onChanged!(currentText);
   }
 
-  void _syncToExternal() {
-    final external = widget.controller;
-    final highlight = _highlightController;
-    if (external == null || highlight == null || _syncing) return;
-    if (external.text == highlight.text &&
-        external.selection == highlight.selection) {
-      return;
-    }
-    _syncing = true;
-    external.value = highlight.value;
-    _syncing = false;
-  }
+  void _syncThemeIfNeeded(
+    QueryaTheme queryaTheme, {
+    bool transitioning = false,
+  }) {
+    final controller = _effectiveController;
+    if (controller is! QueryaHighlightController) return;
 
-  void _disposeHighlight([material.TextEditingController? externalToDetach]) {
-    final highlight = _highlightController;
-    if (highlight == null) return;
-    highlight.removeListener(_onTextChanged);
-    highlight.removeListener(_syncToExternal);
-    (externalToDetach ?? widget.controller)?.removeListener(_syncFromExternal);
-    if (_ownsHighlightController) {
-      highlight.dispose();
-    }
-    _highlightController = null;
-    _highlightEditorTheme = null;
-    _highlightLanguage = null;
-    _highlightTokenColorsHash = 0;
-  }
-
-  void _ensureHighlightController(QueryaTheme queryaTheme) {
-    if (!_useHighlighting) return;
+    // Mid-animation themes differ on every frame: building highlighters for
+    // them each time is wasted work and pushes real entries out of the pair
+    // cache. The final frame arrives with `transitioning` false (#1358).
+    if (transitioning && _lastEditorTheme != null) return;
 
     final editor = queryaTheme.editor;
-    final tokenHash = Object.hashAll(queryaTheme.tokenColors);
-    if (_highlightController != null &&
-        _highlightEditorTheme == editor &&
-        _highlightLanguage == widget.language &&
-        _highlightTokenColorsHash == tokenHash) {
+    final tokenHash = queryaTheme.tokenColorsHash;
+    if (_lastEditorTheme == editor && _lastTokenColorsHash == tokenHash) {
       return;
     }
 
+    _lastEditorTheme = editor;
+    _lastTokenColorsHash = tokenHash;
+
     final pair = SyntaxHighlightService.createPair(
-      language: widget.language,
+      language: controller.language,
       queryaTheme: queryaTheme,
     );
 
-    final external = widget.controller;
-    final text = external?.text ?? _highlightController?.text ?? '';
-
-    _disposeHighlight();
-
-    _highlightController = QueryaHighlightController(
-      text: text,
-      language: widget.language,
+    controller.updateTheme(
       lightHighlighter: pair.light,
       darkHighlighter: pair.dark,
       lightThemeConfig: pair.lightThemeConfig,
       darkThemeConfig: pair.darkThemeConfig,
-      grammarJson: pair.grammarJson,
       wrapperColor: editor.foreground,
     );
-    _ownsHighlightController = external == null;
-    _highlightEditorTheme = editor;
-    _highlightLanguage = widget.language;
-    _highlightTokenColorsHash = tokenHash;
-
-    _highlightController!.addListener(_onTextChanged);
-    if (external != null) {
-      external.addListener(_syncFromExternal);
-      _highlightController!.addListener(_syncToExternal);
-    }
-  }
-
-  void _switchToPlain(material.TextEditingController? external) {
-    _disposeHighlight();
-    final text = external?.text ?? _plainController?.text ?? '';
-    if (_plainController != null) {
-      _plainController!.removeListener(_onTextChanged);
-      if (_ownsPlainController) {
-        _plainController!.dispose();
-      }
-    }
-    _initPlainController(external);
-    if (_ownsPlainController && text.isNotEmpty) {
-      _plainController!.text = text;
-    }
-    _plainController!.addListener(_onTextChanged);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final queryaTheme = context.queryaTheme;
-    if (_useHighlighting) {
-      if (_plainController != null) {
-        _plainController!.removeListener(_onTextChanged);
-        if (_ownsPlainController) {
-          _plainController!.dispose();
-        }
-        _plainController = null;
-        _ownsPlainController = false;
-      }
-      _ensureHighlightController(queryaTheme);
-    } else if (_highlightController != null) {
-      _highlightController!.removeListener(_onTextChanged);
-      _switchToPlain(widget.controller);
-    } else if (_plainController == null) {
-      _initPlainController(widget.controller);
-      _plainController!.addListener(_onTextChanged);
-    }
+    _syncThemeIfNeeded(
+      context.queryaTheme,
+      transitioning: QueryaThemeScope.isTransitioning(context),
+    );
   }
 
   @override
   void didUpdateWidget(QueryaCodeEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      _highlightController?.removeListener(_onTextChanged);
-      _plainController?.removeListener(_onTextChanged);
-      _disposeHighlight(oldWidget.controller);
-      if (_plainController != null) {
-        _plainController!.removeListener(_onTextChanged);
-        if (_ownsPlainController) {
-          _plainController!.dispose();
-        }
-        _plainController = null;
+    final controllerChanged = oldWidget.controller != widget.controller;
+    final languageChanged = oldWidget.language != widget.language;
+    final highlightingChanged =
+        oldWidget.enableHighlighting != widget.enableHighlighting;
+    final onChangedChanged = oldWidget.onChanged != widget.onChanged;
+
+    if (controllerChanged) {
+      _detachListener(oldWidget.controller ?? _internalController);
+      if (oldWidget.controller == null && widget.controller != null) {
+        _internalController?.dispose();
+        _internalController = null;
+      } else if (widget.controller == null && _internalController == null) {
+        _internalController = _createInternalController();
       }
-      if (_useHighlighting) {
-        _ensureHighlightController(context.queryaTheme);
-      } else {
-        _initPlainController(widget.controller);
-        _plainController!.addListener(_onTextChanged);
-      }
-    } else if (oldWidget.language != widget.language ||
-        oldWidget.enableHighlighting != widget.enableHighlighting) {
-      _highlightEditorTheme = null;
-      _highlightLanguage = null;
-      _highlightTokenColorsHash = 0;
-      if (_useHighlighting) {
-        _ensureHighlightController(context.queryaTheme);
-      } else {
-        _switchToPlain(widget.controller);
-      }
+      _lastEditorTheme = null;
+      _lastTokenColorsHash = 0;
+      _attachListener();
+      _syncThemeIfNeeded(
+        context.queryaTheme,
+        transitioning: QueryaThemeScope.isTransitioning(context),
+      );
+    } else if (widget.controller == null &&
+        (languageChanged || highlightingChanged)) {
+      final oldController = _internalController!;
+      final currentText = oldController.text;
+      final currentSelection = oldController.selection;
+      _detachListener(oldController);
+      oldController.dispose();
+      _internalController = _createInternalController(
+        text: currentText,
+      )..selection = currentSelection;
+      _lastEditorTheme = null;
+      _lastTokenColorsHash = 0;
+      _attachListener();
+      _syncThemeIfNeeded(
+        context.queryaTheme,
+        transitioning: QueryaThemeScope.isTransitioning(context),
+      );
+    } else if (onChangedChanged) {
+      _detachListener();
+      _attachListener();
     }
   }
 
   @override
   void dispose() {
-    _disposeHighlight();
-    if (_plainController != null) {
-      _plainController!.removeListener(_onTextChanged);
-      if (_ownsPlainController) {
-        _plainController!.dispose();
-      }
-    }
+    _detachListener();
+    _internalController?.dispose();
     super.dispose();
   }
 
@@ -280,6 +227,13 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
     );
   }
 
+  /// A filling editor starts at the top, like every code editor; an
+  /// explicit [QueryaCodeEditor.textAlignVertical] still wins. (The field's own
+  /// default centres the text of a field that expands.)
+  material.TextAlignVertical? get _verticalAlignment =>
+      widget.textAlignVertical ??
+      (widget.expands ? material.TextAlignVertical.top : null);
+
   Widget? _resolvedPlaceholder() {
     if (widget.placeholder != null) return widget.placeholder;
     return switch (widget.language) {
@@ -293,14 +247,10 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
 
   @override
   Widget build(BuildContext context) {
-    if (_useHighlighting) {
-      _ensureHighlightController(context.queryaTheme);
-    }
-
     final editor = context.editorTheme;
     final style = _textStyle(editor);
     final placeholder = _resolvedPlaceholder();
-    final controller = _highlightController ?? _plainController!;
+    final controller = _effectiveController;
 
     if (widget.variant == QueryaCodeEditorVariant.material) {
       return material.TextField(
@@ -311,14 +261,13 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
         maxLines: widget.expands ? null : widget.maxLines,
         expands: widget.expands,
         style: style,
-        textAlignVertical: widget.textAlignVertical,
+        textAlignVertical: _verticalAlignment,
         decoration: material.InputDecoration(
           border: material.InputBorder.none,
           hintText: widget.hintText,
           contentPadding:
               widget.contentPadding ?? const material.EdgeInsets.all(12),
         ),
-        onChanged: widget.onChanged,
       );
     }
 
@@ -330,8 +279,8 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
       maxLines: widget.expands ? null : widget.maxLines,
       expands: widget.expands,
       style: style,
+      textAlignVertical: _verticalAlignment,
       placeholder: placeholder,
-      onChanged: widget.onChanged,
     );
   }
 }

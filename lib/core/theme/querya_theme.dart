@@ -1,10 +1,14 @@
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 import 'color_contrast.dart';
 import 'parser/vscode_theme_manifest.dart';
 import 'querya_colors.dart';
 import 'querya_editor_theme.dart';
 import 'querya_workbench_theme.dart';
+
+/// The type of [QueryaTheme.colorScheme], nameable by widgets that must not
+/// import the UI library behind it.
+typedef QueryaThemeColorScheme = ColorScheme;
 
 /// Full Querya theme: workbench chrome + editor tokens + shadcn [ColorScheme].
 class QueryaTheme {
@@ -23,6 +27,17 @@ class QueryaTheme {
 
   /// VS Code `tokenColors` for syntax highlighting (imported themes).
   final List<TokenColorRule> tokenColors;
+
+  /// Hashes of token colour lists, keyed by the list itself: themes built by
+  /// [copyWith] and [lerp] (one per animation frame) share the list, so each
+  /// list is hashed once however many themes point at it.
+  static final Expando<int> _tokenColorsHashes =
+      Expando<int>('QueryaTheme.tokenColorsHash');
+
+  /// Hash of [tokenColors], computed once per list (#1353): the editor asks
+  /// for it on every build, and a full VS Code theme has hundreds of rules.
+  int get tokenColorsHash =>
+      _tokenColorsHashes[tokenColors] ??= Object.hashAll(tokenColors);
 
   static const QueryaTheme darkDefault = QueryaTheme(
     workbench: QueryaWorkbenchTheme.darkDefault,

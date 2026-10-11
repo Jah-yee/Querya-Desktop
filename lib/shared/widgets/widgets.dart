@@ -5,7 +5,7 @@
 /// - Card, PrimaryButton, OutlineButton, GhostButton
 /// - Tabs, TabItem, IndexedStack
 /// - TextField, Text (with .semiBold(), .muted(), .small())
-/// - Gap, VerticalDivider
+/// - Gap
 library;
 
 export 'app_dialog.dart';
@@ -20,6 +20,20 @@ export 'querya_dropdown.dart'
         QueryaDropdownTokens,
         kPreferencesLabelWidth;
 export 'connection_tree_loading_row.dart';
+export 'querya_action_menu.dart' show QueryaActionMenuItem;
+export 'querya_badge.dart';
+export 'querya_button.dart';
+export 'querya_button_group.dart';
+export 'querya_dialog_actions.dart';
+export 'querya_divider.dart';
+export 'querya_menu_button.dart';
+export 'querya_split_button.dart';
+export 'querya_empty_state.dart';
+export 'querya_icon_button.dart';
+export 'querya_modal_dialog.dart';
+export 'querya_search_field.dart';
+export 'querya_spinner.dart';
+export 'querya_text.dart';
 export 'tree_load_error.dart';
 export 'package:querya_desktop/core/motion/querya_motion.dart';
 export 'package:querya_desktop/core/motion/querya_motion_context.dart';
@@ -27,4 +41,4 @@ export 'package:querya_desktop/core/motion/querya_animated_expand.dart';
 export 'package:querya_desktop/core/motion/querya_fade_slide.dart';
 export 'package:querya_desktop/core/theme/querya_theme_scope.dart'
     show QueryaThemeContext;
-export 'package:shadcn_flutter/shadcn_flutter.dart';
+export 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;

@@ -30,7 +30,7 @@ void main() {
       // Check specific shortcut actions exist
       expect(find.text('Execute query / selection'), findsOneWidget);
       expect(find.text('Format SQL statement'), findsOneWidget);
-      expect(find.text('Toggle full-screen editor'), findsOneWidget);
+      expect(find.text('Query history'), findsOneWidget);
       expect(find.text('Auto-fit column width'), findsOneWidget);
       expect(find.text('Revert staged cell changes'), findsOneWidget);
       expect(find.text('Filter by cell value'), findsOneWidget);
@@ -86,10 +86,14 @@ void main() {
     });
 
     testWidgets('filters shortcuts by keycap search query', (tester) async {
-      await tester.pumpWidget(buildTestWidget(searchQuery: 'F11'));
+      await tester.pumpWidget(buildTestWidget(searchQuery: 'F5'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Toggle full-screen editor'), findsOneWidget);
+      // F5 runs the script in the SQL editor and reloads the table browser;
+      // it does not refresh the connection tree (#1148).
+      expect(find.text('Execute all statements'), findsOneWidget);
+      expect(find.text('Refresh table data'), findsOneWidget);
+      expect(find.text('Refresh schema / connection'), findsNothing);
       expect(find.text('Execute query / selection'), findsNothing);
     });
 

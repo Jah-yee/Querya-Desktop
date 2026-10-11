@@ -16,6 +16,7 @@ import 'package:querya_desktop/features/settings/theme_picker_button.dart';
 import 'package:querya_desktop/features/settings/theme_preview_card.dart';
 import 'package:querya_desktop/features/settings/theme_remote_install_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Appearance / theme controls for [PreferencesDialog].
 class PreferencesAppearanceSection extends material.StatefulWidget {
@@ -293,94 +294,45 @@ class _PreferencesAppearanceSectionState
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    OutlineButton(
+                    QueryaButton.secondary(
+                      label: _importing ? 'Importing…' : 'Import theme…',
+                      icon: material.Icons.file_open_outlined,
                       onPressed: (_importing || _installingFromUrl)
                           ? null
                           : () => unawaited(_pickAndImportTheme()),
-                      child: material.Row(
-                        mainAxisSize: material.MainAxisSize.min,
-                        children: [
-                          const material.Icon(
-                            material.Icons.file_open_outlined,
-                            size: 14,
-                          ),
-                          const material.SizedBox(width: 6),
-                          material.Text(
-                            _importing ? 'Importing…' : 'Import theme…',
-                          ),
-                        ],
-                      ),
+                      size: QueryaControlSize.md,
                     ),
-                    OutlineButton(
+                    QueryaButton.secondary(
+                      label: _installingFromUrl ? 'Installing…' : 'Install from URL…',
+                      icon: material.Icons.download_rounded,
                       onPressed: (_importing || _installingFromUrl || refreshingThemes)
                           ? null
                           : () => unawaited(_installThemeFromUrl()),
-                      child: material.Row(
-                        mainAxisSize: material.MainAxisSize.min,
-                        children: [
-                          const material.Icon(
-                            material.Icons.download_rounded,
-                            size: 14,
-                          ),
-                          const material.SizedBox(width: 6),
-                          material.Text(
-                            _installingFromUrl ? 'Installing…' : 'Install from URL…',
-                          ),
-                        ],
-                      ),
+                      size: QueryaControlSize.md,
                     ),
-                    OutlineButton(
+                    QueryaButton.secondary(
+                      label: refreshingThemes ? 'Refreshing…' : 'Refresh themes',
+                      icon: material.Icons.refresh_rounded,
                       onPressed: (_importing || _installingFromUrl || refreshingThemes)
                           ? null
                           : () => unawaited(_refreshThemes()),
-                      child: material.Row(
-                        mainAxisSize: material.MainAxisSize.min,
-                        children: [
-                          const material.Icon(
-                            material.Icons.refresh_rounded,
-                            size: 14,
-                          ),
-                          const material.SizedBox(width: 6),
-                          material.Text(
-                            refreshingThemes ? 'Refreshing…' : 'Refresh themes',
-                          ),
-                        ],
-                      ),
+                      size: QueryaControlSize.md,
                     ),
-                    OutlineButton(
-                      onPressed:
-                          (_importing || _installingFromUrl || _openingThemesFolder)
-                              ? null
-                              : () => unawaited(_openThemesFolder()),
-                      child: material.Row(
-                        mainAxisSize: material.MainAxisSize.min,
-                        children: [
-                          const material.Icon(
-                            material.Icons.folder_open_outlined,
-                            size: 14,
-                          ),
-                          const material.SizedBox(width: 6),
-                          material.Text(
-                            _openingThemesFolder
+                    QueryaButton.secondary(
+                      label: _openingThemesFolder
                                 ? 'Opening…'
                                 : 'Open themes folder',
-                          ),
-                        ],
-                      ),
+                      icon: material.Icons.folder_open_outlined,
+                      onPressed: (_importing || _installingFromUrl || _openingThemesFolder)
+                              ? null
+                              : () => unawaited(_openThemesFolder()),
+                      size: QueryaControlSize.md,
                     ),
-                    OutlineButton(
+                    QueryaButton.secondary(
+                      label: 'Reset appearance',
+                      icon: material.Icons.restart_alt_rounded,
                       onPressed: () => unawaited(_resetAppearance()),
-                      child: const material.Row(
-                        mainAxisSize: material.MainAxisSize.min,
-                        children: [
-                          material.Icon(
-                            material.Icons.restart_alt_rounded,
-                            size: 14,
-                          ),
-                          material.SizedBox(width: 6),
-                          Text('Reset appearance'),
-                        ],
-                      ),
+                      size: QueryaControlSize.md,
                     ),
                   ],
                 ),

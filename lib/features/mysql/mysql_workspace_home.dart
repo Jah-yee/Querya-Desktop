@@ -8,6 +8,7 @@ import 'package:querya_desktop/features/mysql/mysql_sql_tx_guard.dart';
 import 'package:querya_desktop/features/mysql/mysql_sql_workspace.dart';
 import 'package:querya_desktop/features/mysql/mysql_stats_view.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// When a MySQL connection is selected but no tree object: server summary or SQL editor.
 class MysqlWorkspaceHome extends material.StatefulWidget {
@@ -109,15 +110,11 @@ class _MysqlWorkspaceHomeState extends material.State<MysqlWorkspaceHome> {
               if (widget.lastSelectedMysqlObject != null &&
                   widget.onRestoreLastSelectedObject != null) ...[
                 const Gap(12),
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Return to ${widget.lastSelectedMysqlObject!.name}',
+                  icon: material.Icons.table_chart_outlined,
                   onPressed: widget.onRestoreLastSelectedObject,
-                  leading: const material.Icon(
-                    material.Icons.table_chart_outlined,
-                    size: 14,
-                  ),
-                  child:
-                      Text('Return to ${widget.lastSelectedMysqlObject!.name}'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
               material.Expanded(
@@ -133,7 +130,7 @@ class _MysqlWorkspaceHomeState extends material.State<MysqlWorkspaceHome> {
             ],
           ),
         ),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         Expanded(
           child: QueryaCrossFadeStack(
             index: _tab,

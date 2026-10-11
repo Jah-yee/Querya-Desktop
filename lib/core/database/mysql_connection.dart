@@ -2,8 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:mysql_client/mysql_client.dart';
+import 'package:querya_desktop/core/database/statement_queue.dart';
+import 'package:querya_desktop/core/database/database_error_mapper.dart';
+import 'package:querya_desktop/core/database/querya_database_exception.dart';
 import 'package:querya_desktop/core/database/mysql_result_cells.dart';
 import 'package:querya_desktop/core/database/table_schema_meta.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_manager.dart';
 import 'package:querya_desktop/core/security/ssl_certificate_support.dart';
 import 'package:querya_desktop/core/storage/connection_secrets_store.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
@@ -99,6 +104,8 @@ class MysqlConnection {
     this.database,
     this.useSSL = true,
     String? connectionString,
+    this.sshConfig,
+    this.sshSecrets,
   })  : _password = password,
         _connectionString = connectionString;
 
@@ -116,6 +123,7 @@ class MysqlConnection {
       database: database ?? row.databaseName,
       useSSL: row.useSSL,
       connectionString: row.connectionString,
+      sshConfig: row.sshTunnelConfig,
     );
   }
 
@@ -129,14 +137,43 @@ class MysqlConnection {
   final bool useSSL;
   String? _connectionString;
 
+  final SshTunnelConfig? sshConfig;
+  final SshTunnelSecrets? sshSecrets;
+  SshTunnelHandle? _sshTunnelHandle;
+
+  SshTunnelHandle? get sshTunnelHandle => _sshTunnelHandle;
+
   String? get password => _password;
   String? get connectionString => _connectionString;
 
   MySQLConnection? _conn;
+  Future<void>? _connecting;
+
+  /// Statements on this session run one at a time, here and not in the
+  /// driver: a statement's timeout starts when it starts, and waiting for the
+  /// one before it has its own limit (#1216).
+  @visibleForTesting
+  final statementQueue = StatementQueue();
+
+  /// Test seam: replaces the driver call of [execute].
+  @visibleForTesting
+  Future<IResultSet> Function(
+    String sql,
+    Map<String, dynamic>? params,
+    bool iterable,
+    Duration? timeout,
+  )? runStatementForTest;
+
   bool _isConnected = false;
   bool _inTransaction = false;
 
-  bool get isConnected => _isConnected && _conn != null;
+  bool get isConnected => _isConnected && _conn != null && _conn!.connected;
+
+  @visibleForTesting
+  void setConnectionForTest(MySQLConnection? conn, {bool isConnected = true}) {
+    _conn = conn;
+    _isConnected = isConnected;
+  }
 
   /// Scrubs sensitive in-memory credentials once the network handshake completes.
   void scrubCredentials() {
@@ -152,8 +189,35 @@ class MysqlConnection {
     return '`${id.replaceAll('`', '``')}`';
   }
 
-  Future<void> connect({int connectTimeoutMs = 10000}) async {
-    if (_isConnected && _conn != null) return;
+  /// Single-flight: a caller that arrives while an attempt is in progress waits
+  /// for that attempt. Without this, two callers opened two sockets and two SSH
+  /// tunnels, and a failing attempt dropped the session the other one had made.
+  Future<void> connect({int connectTimeoutMs = 10000}) {
+    if (isConnected) return Future<void>.value();
+    final inFlight = _connecting;
+    if (inFlight != null) return inFlight;
+    final attempt = _connectOnce(connectTimeoutMs);
+    _connecting = attempt;
+    return attempt.whenComplete(() {
+      if (identical(_connecting, attempt)) _connecting = null;
+    });
+  }
+
+  /// Bumped by [disconnect] and [forceClose]: an attempt that started before
+  /// one of them must not come back as a connected session (#1313).
+  int _generation = 0;
+
+  Future<void> _connectOnce(int connectTimeoutMs) async {
+    if (isConnected) return;
+    if (_conn != null && !_conn!.connected) {
+      try {
+        await _conn?.close();
+      } catch (_) {}
+      _conn = null;
+    }
+    final generation = _generation;
+    MySQLConnection? opened;
+    SshTunnelHandle? openedHandle;
 
     var effectivePassword = _password;
     var effectiveConnectionString = _connectionString;
@@ -162,14 +226,36 @@ class MysqlConnection {
         (effectiveConnectionString == null ||
             effectiveConnectionString.isEmpty) &&
         id > 0) {
-      try {
-        final secrets = await ConnectionSecretsStore.readForConnection(id);
-        effectivePassword = secrets.password;
-        effectiveConnectionString = secrets.connectionString;
-      } catch (_) {}
+      // A store that cannot be read throws (#1303): connecting with no password
+      // would be reported as a wrong one.
+      final secrets = await ConnectionSecretsStore.readForConnection(id);
+      effectivePassword = secrets.password;
+      effectiveConnectionString = secrets.connectionString;
     }
 
     try {
+      if (sshConfig != null && sshConfig!.enabled) {
+        var sec = sshSecrets;
+        if (sec == null && id > 0) {
+          final stored =
+              await ConnectionSecretsStore.readSshSecretsForConnection(id);
+          sec = SshTunnelSecrets(
+            password: stored.password,
+            privateKey: stored.privateKey,
+            passphrase: stored.passphrase,
+            jumpPassword: stored.jumpPassword,
+          );
+        }
+        openedHandle = await SshTunnelManager.instance.openTunnel(
+          config: sshConfig!,
+          secrets: sec ?? SshTunnelSecrets(),
+          remoteHost: host,
+          remotePort: port,
+        );
+        if (generation != _generation) throw _ConnectSuperseded();
+        _sshTunnelHandle = openedHandle;
+      }
+
       final user = username ?? '';
       final pass = effectivePassword ?? '';
       if (_usesConnectionString(effectiveConnectionString)) {
@@ -188,40 +274,69 @@ class MysqlConnection {
         }
         validateMysqlSslMode(sslMode, sslPaths);
         final securityContext = buildSecurityContext(sslPaths);
-        final host = parsed.host;
-        _conn = await MySQLConnection.createConnection(
-          host: host,
-          port: parsed.port,
+        final effectiveHost = _sshTunnelHandle?.localHost ?? parsed.host;
+        final effectivePort = _sshTunnelHandle?.localPort ?? parsed.port;
+        opened = await MySQLConnection.createConnection(
+          host: effectiveHost,
+          port: effectivePort,
           userName: parsed.userName,
           password: parsed.password,
           secure: sslMode.secure,
           databaseName: parsed.databaseName,
           securityContext: securityContext,
           sslVerifyCertificates: sslMode.verifyCertificates,
-          sslServerName: sslMode.verifyIdentity && host is String ? host : null,
+          sslServerName: sslMode.verifyIdentity && parsed.host is String ? parsed.host : null,
         );
-        await _conn!.connect(timeoutMs: connectTimeoutMs);
+        _conn = opened;
+        await opened.connect(timeoutMs: connectTimeoutMs);
       } else {
         final sslPaths =
             extractSslCertificatePathsFromString(effectiveConnectionString);
         final securityContext = buildSecurityContext(sslPaths);
-        _conn = await MySQLConnection.createConnection(
-          host: host,
-          port: port,
+        final effectiveHost = _sshTunnelHandle?.localHost ?? host;
+        final effectivePort = _sshTunnelHandle?.localPort ?? port;
+        opened = await MySQLConnection.createConnection(
+          host: effectiveHost,
+          port: effectivePort,
           userName: user,
           password: pass,
           secure: useSSL || sslPaths.hasAny,
           databaseName: database,
           securityContext: securityContext,
         );
-        await _conn!.connect(timeoutMs: connectTimeoutMs);
+        _conn = opened;
+        await opened.connect(timeoutMs: connectTimeoutMs);
       }
+      if (generation != _generation) throw _ConnectSuperseded();
       _isConnected = true;
+      opened.onClose(() {
+        if (identical(_conn, opened)) {
+          _isConnected = false;
+        }
+      });
       scrubCredentials();
-    } catch (e) {
+    } catch (e, st) {
+      if (generation != _generation) {
+        // forceClose / disconnect ran while this attempt was in flight and
+        // reset the fields (a newer attempt may own them now): what this one
+        // opened is closed here, and it does not come back as connected.
+        if (identical(_conn, opened)) _conn = null;
+        try {
+          if (opened != null && opened.connected) await opened.close();
+        } catch (_) {}
+        try {
+          await openedHandle?.release();
+        } catch (_) {}
+        if (identical(_sshTunnelHandle, openedHandle)) _sshTunnelHandle = null;
+        throw StateError('The connection was closed while it was being opened');
+      }
       _isConnected = false;
       _conn = null;
-      rethrow;
+      try {
+        await _sshTunnelHandle?.release();
+      } catch (_) {}
+      _sshTunnelHandle = null;
+      rethrowMappedDatabaseError(e, st, driver: DatabaseDriver.mysql);
     }
   }
 
@@ -304,6 +419,8 @@ class MysqlConnection {
   }
 
   Future<void> disconnect() async {
+    _generation++;
+    _connecting = null;
     _isConnected = false;
     _inTransaction = false;
     final c = _conn;
@@ -315,23 +432,39 @@ class MysqlConnection {
     } catch (e) {
       debugPrint('MysqlConnection.disconnect: $e');
     }
+    try {
+      await _sshTunnelHandle?.release();
+    } catch (e) {
+      debugPrint('MysqlConnection.sshRelease: $e');
+    }
+    _sshTunnelHandle = null;
   }
 
   /// Best-effort close. The `mysql_client` driver may not allow graceful [close]
   /// while a query is in progress.
   Future<void> forceClose() async {
+    _generation++;
+    _connecting = null;
     _isConnected = false;
     _inTransaction = false;
     final c = _conn;
     _conn = null;
-    if (c == null) return;
+    // No early return when there is no connection yet: an attempt may be
+    // between opening the tunnel and the handshake, and the tunnel is ours to
+    // release (#1313).
     try {
-      if (c.connected) {
+      if (c != null && c.connected) {
         await c.close();
       }
     } catch (e) {
       debugPrint('MysqlConnection.forceClose: $e');
     }
+    try {
+      await _sshTunnelHandle?.release();
+    } catch (e) {
+      debugPrint('MysqlConnection.forceClose ssh: $e');
+    }
+    _sshTunnelHandle = null;
   }
 
   /// Session hint for Table Browser / tree (`MysqlSessionMode.readOnly`).
@@ -349,23 +482,43 @@ class MysqlConnection {
     await execute(sessionTransactionAccessModeSql(readOnly));
   }
 
+  /// Session settings of a pool slot: the read-only default and, when the slot
+  /// has one, a server-side limit on SELECT execution time.
+  Future<void> configureSession({
+    required bool readOnly,
+    Duration? statementTimeout,
+  }) async {
+    await setSessionReadOnly(readOnly);
+    if (statementTimeout != null) {
+      await execute(
+        'SET SESSION max_execution_time = ${statementTimeout.inMilliseconds}',
+      );
+    }
+  }
+
   /// `SET SESSION TRANSACTION READ ONLY` / `READ WRITE`.
   @visibleForTesting
   static String sessionTransactionAccessModeSql(bool readOnly) => readOnly
       ? 'SET SESSION TRANSACTION READ ONLY'
       : 'SET SESSION TRANSACTION READ WRITE';
 
-  Future<bool> testConnection() async {
+  /// Connects, runs `SELECT 1` and disconnects. [error] is the reason in the
+  /// user's terms (*Authentication failed. Check the username...*), not a
+  /// bare "failed" (#1308).
+  Future<({bool ok, String? error})> testConnection() async {
     try {
       await connect();
       if (_conn != null) {
         await execute('SELECT 1');
-        return true;
+        return (ok: true, error: null);
       }
-      return false;
+      return (ok: false, error: 'Connection could not be established.');
     } catch (e) {
       debugPrint('MysqlConnection.testConnection: $e');
-      return false;
+      return (
+        ok: false,
+        error: describeDatabaseError(e, driver: DatabaseDriver.mysql),
+      );
     } finally {
       await disconnect();
     }
@@ -375,18 +528,47 @@ class MysqlConnection {
     String sql, [
     Map<String, dynamic>? params,
     bool iterable = false,
-  ]) async {
-    if (!isConnected || _conn == null) {
-      throw StateError('Not connected to MySQL');
-    }
-    try {
-      final rs = await _conn!.execute(sql, params, iterable);
-      _noteTransactionSql(sql);
-      return rs;
-    } on TimeoutException {
-      unawaited(forceClose());
-      rethrow;
-    }
+  ]) =>
+      _run(sql, params, iterable, null);
+
+  Future<IResultSet> _run(
+    String sql,
+    Map<String, dynamic>? params,
+    bool iterable,
+    Duration? timeout,
+  ) {
+    return statementQueue.run(() async {
+      final seam = runStatementForTest;
+      final c = _conn;
+      if (seam == null && (!isConnected || c == null)) {
+        throw StateError('Not connected to MySQL');
+      }
+      try {
+        final pending = seam != null
+            ? seam(sql, params, iterable, timeout)
+            : c!.execute(sql, params, iterable);
+        final rs = timeout == null ? await pending : await pending.timeout(timeout);
+        _noteTransactionSql(sql);
+        return rs;
+      } on TimeoutException {
+        // The client cannot cancel a running statement, so the session is out of
+        // step after a timeout and is closed. Statements queued behind this one
+        // wait in the queue and are not affected.
+        unawaited(forceClose());
+        rethrow;
+      } catch (e) {
+        if (c != null && !c.connected) {
+          unawaited(forceClose());
+        } else {
+          final mapped = mapDatabaseError(e, driver: DatabaseDriver.mysql);
+          if (mapped is ConnectionLostException ||
+              mapped is HostUnreachableException) {
+            unawaited(forceClose());
+          }
+        }
+        rethrow;
+      }
+    });
   }
 
   /// Whether this session has an open `START TRANSACTION` / `BEGIN`.
@@ -432,22 +614,15 @@ class MysqlConnection {
     }
   }
 
-  /// Runs [execute] with an application-level [timeout] (driver limits still apply).
+  /// [execute] with [timeout] as the statement's own limit; it starts when the
+  /// statement starts, not while the statement waits behind another one.
   Future<IResultSet> executeWithTimeout(
     String sql, {
     Duration? timeout,
     Map<String, dynamic>? params,
     bool iterable = false,
-  }) async {
-    final f = execute(sql, params, iterable);
-    if (timeout == null) return f;
-    try {
-      return await f.timeout(timeout);
-    } on TimeoutException {
-      unawaited(forceClose());
-      rethrow;
-    }
-  }
+  }) =>
+      _run(sql, params, iterable, timeout);
 
   /// Lists user-visible databases (excludes typical system schemas).
   Future<List<String>> listDatabases() async {
@@ -744,3 +919,7 @@ class MysqlConnectionException implements Exception {
   @override
   String toString() => message;
 }
+
+/// Marks a connect attempt that [MysqlConnection.disconnect] or `forceClose`
+/// overtook; never leaves the library.
+class _ConnectSuperseded implements Exception {}

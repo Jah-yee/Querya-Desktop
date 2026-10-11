@@ -112,6 +112,43 @@ void main() {
     );
   });
 
+  testWidgets('a clicked tab has no focus ring until a key is pressed',
+      (tester) async {
+    var selected = 0;
+    await tester.pumpWidget(
+      stripShell(
+        child: material.StatefulBuilder(
+          builder: (context, setState) => QueryaTabStrip(
+            labels: const ['Server', 'SQL', 'History'],
+            selectedIndex: selected,
+            onSelected: (index) => setState(() => selected = index),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    material.Color ringOf(String label) {
+      final tab = tester.widget<material.AnimatedContainer>(
+        find.byKey(material.ValueKey('querya_tab_$label')),
+      );
+      final decoration = tab.decoration! as material.BoxDecoration;
+      return (decoration.border! as material.Border).top.color;
+    }
+
+    await tester.tap(find.byKey(const material.ValueKey('querya_tab_SQL')));
+    await tester.pumpAndSettle();
+
+    expect(selected, 1);
+    expect(ringOf('SQL'), material.Colors.transparent);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+
+    expect(selected, 2);
+    expect(ringOf('History'), isNot(material.Colors.transparent));
+  });
+
   testWidgets('renders sliding indicator under selected tab', (tester) async {
     await pumpSettledStrip(
       tester,
@@ -525,5 +562,137 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(scrollController.offset, greaterThan(0.0));
+  });
+
+  group('closing tabs (#1372)', () {
+    Future<List<int>> pumpClosable(
+      WidgetTester tester, {
+      bool Function(int index)? canClose,
+    }) async {
+      final closed = <int>[];
+      await tester.pumpWidget(
+        stripShell(
+          child: material.Center(
+            child: QueryaTabStrip(
+              labels: const ['Server', 'SQL', 'History'],
+              selectedIndex: 0,
+              onSelected: (_) {},
+              onClose: closed.add,
+              canClose: canClose,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+      return closed;
+    }
+
+    testWidgets('Delete closes the focused tab', (tester) async {
+      final closed = await pumpClosable(tester);
+
+      await tester.tap(find.bySemanticsLabel('SQL'));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pump();
+
+      expect(closed, [1]);
+    });
+
+    testWidgets('Backspace closes the focused tab', (tester) async {
+      final closed = await pumpClosable(tester);
+
+      await tester.tap(find.bySemanticsLabel('History'));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+      await tester.pump();
+
+      expect(closed, [2]);
+    });
+
+    testWidgets('Delete does nothing for a tab that cannot be closed',
+        (tester) async {
+      final closed = await pumpClosable(tester, canClose: (i) => i != 1);
+
+      await tester.tap(find.bySemanticsLabel('SQL'));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pump();
+
+      expect(closed, isEmpty);
+    });
+
+    testWidgets('the close button has a 24 px target and a labelled button',
+        (tester) async {
+      final closed = await pumpClosable(tester);
+
+      final target = tester.getSize(
+        find.byKey(const material.ValueKey('querya_tab_close_SQL')),
+      );
+      expect(target.width, greaterThanOrEqualTo(24));
+      expect(target.height, greaterThanOrEqualTo(24));
+
+      expect(find.bySemanticsLabel('Close SQL tab'), findsOneWidget);
+      expect(find.byTooltip('Close SQL tab'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const material.ValueKey('querya_tab_close_SQL')),
+      );
+      await tester.pump();
+      expect(closed, [1]);
+    });
+  });
+
+  testWidgets('eliminates IntrinsicWidth when parent width is bounded (#1342)',
+      (tester) async {
+    await tester.pumpWidget(
+      stripShell(
+        child: material.Center(
+          child: material.SizedBox(
+            width: 400,
+            child: QueryaTabStrip(
+              labels: const ['Tab 1', 'Tab 2'],
+              selectedIndex: 0,
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(QueryaTabStrip),
+        matching: find.byType(material.IntrinsicWidth),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('uses IntrinsicWidth fallback when parent width is unconstrained (#1342)',
+      (tester) async {
+    await tester.pumpWidget(
+      stripShell(
+        child: material.Center(
+          child: material.UnconstrainedBox(
+            child: QueryaTabStrip(
+              labels: const ['Tab 1', 'Tab 2'],
+              selectedIndex: 0,
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(QueryaTabStrip),
+        matching: find.byType(material.IntrinsicWidth),
+      ),
+      findsOneWidget,
+    );
   });
 }

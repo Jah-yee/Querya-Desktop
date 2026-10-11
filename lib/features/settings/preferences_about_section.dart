@@ -6,6 +6,7 @@ import 'package:querya_desktop/core/theme/theme_paths.dart';
 import 'package:querya_desktop/core/ui/querya_icons.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 class PreferencesAboutSection extends StatelessWidget {
   const PreferencesAboutSection({super.key});
@@ -83,51 +84,80 @@ class PreferencesAboutSection extends StatelessWidget {
         ).muted().xSmall(),
         const material.SizedBox(height: 12),
 
+        FutureBuilder<bool>(
+          future: AppDataRoot.isPortableMode(),
+          builder: (context, snapshot) {
+            final isPortable = snapshot.data ?? false;
+            if (!isPortable) return const SizedBox.shrink();
+            return material.Container(
+              margin: const material.EdgeInsets.only(bottom: 12),
+              padding: const material.EdgeInsets.all(12),
+              decoration: material.BoxDecoration(
+                color: theme.colorScheme.muted.withValues(alpha: 0.25),
+                borderRadius: material.BorderRadius.circular(6),
+                border: material.Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                ),
+              ),
+              child: material.Row(
+                crossAxisAlignment: material.CrossAxisAlignment.start,
+                children: [
+                  const QueryaBadge.status(
+                    'PORTABLE',
+                    status: QueryaBadgeStatus.info,
+                  ),
+                  const material.SizedBox(width: 10),
+                  material.Expanded(
+                    child: material.Column(
+                      crossAxisAlignment: material.CrossAxisAlignment.start,
+                      children: [
+                        const Text('Portable Mode Active')
+                            .semiBold()
+                            .small()
+                            .foreground(),
+                        const material.SizedBox(height: 2),
+                        const Text(
+                          'Data, settings, and themes are stored in the local QueryaData folder. Connection passwords remain protected in the host OS keyring.',
+                        ).muted().xSmall(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+
         material.Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Open app data folder',
+              icon: material.Icons.folder_outlined,
               onPressed: () async {
                 final dir = await AppDataRoot.applicationSupportDirectory();
                 await openDirectoryInFileManager(dir.path);
               },
-              child: const material.Row(
-                mainAxisSize: material.MainAxisSize.min,
-                children: [
-                  material.Icon(material.Icons.folder_outlined, size: 14),
-                  material.SizedBox(width: 6),
-                  material.Text('Open App Data Folder'),
-                ],
-              ),
+              size: QueryaControlSize.md,
             ),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Open themes folder',
+              icon: material.Icons.palette_outlined,
               onPressed: () async {
                 final dir = await ThemePaths.ensureUserThemesDirectory();
                 await openDirectoryInFileManager(dir.path);
               },
-              child: const material.Row(
-                mainAxisSize: material.MainAxisSize.min,
-                children: [
-                  material.Icon(material.Icons.palette_outlined, size: 14),
-                  material.SizedBox(width: 6),
-                  material.Text('Open Themes Folder'),
-                ],
-              ),
+              size: QueryaControlSize.md,
             ),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Open extensions folder',
+              icon: material.Icons.extension_outlined,
               onPressed: () async {
                 final dir = await ExtensionPaths.ensureExtensionsDirectory();
                 await openDirectoryInFileManager(dir.path);
               },
-              child: const material.Row(
-                mainAxisSize: material.MainAxisSize.min,
-                children: [
-                  material.Icon(material.Icons.extension_outlined, size: 14),
-                  material.SizedBox(width: 6),
-                  material.Text('Open Extensions Folder'),
-                ],
-              ),
+              size: QueryaControlSize.md,
             ),
           ],
         ),
@@ -140,33 +170,23 @@ class PreferencesAboutSection extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'GitHub repository',
+              icon: material.Icons.code_rounded,
               onPressed: () => launchUrlString(
                 githubRepoUrl,
                 mode: LaunchMode.externalApplication,
               ),
-              child: const material.Row(
-                mainAxisSize: material.MainAxisSize.min,
-                children: [
-                  material.Icon(material.Icons.code_rounded, size: 14),
-                  material.SizedBox(width: 6),
-                  material.Text('GitHub Repository'),
-                ],
-              ),
+              size: QueryaControlSize.md,
             ),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Report an issue',
+              icon: material.Icons.bug_report_outlined,
               onPressed: () => launchUrlString(
                 '$githubRepoUrl/issues',
                 mode: LaunchMode.externalApplication,
               ),
-              child: const material.Row(
-                mainAxisSize: material.MainAxisSize.min,
-                children: [
-                  material.Icon(material.Icons.bug_report_outlined, size: 14),
-                  material.SizedBox(width: 6),
-                  material.Text('Report an Issue'),
-                ],
-              ),
+              size: QueryaControlSize.md,
             ),
           ],
         ),

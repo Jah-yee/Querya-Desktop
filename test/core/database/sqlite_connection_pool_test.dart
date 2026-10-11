@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:querya_desktop/core/database/querya_database_exception.dart';
 import 'package:querya_desktop/core/database/sqlite_connection.dart';
 import 'package:querya_desktop/core/database/sqlite_connection_pool.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
@@ -24,12 +25,20 @@ class FakeSqliteConnection extends SqliteConnection {
   int forceCloseCount = 0;
   bool? openTransaction;
 
+  /// Thrown (once) by the next [connect].
+  Object? connectError;
+
   @override
   bool get isConnected => _connected;
 
   @override
   Future<void> connect() async {
     connectCount++;
+    final error = connectError;
+    if (error != null) {
+      connectError = null;
+      throw error;
+    }
     _connected = true;
   }
 
@@ -87,7 +96,8 @@ void main() {
       l3.release();
     });
 
-    test('throws StateError when all slots busy at maxEntries', () async {
+    test('throws PoolExhaustedException when all slots busy at maxEntries',
+        () async {
       final pool = SqliteConnectionPool(
         maxEntries: 2,
         createAndConnect: (row, {required mode}) async =>
@@ -99,7 +109,7 @@ void main() {
 
       expect(
         () => pool.acquire(_row(id: 3)),
-        throwsA(isA<StateError>()),
+        throwsA(isA<PoolExhaustedException>()),
       );
     });
 
@@ -209,5 +219,99 @@ void main() {
       sql.release();
       grid.release();
     });
+  });
+
+  group('lease after interrupt (#1213)', () {
+    test('releasing a lease from before an interrupt keeps the replacement',
+        () async {
+      final created = <FakeSqliteConnection>[];
+      final pool = SqliteConnectionPool(
+        idleDisposeDelay: const Duration(milliseconds: 20),
+        createAndConnect: (row, {required mode}) async {
+          final c = FakeSqliteConnection();
+          await c.connect();
+          created.add(c);
+          return c;
+        },
+      );
+      final r = _row();
+      final before = await pool.acquire(r, mode: SqliteSessionMode.readOnly);
+      pool.interrupt(r, mode: SqliteSessionMode.readOnly);
+      final after = await pool.acquire(r, mode: SqliteSessionMode.readOnly);
+
+      before.release();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final replacement = created.last;
+      expect(identical(after.connection, replacement), isTrue);
+      expect(replacement.isConnected, isTrue);
+      expect(replacement.disconnectCount, 0);
+
+      after.release();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(replacement.disconnectCount, 1);
+    });
+  });
+
+  group('a failed reconnect gives the lease back (#1306)', () {
+    test('the entry is still idle-disposed afterwards', () async {
+      final fake = FakeSqliteConnection();
+      final pool = SqliteConnectionPool(
+        idleDisposeDelay: const Duration(milliseconds: 20),
+        createAndConnect: (row, {required mode}) async {
+          await fake.connect();
+          return fake;
+        },
+      );
+      final first = await pool.acquire(_row());
+      await fake.forceClose(); // the file handle was lost
+      fake.connectError = StateError('file is gone');
+      await expectLater(pool.acquire(_row()), throwsStateError);
+
+      first.release();
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(fake.disconnectCount, 1);
+    });
+
+    test('failed reconnects do not exhaust the pool', () async {
+      final pool = SqliteConnectionPool(
+        maxEntries: 2,
+        createAndConnect: (row, {required mode}) async {
+          final c = FakeSqliteConnection();
+          await c.connect();
+          return c;
+        },
+      );
+      for (final id in [1, 2]) {
+        final lease = await pool.acquire(_row(id: id));
+        final fake = lease.connection as FakeSqliteConnection;
+        await fake.forceClose();
+        fake.connectError = StateError('down');
+        await expectLater(pool.acquire(_row(id: id)), throwsStateError);
+        lease.release();
+      }
+      final c = await pool.acquire(_row(id: 3));
+      expect(c.connection.isConnected, isTrue);
+      c.release();
+    });
+  });
+
+  test('a full pool is a typed exception with a hint, not Bad state (#1316)',
+      () async {
+    final pool = SqliteConnectionPool(
+      maxEntries: 1,
+      createAndConnect: (row, {required mode}) async =>
+          FakeSqliteConnection(id: row.id ?? 1),
+    );
+    await pool.acquire(_row(id: 1)); // in use
+
+    await expectLater(
+      pool.acquire(_row(id: 2)),
+      throwsA(isA<PoolExhaustedException>().having(
+          (e) => e.toString(),
+          'text',
+          allOf(contains('SQLite'), contains('Close tabs'),
+              isNot(contains('Bad state'))))),
+    );
   });
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart' as material;
+import 'package:querya_desktop/core/ui/querya_tooltip.dart';
 import 'package:querya_desktop/features/workspace/data_grid_staging_buffer.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Toolbar for managing staged data changes (Add, Delete, Revert, Save).
 class DataGridStagingToolbar extends StatelessWidget {
@@ -60,25 +62,26 @@ class DataGridStagingToolbar extends StatelessWidget {
                       child: material.Row(
                         mainAxisSize: material.MainAxisSize.min,
                         children: [
-                          _ToolbarButton(
+                          QueryaButton.ghost(
                             label: 'Add Row',
                             icon: material.Icons.add_rounded,
                             compact: compact,
+                            size: QueryaControlSize.sm,
+                            tone: QueryaButtonTone.normal,
                             tooltip: 'Add new row (Ctrl+Insert / Cmd+N)',
-                            onPressed:
-                                isSaving ? null : () => stagingBuffer.addRow(),
+                            onPressed: isSaving ? null : () => stagingBuffer.addRow(),
                           ),
                           const Gap(2),
-                          _ToolbarButton(
-                            label:
-                                isSelectedDeleted ? 'Restore Row' : 'Delete Row',
+                          QueryaButton.ghost(
+                            label: isSelectedDeleted ? 'Restore Row' : 'Delete Row',
                             icon: isSelectedDeleted
                                 ? material.Icons.restore_from_trash_rounded
                                 : material.Icons.remove_circle_outline_rounded,
                             compact: compact,
-                            color: isSelectedDeleted
-                                ? cs.primary
-                                : (hasSelectedRow ? cs.destructive : null),
+                            size: QueryaControlSize.sm,
+                            tone: isSelectedDeleted || !hasSelectedRow
+                                ? QueryaButtonTone.normal
+                                : QueryaButtonTone.destructive,
                             tooltip: isSelectedDeleted
                                 ? 'Restore marked row'
                                 : hasSelectedRow
@@ -100,30 +103,22 @@ class DataGridStagingToolbar extends StatelessWidget {
                     const Gap(6),
                     material.Tooltip(
                       message: 'Discard all pending edits (Ctrl+Z / Cmd+Z)',
-                      waitDuration: const Duration(milliseconds: 400),
+                      waitDuration: kQueryaTooltipWait,
                       child: compact
-                          ? OutlineButton(
-                              size: ButtonSize.small,
-                              density: ButtonDensity.icon,
-                              onPressed: isSaving
+                          ? QueryaButton.icon(
+                            icon: material.Icons.undo_rounded,
+                            tooltip: 'Revert All',
+                            size: QueryaControlSize.sm,
+                            onPressed: isSaving ? null : () => stagingBuffer.revertAll(),
+                          )
+                          : QueryaButton.secondary(
+                            label: 'Revert All',
+                            icon: material.Icons.undo_rounded,
+                            onPressed: isSaving
                                   ? null
                                   : () => stagingBuffer.revertAll(),
-                              child: const material.Icon(
-                                material.Icons.undo_rounded,
-                                size: 14,
-                              ),
-                            )
-                          : OutlineButton(
-                              size: ButtonSize.small,
-                              onPressed: isSaving
-                                  ? null
-                                  : () => stagingBuffer.revertAll(),
-                              leading: const material.Icon(
-                                material.Icons.undo_rounded,
-                                size: 14,
-                              ),
-                              child: const Text('Revert All'),
-                            ),
+                            size: QueryaControlSize.sm,
+                          ),
                     ),
                   ] else
                     material.Row(
@@ -143,28 +138,13 @@ class DataGridStagingToolbar extends StatelessWidget {
                     message: isDirty
                         ? 'Review and save pending changes (Ctrl+S / Cmd+S)'
                         : 'No pending changes to save',
-                    waitDuration: const Duration(milliseconds: 400),
-                    child: PrimaryButton(
-                      size: ButtonSize.small,
+                    waitDuration: kQueryaTooltipWait,
+                    child: QueryaButton.primary(
+                      label: isSaving ? 'Saving…' : (compact ? 'Save' : 'Save Changes'),
+                      icon: material.Icons.save_rounded,
+                      loading: isSaving,
                       onPressed: isDirty && !isSaving ? onApplyChanges : null,
-                      leading: isSaving
-                          ? material.SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: material.CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: cs.primaryForeground,
-                              ),
-                            )
-                          : const material.Icon(
-                              material.Icons.save_rounded,
-                              size: 14,
-                            ),
-                      child: Text(
-                        isSaving
-                            ? 'Saving…'
-                            : (compact ? 'Save' : 'Save Changes'),
-                      ),
+                      size: QueryaControlSize.sm,
                     ),
                   ),
                 ],
@@ -191,7 +171,7 @@ class _PendingBadge extends StatelessWidget {
         : '$count pending ${count == 1 ? 'change' : 'changes'}';
     return material.Tooltip(
       message: '$count pending ${count == 1 ? 'change' : 'changes'} not saved yet',
-      waitDuration: const Duration(milliseconds: 400),
+      waitDuration: kQueryaTooltipWait,
       child: material.Container(
         padding: const material.EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: material.BoxDecoration(
@@ -219,99 +199,5 @@ class _PendingBadge extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ToolbarButton extends material.StatefulWidget {
-  const _ToolbarButton({
-    required this.label,
-    required this.icon,
-    this.onPressed,
-    this.color,
-    this.tooltip,
-    this.compact = false,
-  });
-
-  /// Icon only; the label moves into the tooltip.
-  final bool compact;
-  final String label;
-  final material.IconData icon;
-  final material.VoidCallback? onPressed;
-  final material.Color? color;
-  final String? tooltip;
-
-  @override
-  material.State<_ToolbarButton> createState() => _ToolbarButtonState();
-}
-
-class _ToolbarButtonState extends material.State<_ToolbarButton> {
-  bool _isHovered = false;
-
-  @override
-  material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final enabled = widget.onPressed != null;
-    final fg = widget.color ?? cs.foreground;
-
-    material.Widget button = material.MouseRegion(
-      cursor: enabled
-          ? material.SystemMouseCursors.click
-          : material.SystemMouseCursors.basic,
-      onEnter: enabled ? (_) => setState(() => _isHovered = true) : null,
-      onExit: enabled ? (_) => setState(() => _isHovered = false) : null,
-      child: material.GestureDetector(
-        onTap: widget.onPressed,
-        behavior: material.HitTestBehavior.opaque,
-        child: material.Opacity(
-          opacity: enabled ? 1.0 : 0.4,
-          child: material.AnimatedContainer(
-            duration: context.motionDuration(QueryaMotion.fast),
-            curve: context.motionCurve(QueryaMotion.enter),
-            padding: const material.EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 4,
-            ),
-            decoration: material.BoxDecoration(
-              color: enabled && _isHovered
-                  ? (widget.color != null
-                      ? widget.color!.withValues(alpha: 0.12)
-                      : cs.muted.withValues(alpha: 0.5))
-                  : material.Colors.transparent,
-              borderRadius: material.BorderRadius.circular(4),
-            ),
-            child: material.Row(
-              mainAxisSize: material.MainAxisSize.min,
-              children: [
-                material.Icon(widget.icon, size: 14, color: fg),
-                if (!widget.compact) ...[
-                  const material.SizedBox(width: 4),
-                  material.Text(
-                    widget.label,
-                    style: material.TextStyle(
-                      fontSize: 12,
-                      fontWeight: material.FontWeight.w500,
-                      color: fg,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    final tooltip = widget.compact
-        ? '${widget.label}${widget.tooltip != null ? ' — ${widget.tooltip}' : ''}'
-        : widget.tooltip;
-    if (tooltip != null) {
-      button = material.Tooltip(
-        message: tooltip,
-        waitDuration: const Duration(milliseconds: 400),
-        child: button,
-      );
-    }
-
-    return button;
   }
 }

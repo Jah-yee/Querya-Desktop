@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:querya_desktop/core/database/mysql_connection.dart';
 import 'package:querya_desktop/core/database/mysql_connection_pool.dart';
+import 'package:querya_desktop/core/database/querya_database_exception.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 
 ConnectionRow _row({int? id = 1}) => ConnectionRow(
@@ -27,12 +28,20 @@ class FakeMysqlConnection extends MysqlConnection {
   bool? lastReadOnly;
   bool? openTransaction;
 
+  /// Thrown (once) by the next [connect].
+  Object? connectError;
+
   @override
   bool get isConnected => _connected;
 
   @override
   Future<void> connect({int connectTimeoutMs = 10000}) async {
     connectCount++;
+    final error = connectError;
+    if (error != null) {
+      connectError = null;
+      throw error;
+    }
     _connected = true;
   }
 
@@ -88,7 +97,7 @@ void main() {
       );
     });
 
-    test('rethrows StateError directly when pool exhausted', () async {
+    test('a full pool is a typed exception, not Bad state', () async {
       final pool = MysqlConnectionPool(
         maxEntries: 1,
         createAndConnect: (row, {required database, required mode}) async =>
@@ -99,7 +108,8 @@ void main() {
 
       expect(
         () => pool.acquire(_row(id: 2), database: 'db2'),
-        throwsA(isA<StateError>()),
+        throwsA(isA<PoolExhaustedException>().having(
+            (e) => e.toString(), 'text', allOf(contains('MySQL'), contains('Close tabs')))),
       );
     });
 
@@ -198,6 +208,175 @@ void main() {
       expect(await pool.hasOpenSqlTransaction(r, database: 'app'), isFalse);
       sql.release();
       grid.release();
+    });
+  });
+
+  group('lease after interrupt (#1213)', () {
+    test('releasing a lease from before an interrupt keeps the replacement',
+        () async {
+      final created = <FakeMysqlConnection>[];
+      final pool = MysqlConnectionPool(
+        idleDisposeDelay: const Duration(milliseconds: 20),
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakeMysqlConnection();
+          await c.connect();
+          created.add(c);
+          return c;
+        },
+      );
+      final r = _row();
+      final before = await pool.acquire(r,
+          database: 'app', mode: MysqlSessionMode.readOnly);
+      pool.interrupt(r, database: 'app', mode: MysqlSessionMode.readOnly);
+      final after = await pool.acquire(r,
+          database: 'app', mode: MysqlSessionMode.readOnly);
+
+      before.release();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final replacement = created.last;
+      expect(identical(after.connection, replacement), isTrue);
+      expect(replacement.isConnected, isTrue);
+      expect(replacement.disconnectCount, 0);
+
+      after.release();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(replacement.disconnectCount, 1);
+    });
+  });
+
+  group('concurrent reconnect (#1214)', () {
+    test('two callers on a dropped slot share one reconnect and one setting',
+        () async {
+      final pool = MysqlConnectionPool(
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakeMysqlConnection();
+          await c.connect();
+          return c;
+        },
+      );
+      final r = _row();
+      final first = await pool.acquire(r,
+          database: 'app', mode: MysqlSessionMode.readOnly);
+      final conn = first.connection as FakeMysqlConnection;
+      await conn.forceClose();
+
+      final leases = await Future.wait([
+        pool.acquire(r, database: 'app', mode: MysqlSessionMode.readOnly),
+        pool.acquire(r, database: 'app', mode: MysqlSessionMode.readOnly),
+      ]);
+
+      expect(conn.connectCount, 2, reason: 'initial connect plus one reconnect');
+      expect(conn.setReadOnlyCount, 1);
+      expect(identical(leases[0].connection, conn), isTrue);
+      expect(identical(leases[1].connection, conn), isTrue);
+      first.release();
+      for (final l in leases) {
+        l.release();
+      }
+    });
+
+    test('a dropped socket (isConnected = false) triggers reconnect upon acquire (#1373)',
+        () async {
+      final pool = MysqlConnectionPool(
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakeMysqlConnection();
+          await c.connect();
+          return c;
+        },
+      );
+      final r = _row();
+      final lease1 = await pool.acquire(r, database: 'testdb');
+      final conn = lease1.connection as FakeMysqlConnection;
+      expect(conn.connectCount, 1);
+      lease1.release();
+
+      // Simulate remote socket drop without client calling forceClose()
+      conn._connected = false;
+      expect(conn.isConnected, isFalse);
+
+      final lease2 = await pool.acquire(r, database: 'testdb');
+      expect(conn.connectCount, 2,
+          reason: 'reconnected because isConnected was false');
+      expect(conn.isConnected, isTrue);
+      lease2.release();
+    });
+  });
+
+  group('MCP session (#1217)', () {
+    test('MCP has its own slot, read-only, with a server-side statement timeout',
+        () async {
+      expect(MysqlSessionMode.mcp.isReadOnlySession, isTrue);
+      expect(MysqlSessionMode.readOnly.statementTimeout, isNull);
+      expect(MysqlSessionMode.mcp.statementTimeout, mcpStatementTimeout);
+    });
+
+    test('an MCP lease never shares the connection of the read-only slot',
+        () async {
+      final created = <FakeMysqlConnection>[];
+      final pool = MysqlConnectionPool(
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakeMysqlConnection();
+          await c.connect();
+          created.add(c);
+          return c;
+        },
+      );
+      final r = _row();
+      final ui = await pool.acquire(r,
+          database: 'app', mode: MysqlSessionMode.readOnly);
+      final mcp = await pool.acquire(r,
+          database: 'app', mode: MysqlSessionMode.mcp);
+      expect(identical(ui.connection, mcp.connection), isFalse);
+      expect(created.length, 2);
+      ui.release();
+      mcp.release();
+    });
+  });
+
+  group('a failed reconnect gives the lease back (#1306)', () {
+    test('the entry is still idle-disposed afterwards', () async {
+      final fake = FakeMysqlConnection();
+      final pool = MysqlConnectionPool(
+        idleDisposeDelay: const Duration(milliseconds: 20),
+        createAndConnect: (row, {required database, required mode}) async {
+          await fake.connect();
+          return fake;
+        },
+      );
+      final first = await pool.acquire(_row(), database: 'db');
+      await fake.forceClose(); // the session dropped
+      fake.connectError = StateError('server restarted');
+      await expectLater(
+          pool.acquire(_row(), database: 'db'), throwsStateError);
+
+      first.release();
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(fake.disconnectCount, 1);
+    });
+
+    test('failed reconnects do not exhaust the pool', () async {
+      final pool = MysqlConnectionPool(
+        maxEntries: 2,
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakeMysqlConnection();
+          await c.connect();
+          return c;
+        },
+      );
+      for (final db in ['a', 'b']) {
+        final lease = await pool.acquire(_row(), database: db);
+        final fake = lease.connection as FakeMysqlConnection;
+        await fake.forceClose();
+        fake.connectError = StateError('down');
+        await expectLater(
+            pool.acquire(_row(), database: db), throwsStateError);
+        lease.release();
+      }
+      // Both slots are idle, so a third key evicts one instead of failing.
+      final c = await pool.acquire(_row(), database: 'c');
+      expect(c.connection.isConnected, isTrue);
+      c.release();
     });
   });
 }

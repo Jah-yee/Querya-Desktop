@@ -6,7 +6,8 @@ import 'package:querya_desktop/core/layout/ui_scale_controller.dart';
 import 'package:querya_desktop/core/layout/ui_scale.dart';
 import 'package:querya_desktop/core/storage/app_settings.dart';
 import 'package:querya_desktop/shared/widgets/querya_dropdown.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/querya_text.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 /// Helper / hint copy in Preferences — readable on imported themes.
 class PreferencesHint extends StatelessWidget {
@@ -128,7 +129,7 @@ class PreferencesSwitchRow extends StatelessWidget {
         onTap: isInteractive ? () => onChanged!(!value) : null,
         borderRadius: material.BorderRadius.circular(6),
         child: material.Padding(
-          padding: const material.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          padding: const material.EdgeInsets.symmetric(vertical: 6),
           child: material.Row(
             crossAxisAlignment: material.CrossAxisAlignment.center,
             children: [

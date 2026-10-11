@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:querya_desktop/core/motion/querya_motion_scope.dart';
 import 'package:querya_desktop/core/sdui/sdui_form_builder.dart';
 import 'package:querya_desktop/core/sdui/sdui_form_schema.dart';
-import 'package:querya_desktop/core/sdui/sdui_tree_builder.dart';
+import 'package:querya_desktop/features/connections/sdui_tree_builder.dart';
 import 'package:querya_desktop/core/sdui/sdui_tree_schema.dart';
 import 'package:querya_desktop/core/ui/querya_icons.dart';
 
@@ -518,5 +518,67 @@ void main() {
       final text = tester.widget<material.Text>(find.text('users'));
       expect(text.style?.fontWeight, isNot(material.FontWeight.w600));
     });
+
+    testWidgets(
+        'caches visible rows and preserves itemExtent without scanning list on selection changes',
+        (tester) async {
+      final schema = SduiTreeSchema.fromJson(const {
+        'roots': [
+          {
+            'id': 'folder.tables',
+            'label': 'Tables',
+            'expandable': true,
+            'children': [
+              {
+                'id': 'table.users',
+                'label': 'users',
+                'node_type': 'table',
+              },
+            ],
+          },
+        ],
+      });
+
+      var selected = 'table.users';
+      late material.StateSetter parentSetState;
+
+      await tester.pumpWidget(
+        queryaThemeTestShell(
+          child: material.StatefulBuilder(
+            builder: (context, setState) {
+              parentSetState = setState;
+              return material.Scaffold(
+                body: SduiTreeBuilder(
+                  schema: schema,
+                  selectedNodeId: selected,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final state = tester.state<SduiTreeBuilderState>(
+        find.byType(SduiTreeBuilder),
+      );
+      final initialRows = state.debugVisibleRows;
+      expect(initialRows, isNotNull);
+      expect(initialRows!.length, 1);
+
+      // Verify itemExtent is set to 28 when there are no errors
+      final listView = tester.widget<material.ListView>(
+        find.byType(material.ListView),
+      );
+      expect(listView.itemExtent, 28);
+
+      // Change selection in parent: rebuilds SduiTreeBuilder without changing roots/expansion
+      parentSetState(() => selected = 'other');
+      await tester.pump();
+
+      // Cached rows must be reused by identity
+      expect(state.debugVisibleRows, same(initialRows));
+    });
   });
 }
+

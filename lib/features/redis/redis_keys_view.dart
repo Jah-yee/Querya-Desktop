@@ -5,7 +5,19 @@ import 'package:querya_desktop/core/database/redis_connection.dart';
 import 'package:querya_desktop/core/theme/querya_semantic_palette.dart';
 import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
+
+import 'redis_key_tree_engine.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+
+export 'redis_key_tree_engine.dart' show RedisKeyInfo;
+
+/// View presentation mode for Redis keys: flat list or folder tree.
+enum RedisKeyViewMode {
+  flat,
+  tree,
+}
 
 /// Paginated key browser for a Redis database.
 class RedisKeysView extends material.StatefulWidget {
@@ -27,7 +39,7 @@ class RedisKeysView extends material.StatefulWidget {
 }
 
 class _RedisKeysViewState extends material.State<RedisKeysView> {
-  List<_KeyInfo> _keys = [];
+  List<RedisKeyInfo> _keys = [];
   bool _loading = true;
   bool _loadingMore = false;
   String? _error;
@@ -35,7 +47,10 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
   bool _hasMore = true;
   int _dbSize = 0;
 
+  RedisKeyViewMode _viewMode = RedisKeyViewMode.flat;
   final _filterController = material.TextEditingController();
+  final _delimiterController = material.TextEditingController(text: ':');
+  final Set<String> _expandedFolders = <String>{};
   String _matchPattern = '*';
 
   @override
@@ -47,6 +62,7 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
   @override
   void dispose() {
     _filterController.dispose();
+    _delimiterController.dispose();
     super.dispose();
   }
 
@@ -64,7 +80,13 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
       _dbSize = await widget.connection.dbSize();
       await _scanBatch();
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        if (_viewMode == RedisKeyViewMode.tree && _expandedFolders.isEmpty) {
+          final tree = _buildTree();
+          _expandedFolders.addAll(_collectAllFolderPrefixes(tree.rootFolders));
+        }
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -95,14 +117,14 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
         iterations < maxIterations);
 
     // One pipelined burst of TYPE+TTL (not N× Future.wait round-trips).
-    List<_KeyInfo> infos;
+    List<RedisKeyInfo> infos;
     String? typeTtlError;
     if (accumulatedKeys.isNotEmpty) {
       try {
         final metas = await widget.connection.typesAndTtls(accumulatedKeys);
         infos = [
           for (var i = 0; i < accumulatedKeys.length; i++)
-            _KeyInfo(
+            RedisKeyInfo(
               name: accumulatedKeys[i],
               type: metas[i].type,
               ttl: metas[i].ttl,
@@ -112,7 +134,7 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
         // Still show keys with unknown type/TTL; surface the failure non-blocking.
         infos = [
           for (final name in accumulatedKeys)
-            _KeyInfo(name: name, type: 'unknown', ttl: -1),
+            RedisKeyInfo(name: name, type: 'unknown', ttl: -1),
         ];
         typeTtlError = 'Failed to load key types/TTLs: $e';
       }
@@ -155,7 +177,7 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
     _load();
   }
 
-  Future<void> _deleteKey(_KeyInfo keyInfo) async {
+  Future<void> _deleteKey(RedisKeyInfo keyInfo) async {
     if (widget.isReadOnly) return;
     final confirmed = await confirmDestructiveAction(
       context: context,
@@ -177,6 +199,97 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
     }
   }
 
+  Future<void> _deleteFolder(RedisKeyFolderNode folder) async {
+    if (widget.isReadOnly) return;
+    final keys = folder.allKeys;
+    if (keys.isEmpty) return;
+
+    final count = keys.length;
+    final confirmed = await confirmDestructiveAction(
+      context: context,
+      type: DestructiveSqlType.redisDel,
+      targetName:
+          '${folder.fullPrefix}* ($count ${count == 1 ? 'key' : 'keys'})',
+      commandPreview:
+          'DEL ${keys.map((k) => k.name.label).take(5).join(' ')}${count > 5 ? ' ... ($count total)' : ''}',
+      connectionName: widget.connection.name,
+    );
+    if (!mounted || !confirmed) return;
+    try {
+      await widget.connection.selectDatabase(widget.database);
+      await widget.connection.delMany(keys.map((k) => k.name));
+      setState(() {
+        final toRemove = keys.map((k) => k.name).toSet();
+        _keys.removeWhere((k) => toRemove.contains(k.name));
+        _dbSize = (_dbSize - count).clamp(0, _dbSize);
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Delete folder failed: $e');
+    }
+  }
+
+  RedisKeyTree _buildTree() {
+    return RedisKeyTreeEngine.buildTree(
+      keys: _keys,
+      delimiter: _delimiterController.text,
+    );
+  }
+
+  Set<String> _collectAllFolderPrefixes(List<RedisKeyFolderNode> folders) {
+    final result = <String>{};
+    void add(RedisKeyFolderNode f) {
+      result.add(f.fullPrefix);
+      for (final sub in f.folders) {
+        add(sub);
+      }
+    }
+
+    for (final f in folders) {
+      add(f);
+    }
+    return result;
+  }
+
+  List<_TreeItem> _buildVisibleTreeItems(
+    RedisKeyTree tree,
+    Set<String> expandedFolders,
+  ) {
+    final items = <_TreeItem>[];
+
+    void addFolder(RedisKeyFolderNode folder, int depth) {
+      final isExpanded = expandedFolders.contains(folder.fullPrefix);
+      items.add(_FolderTreeItem(
+        folder: folder,
+        depth: depth,
+        isExpanded: isExpanded,
+      ));
+
+      if (isExpanded) {
+        for (final sub in folder.folders) {
+          addFolder(sub, depth + 1);
+        }
+        for (final leaf in folder.leaves) {
+          items.add(_LeafTreeItem(
+            leaf: leaf,
+            depth: depth + 1,
+          ));
+        }
+      }
+    }
+
+    for (final f in tree.rootFolders) {
+      addFolder(f, 0);
+    }
+    for (final l in tree.rootLeaves) {
+      items.add(_LeafTreeItem(
+        leaf: l,
+        depth: 0,
+      ));
+    }
+
+    return items;
+  }
+
   // ─── Build ──────────────────────────────────────────────────────────────
 
   @override
@@ -184,19 +297,139 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
     final cs = Theme.of(context).colorScheme;
 
     if (_loading && _keys.isEmpty) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Scanning keys...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Scanning keys...',
         ),
+      );
+    }
+
+    final material.Widget contentWidget;
+    if (_keys.isEmpty) {
+      contentWidget = material.Center(
+        child: material.Padding(
+          padding: const material.EdgeInsets.all(48),
+          child: material.Column(
+            mainAxisSize: material.MainAxisSize.min,
+            children: [
+              Text(_hasMore
+                      ? 'No keys found in scanned range'
+                      : 'No keys found')
+                  .muted(),
+              if (_hasMore) ...[
+                const Gap(16),
+                QueryaButton.secondary(
+                  label: _loadingMore ? 'Scanning...' : 'Continue scanning',
+                  onPressed: _loadingMore ? null : _loadMore,
+                  size: QueryaControlSize.sm,
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    } else if (_viewMode == RedisKeyViewMode.flat) {
+      contentWidget = material.ListView.builder(
+        padding: const material.EdgeInsets.all(16),
+        cacheExtent: 400,
+        itemCount: _keys.length + (_hasMore ? 1 : 0),
+        itemBuilder: (context, i) {
+          final shadcnCs = shadcn.Theme.of(context).colorScheme;
+          if (i >= _keys.length) {
+            return material.Padding(
+              padding: const material.EdgeInsets.only(top: 12),
+              child: material.Center(
+                child: QueryaButton.secondary(
+                  label: _loadingMore ? 'Loading...' : 'Load more (${_keys.length} / $_dbSize)',
+                  onPressed: _loadingMore ? null : _loadMore,
+                  size: QueryaControlSize.sm,
+                ),
+              ),
+            );
+          }
+          return material.Padding(
+            padding: EdgeInsets.only(top: i > 0 ? 4 : 0),
+            child: _KeyTile(
+              keyInfo: _keys[i],
+              colorScheme: cs,
+              shadcnCs: shadcnCs,
+              palette: context.semanticPalette,
+              onTap: () => widget.onKeyTap?.call(_keys[i].name, _keys[i].type),
+              onDelete: widget.isReadOnly ? null : () => _deleteKey(_keys[i]),
+            ),
+          );
+        },
+      );
+    } else {
+      final tree = _buildTree();
+      final visibleItems = _buildVisibleTreeItems(tree, _expandedFolders);
+
+      contentWidget = material.ListView.builder(
+        padding: const material.EdgeInsets.all(16),
+        cacheExtent: 400,
+        itemCount: visibleItems.length + (_hasMore ? 1 : 0),
+        itemBuilder: (context, i) {
+          final shadcnCs = shadcn.Theme.of(context).colorScheme;
+          if (i >= visibleItems.length) {
+            return material.Padding(
+              padding: const material.EdgeInsets.only(top: 12),
+              child: material.Center(
+                child: QueryaButton.secondary(
+                  label: _loadingMore ? 'Loading...' : 'Load more (${_keys.length} / $_dbSize)',
+                  onPressed: _loadingMore ? null : _loadMore,
+                  size: QueryaControlSize.sm,
+                ),
+              ),
+            );
+          }
+          final item = visibleItems[i];
+          if (item is _FolderTreeItem) {
+            return material.Padding(
+              padding: EdgeInsets.only(top: i > 0 ? 4 : 0),
+              child: _FolderTile(
+                folder: item.folder,
+                isExpanded: item.isExpanded,
+                depth: item.depth,
+                colorScheme: cs,
+                shadcnCs: shadcnCs,
+                palette: context.semanticPalette,
+                onToggle: () {
+                  setState(() {
+                    if (_expandedFolders.contains(item.folder.fullPrefix)) {
+                      _expandedFolders.remove(item.folder.fullPrefix);
+                    } else {
+                      _expandedFolders.add(item.folder.fullPrefix);
+                    }
+                  });
+                },
+                onDelete: widget.isReadOnly
+                    ? null
+                    : () => _deleteFolder(item.folder),
+              ),
+            );
+          } else if (item is _LeafTreeItem) {
+            return material.Padding(
+              padding: EdgeInsets.only(top: i > 0 ? 4 : 0),
+              child: _KeyTile(
+                keyInfo: item.leaf.keyInfo,
+                displayName: item.leaf.name,
+                indent: 16.0 * item.depth,
+                colorScheme: cs,
+                shadcnCs: shadcnCs,
+                palette: context.semanticPalette,
+                onTap: () => widget.onKeyTap?.call(
+                  item.leaf.keyInfo.name,
+                  item.leaf.keyInfo.type,
+                ),
+                onDelete: widget.isReadOnly
+                    ? null
+                    : () => _deleteKey(item.leaf.keyInfo),
+              ),
+            );
+          }
+          return const material.SizedBox.shrink();
+        },
       );
     }
 
@@ -204,72 +437,9 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
       crossAxisAlignment: material.CrossAxisAlignment.stretch,
       children: [
         _buildFilterBar(cs),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         if (_error != null) _buildErrorBanner(cs),
-        material.Expanded(
-          child: _keys.isEmpty
-              ? material.Center(
-                  child: material.Padding(
-                    padding: const material.EdgeInsets.all(48),
-                    child: material.Column(
-                      mainAxisSize: material.MainAxisSize.min,
-                      children: [
-                        Text(_hasMore
-                                ? 'No keys found in scanned range'
-                                : 'No keys found')
-                            .muted(),
-                        if (_hasMore) ...[
-                          const Gap(16),
-                          OutlineButton(
-                            onPressed: _loadingMore ? null : _loadMore,
-                            size: ButtonSize.small,
-                            child: _loadingMore
-                                ? const Text('Scanning...')
-                                : const Text('Continue scanning'),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                )
-              : material.ListView.builder(
-                  padding: const material.EdgeInsets.all(16),
-                  cacheExtent: 400,
-                  itemCount: _keys.length + (_hasMore ? 1 : 0),
-                  itemBuilder: (context, i) {
-                    final shadcnCs = shadcn.Theme.of(context).colorScheme;
-                    if (i >= _keys.length) {
-                      return material.Padding(
-                        padding: const material.EdgeInsets.only(top: 12),
-                        child: material.Center(
-                          child: OutlineButton(
-                            onPressed: _loadingMore ? null : _loadMore,
-                            size: ButtonSize.small,
-                            child: _loadingMore
-                                ? const Text('Loading...')
-                                : Text(
-                                    'Load more (${_keys.length} / $_dbSize)'),
-                          ),
-                        ),
-                      );
-                    }
-                    return material.Padding(
-                      padding: EdgeInsets.only(top: i > 0 ? 4 : 0),
-                      child: _KeyTile(
-                        keyInfo: _keys[i],
-                        colorScheme: cs,
-                        shadcnCs: shadcnCs,
-                        palette: context.semanticPalette,
-                        onTap: () =>
-                            widget.onKeyTap?.call(_keys[i].name, _keys[i].type),
-                        onDelete: widget.isReadOnly
-                            ? null
-                            : () => _deleteKey(_keys[i]),
-                      ),
-                    );
-                  },
-                ),
-        ),
+        material.Expanded(child: contentWidget),
         _buildStatusBar(cs),
       ],
     );
@@ -285,28 +455,135 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
       ),
       child: Row(
         children: [
-          material.Icon(material.Icons.search_rounded,
-              size: 18, color: shadcnCs.mutedForeground),
-          const Gap(10),
           material.Expanded(
-            child: TextField(
+            child: QueryaSearchField(
               controller: _filterController,
-              placeholder: const Text('Pattern e.g. user:* or session:*'),
+              placeholder: 'Pattern e.g. user:* or session:*',
               onSubmitted: (_) => _applyFilter(),
+              onChanged: (val) {
+                if (val.isEmpty) _clearFilter();
+              },
             ),
           ),
           const Gap(8),
-          OutlineButton(
+          QueryaButton.secondary(
+            label: 'Search',
             onPressed: _applyFilter,
-            size: ButtonSize.small,
-            child: const Text('Search'),
+            size: QueryaControlSize.sm,
           ),
           const Gap(4),
-          GhostButton(
+          QueryaButton.ghost(
+            label: 'Clear',
             onPressed: _clearFilter,
-            size: ButtonSize.small,
-            child: const Text('Clear'),
+            size: QueryaControlSize.sm,
           ),
+          material.Container(
+            height: 20,
+            width: 1,
+            margin: const material.EdgeInsets.symmetric(horizontal: 8),
+            color: cs.border.withValues(alpha: 0.3),
+          ),
+          material.SizedBox(
+            height: 28,
+            child: material.SegmentedButton<RedisKeyViewMode>(
+              segments: const [
+                material.ButtonSegment(
+                  value: RedisKeyViewMode.flat,
+                  label: material.Text('Flat'),
+                  icon:
+                      material.Icon(material.Icons.view_list_rounded, size: 14),
+                ),
+                material.ButtonSegment(
+                  value: RedisKeyViewMode.tree,
+                  label: material.Text('Tree'),
+                  icon: material.Icon(material.Icons.account_tree_rounded,
+                      size: 14),
+                ),
+              ],
+              selected: {_viewMode},
+              onSelectionChanged: (selected) {
+                setState(() {
+                  _viewMode = selected.first;
+                  if (_viewMode == RedisKeyViewMode.tree &&
+                      _expandedFolders.isEmpty) {
+                    final tree = _buildTree();
+                    _expandedFolders
+                        .addAll(_collectAllFolderPrefixes(tree.rootFolders));
+                  }
+                });
+              },
+              showSelectedIcon: false,
+              style: material.SegmentedButton.styleFrom(
+                padding: const material.EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 0),
+                visualDensity: material.VisualDensity.compact,
+              ),
+            ),
+          ),
+          if (_viewMode == RedisKeyViewMode.tree) ...[
+            const Gap(8),
+            material.Row(
+              mainAxisSize: material.MainAxisSize.min,
+              children: [
+                material.Text(
+                  'Sep:',
+                  style: material.TextStyle(
+                    fontSize: 12,
+                    color: shadcnCs.mutedForeground,
+                  ),
+                ),
+                const Gap(4),
+                material.SizedBox(
+                  width: 36,
+                  height: 28,
+                  child: material.TextField(
+                    controller: _delimiterController,
+                    textAlign: material.TextAlign.center,
+                    style: const material.TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                    ),
+                    decoration: material.InputDecoration(
+                      contentPadding: material.EdgeInsets.zero,
+                      isDense: true,
+                      border: material.OutlineInputBorder(
+                        borderRadius: material.BorderRadius.circular(6),
+                        borderSide: material.BorderSide(
+                          color: cs.border.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      focusedBorder: material.OutlineInputBorder(
+                        borderRadius: material.BorderRadius.circular(6),
+                        borderSide: material.BorderSide(color: cs.primary),
+                      ),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+            const Gap(4),
+            QueryaButton.icon(
+              icon: _expandedFolders.isEmpty
+                  ? material.Icons.unfold_more_rounded
+                  : material.Icons.unfold_less_rounded,
+              tooltip: _expandedFolders.isEmpty
+                  ? 'Expand all folders'
+                  : 'Collapse all folders',
+              size: QueryaControlSize.sm,
+              onPressed: () {
+                setState(() {
+                  if (_expandedFolders.isEmpty) {
+                    final tree = _buildTree();
+                    _expandedFolders.addAll(
+                        _collectAllFolderPrefixes(tree.rootFolders));
+                  } else {
+                    _expandedFolders.clear();
+                  }
+                });
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -359,6 +636,10 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
             const Text('Read-only session').muted().small(),
           ],
           const Spacer(),
+          if (_viewMode == RedisKeyViewMode.tree) ...[
+            Text('Tree (sep: "${_delimiterController.text}")').muted().small(),
+            const Gap(16),
+          ],
           Text('${_keys.length} loaded').muted().small(),
           if (_hasMore) ...[
             const Gap(8),
@@ -370,17 +651,143 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
   }
 }
 
-// ─── Key info model ─────────────────────────────────────────────────────────
+// ─── Tree item model ────────────────────────────────────────────────────────
 
-class _KeyInfo {
-  const _KeyInfo({
-    required this.name,
-    required this.type,
-    required this.ttl,
+sealed class _TreeItem {
+  int get depth;
+}
+
+class _FolderTreeItem extends _TreeItem {
+  _FolderTreeItem({
+    required this.folder,
+    required this.depth,
+    required this.isExpanded,
   });
-  final RedisBulkValue name;
-  final String type;
-  final int ttl; // -1 = no expiry, -2 = key doesn't exist
+
+  final RedisKeyFolderNode folder;
+  @override
+  final int depth;
+  final bool isExpanded;
+}
+
+class _LeafTreeItem extends _TreeItem {
+  _LeafTreeItem({
+    required this.leaf,
+    required this.depth,
+  });
+
+  final RedisKeyLeafNode leaf;
+  @override
+  final int depth;
+}
+
+// ─── Folder tile widget ─────────────────────────────────────────────────────
+
+class _FolderTile extends material.StatelessWidget {
+  const _FolderTile({
+    required this.folder,
+    required this.isExpanded,
+    required this.depth,
+    required this.colorScheme,
+    required this.shadcnCs,
+    required this.palette,
+    required this.onToggle,
+    this.onDelete,
+  });
+
+  final RedisKeyFolderNode folder;
+  final bool isExpanded;
+  final int depth;
+  final ColorScheme colorScheme;
+  final shadcn.ColorScheme shadcnCs;
+  final QueryaSemanticPalette palette;
+  final material.VoidCallback onToggle;
+  final material.VoidCallback? onDelete;
+
+  @override
+  material.Widget build(material.BuildContext context) {
+    final cs = colorScheme;
+    final indent = 16.0 * depth;
+
+    return material.Material(
+      color: cs.card.withValues(alpha: 0.6),
+      borderRadius: material.BorderRadius.circular(8),
+      clipBehavior: material.Clip.antiAlias,
+      child: material.InkWell(
+        onTap: onToggle,
+        hoverColor: shadcnCs.muted.withValues(alpha: 0.15),
+        borderRadius: material.BorderRadius.circular(8),
+        child: material.Padding(
+          padding: material.EdgeInsets.only(
+            left: 12 + indent,
+            right: 16,
+            top: 8,
+            bottom: 8,
+          ),
+          child: material.Row(
+            children: [
+              material.AnimatedRotation(
+                turns: isExpanded ? 0.25 : 0.0,
+                duration: context.motionDuration(QueryaMotion.treeExpand),
+                curve: context.motionCurve(QueryaMotion.treeExpandCurve),
+                child: material.Icon(
+                  material.Icons.chevron_right_rounded,
+                  size: 18,
+                  color: shadcnCs.mutedForeground,
+                ),
+              ),
+              const Gap(6),
+              material.Icon(
+                isExpanded
+                    ? material.Icons.folder_open_rounded
+                    : material.Icons.folder_rounded,
+                size: 18,
+                color: palette.action,
+              ),
+              const Gap(8),
+              material.Text(
+                folder.name,
+                style: material.TextStyle(
+                  fontSize: 13,
+                  fontWeight: material.FontWeight.w600,
+                  fontFamily: 'monospace',
+                  color: cs.foreground,
+                ),
+              ),
+              const Gap(8),
+              material.Container(
+                padding: const material.EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 2),
+                decoration: material.BoxDecoration(
+                  color: shadcnCs.muted.withValues(alpha: 0.3),
+                  borderRadius: material.BorderRadius.circular(10),
+                ),
+                child: material.Text(
+                  folder.totalKeyCount == 1
+                      ? '1 key'
+                      : '${folder.totalKeyCount} keys',
+                  style: material.TextStyle(
+                    fontSize: 11,
+                    color: shadcnCs.mutedForeground,
+                    fontWeight: material.FontWeight.w500,
+                  ),
+                ),
+              ),
+              const material.Spacer(),
+              if (onDelete != null)
+                QueryaIconButton(
+icon: const material.Icon(material.Icons.delete_outline_rounded),
+tooltip: 'Delete folder (${folder.totalKeyCount} keys)',
+size: QueryaControlSize.sm,
+isDestructive: true,
+onPressed: onDelete,
+),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Key tile widget ────────────────────────────────────────────────────────
@@ -393,14 +800,18 @@ class _KeyTile extends material.StatelessWidget {
     required this.palette,
     required this.onTap,
     this.onDelete,
+    this.displayName,
+    this.indent = 0.0,
   });
 
-  final _KeyInfo keyInfo;
+  final RedisKeyInfo keyInfo;
   final ColorScheme colorScheme;
   final shadcn.ColorScheme shadcnCs;
   final QueryaSemanticPalette palette;
   final material.VoidCallback onTap;
   final material.VoidCallback? onDelete;
+  final String? displayName;
+  final double indent;
 
   static Color _typeColor(String type, QueryaSemanticPalette palette) {
     switch (type) {
@@ -460,8 +871,12 @@ class _KeyTile extends material.StatelessWidget {
         hoverColor: shadcnCs.muted.withValues(alpha: 0.15),
         borderRadius: material.BorderRadius.circular(8),
         child: material.Padding(
-          padding:
-              const material.EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: material.EdgeInsets.only(
+            left: 16 + indent,
+            right: 16,
+            top: 10,
+            bottom: 10,
+          ),
           child: material.Row(
             children: [
               material.Icon(_typeIcon(ki.type), size: 16, color: typeCol),
@@ -485,14 +900,17 @@ class _KeyTile extends material.StatelessWidget {
               ),
               const Gap(10),
               material.Expanded(
-                child: material.Text(
-                  ki.name.label,
-                  overflow: material.TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: material.TextStyle(
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    color: cs.foreground,
+                child: material.Tooltip(
+                  message: ki.name.label,
+                  child: material.Text(
+                    displayName ?? ki.name.label,
+                    overflow: material.TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: material.TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                      color: cs.foreground,
+                    ),
                   ),
                 ),
               ),
@@ -515,19 +933,13 @@ class _KeyTile extends material.StatelessWidget {
                 ),
               const Gap(4),
               if (onDelete != null)
-                material.IconButton(
-                  onPressed: onDelete,
-                  icon: material.Icon(
-                    material.Icons.delete_rounded,
-                    size: 15,
-                    color: palette.destructive,
-                  ),
-                  padding: const material.EdgeInsets.all(4),
-                  constraints: const material.BoxConstraints(
-                      minWidth: 28, minHeight: 28),
-                  splashRadius: 18,
-                  tooltip: 'Delete key',
-                ),
+                QueryaIconButton(
+icon: const material.Icon(material.Icons.delete_rounded),
+tooltip: 'Delete key',
+size: QueryaControlSize.sm,
+isDestructive: true,
+onPressed: onDelete,
+),
               material.Icon(material.Icons.chevron_right_rounded,
                   size: 18, color: shadcnCs.mutedForeground),
             ],

@@ -6,7 +6,9 @@ import 'package:querya_desktop/core/motion/querya_motion.dart';
 import 'package:querya_desktop/core/motion/querya_motion_context.dart';
 import 'package:querya_desktop/core/motion/querya_spring.dart';
 import 'package:querya_desktop/core/motion/querya_spring_controller.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+import 'package:querya_desktop/core/ui/querya_tooltip.dart';
 
 /// A compact, keyboard-operable tab strip using Querya's motion and theme.
 ///
@@ -25,6 +27,8 @@ class QueryaTabStrip extends material.StatefulWidget {
     this.onAdd,
     this.canClose,
     this.scrollController,
+    this.dense = false,
+    this.size,
   }) : assert(labels.length > 0);
 
   final List<String> labels;
@@ -35,6 +39,15 @@ class QueryaTabStrip extends material.StatefulWidget {
   final bool Function(int index)? canClose;
   final material.ScrollController? scrollController;
 
+  /// Tighter strip for toolbars: the same as [QueryaControlSize.sm], as tall
+  /// as a dense icon button instead of a full tab row.
+  final bool dense;
+
+  /// Control size (tab height). Without one: [QueryaControlSize.sm] when
+  /// [dense], else the nearest [QueryaControlScope], else
+  /// [QueryaControlSize.lg].
+  final QueryaControlSize? size;
+
   @override
   material.State<QueryaTabStrip> createState() => QueryaTabStripState();
 }
@@ -43,6 +56,10 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
     with material.TickerProviderStateMixin {
   late List<material.FocusNode> _focusNodes;
   late List<bool> _focused;
+
+  /// The tab whose focus came from a click: it takes focus (so arrow keys
+  /// work) but draws no ring until a key is pressed (#1438).
+  int? _pointerFocusedIndex;
   late List<material.GlobalKey> _tabKeys;
   final material.GlobalKey _stripKey = material.GlobalKey();
 
@@ -167,8 +184,23 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
     _focusNodes[index].requestFocus();
   }
 
+  bool _canCloseAt(int index) =>
+      widget.onClose != null &&
+      (widget.canClose == null || widget.canClose!(index));
+
   material.KeyEventResult _onKeyEvent(int index, KeyEvent event) {
     if (event is! KeyDownEvent) return material.KeyEventResult.ignored;
+    if (_pointerFocusedIndex != null) {
+      setState(() => _pointerFocusedIndex = null);
+    }
+
+    // Delete / Backspace close the focused tab, as the close button does.
+    if (event.logicalKey == LogicalKeyboardKey.delete ||
+        event.logicalKey == LogicalKeyboardKey.backspace) {
+      if (!_canCloseAt(index)) return material.KeyEventResult.ignored;
+      widget.onClose!(index);
+      return material.KeyEventResult.handled;
+    }
 
     final last = widget.labels.length - 1;
     final int? target = switch (event.logicalKey) {
@@ -229,7 +261,12 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
 
   @override
   material.Widget build(material.BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final colors = context.colors;
+    final controlSize = widget.size ??
+        (widget.dense
+            ? QueryaControlSize.sm
+            : (QueryaControlScope.maybeOf(context) ?? QueryaControlSize.lg));
+    final tabHeight = controlSize.scaledHeight(context);
     _scheduleIndicatorSync();
 
     final tabs = material.Row(
@@ -237,42 +274,55 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
       children: [
         ...List.generate(widget.labels.length, (index) {
           final selected = widget.selectedIndex == index;
-          final focused = _focused[index];
+          final focused =
+              _focused[index] && _pointerFocusedIndex != index;
           final label = widget.labels[index];
-          final showClose = widget.onClose != null &&
-              (widget.canClose == null || widget.canClose!(index));
+          final showClose = _canCloseAt(index);
           return material.Padding(
             padding: material.EdgeInsets.only(left: index == 0 ? 0 : 6),
             child: material.KeyedSubtree(
               key: _tabKeys[index],
               child: material.Focus(
                 focusNode: _focusNodes[index],
-                onFocusChange: (value) =>
-                    setState(() => _focused[index] = value),
+                onFocusChange: (value) => setState(() {
+                  _focused[index] = value;
+                  if (!value && _pointerFocusedIndex == index) {
+                    _pointerFocusedIndex = null;
+                  }
+                }),
                 onKeyEvent: (_, event) => _onKeyEvent(index, event),
                 child: material.Semantics(
                   button: true,
                   selected: selected,
                   label: label,
                   onTap: () => _selectAndFocus(index),
-                  child: material.ExcludeSemantics(
-                    child: material.MouseRegion(
+                  child: material.MouseRegion(
                       cursor: material.SystemMouseCursors.click,
                       child: material.GestureDetector(
                         excludeFromSemantics: true,
                         behavior: material.HitTestBehavior.opaque,
-                        onTap: () => _selectAndFocus(index),
+                        onTap: () {
+                          _pointerFocusedIndex = index;
+                          _selectAndFocus(index);
+                        },
                         child: material.AnimatedContainer(
                           key: material.ValueKey('querya_tab_$label'),
                           duration: context.motionDuration(QueryaMotion.fast),
                           curve: context.motionCurve(QueryaMotion.enter),
-                          padding: material.EdgeInsets.symmetric(
-                            horizontal: showClose ? 10 : 12,
-                            vertical: 8,
-                          ),
+                          // The tab is as tall as its control size; the row
+                          // centres its content. The close target is 24 px
+                          // (#1372), so its side padding is smaller.
+                          constraints:
+                              material.BoxConstraints(minHeight: tabHeight),
+                          padding: showClose
+                              ? const material.EdgeInsets.fromLTRB(10, 0, 5, 0)
+                              : const material.EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
                           decoration: material.BoxDecoration(
                             color: material.Colors.transparent,
-                            borderRadius: material.BorderRadius.circular(6),
+                            borderRadius:
+                                material.BorderRadius.circular(QueryaControlMetrics.radius),
                             border: material.Border.all(
                               color: focused
                                   ? colors.ring
@@ -283,28 +333,58 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
                           child: material.Row(
                             mainAxisSize: material.MainAxisSize.min,
                             children: [
-                              selected
-                                  ? Text(label).small().semiBold()
-                                  : Text(label).small().muted(),
+                              // The tab's own node carries the label.
+                              material.ExcludeSemantics(
+                                child: material.Text(
+                                  label,
+                                  style: material.TextStyle(
+                                    fontSize: 14,
+                                    height: 20 / 14,
+                                    fontWeight: selected
+                                        ? material.FontWeight.w600
+                                        : material.FontWeight.w400,
+                                    color: selected
+                                        ? colors.foreground
+                                        : colors.mutedForeground,
+                                  ),
+                                ),
+                              ),
                               if (showClose) ...[
-                                const Gap(6),
-                                material.MouseRegion(
-                                  cursor: material.SystemMouseCursors.click,
-                                  child: material.GestureDetector(
-                                    behavior: material.HitTestBehavior.opaque,
+                                const material.SizedBox(width: 2),
+                                material.Tooltip(
+                                  message: 'Close $label tab',
+                                  waitDuration: kQueryaTooltipWait,
+                                  excludeFromSemantics: true,
+                                  child: material.Semantics(
+                                    container: true,
+                                    button: true,
+                                    label: 'Close $label tab',
                                     onTap: () => widget.onClose!(index),
-                                    child: material.Container(
-                                      padding: const material.EdgeInsets.all(1),
-                                      decoration: material.BoxDecoration(
-                                        borderRadius:
-                                            material.BorderRadius.circular(4),
-                                      ),
-                                      child: material.Icon(
-                                        material.Icons.close_rounded,
-                                        size: 13,
-                                        color: selected
-                                            ? colors.foreground
-                                            : colors.mutedForeground,
+                                    child: material.ExcludeSemantics(
+                                      child: material.MouseRegion(
+                                        cursor:
+                                            material.SystemMouseCursors.click,
+                                        child: material.GestureDetector(
+                                          excludeFromSemantics: true,
+                                          behavior:
+                                              material.HitTestBehavior.opaque,
+                                          onTap: () => widget.onClose!(index),
+                                          child: material.SizedBox(
+                                            key: material.ValueKey(
+                                                'querya_tab_close_$label'),
+                                            width: 24,
+                                            height: 24,
+                                            child: material.Center(
+                                              child: material.Icon(
+                                                material.Icons.close_rounded,
+                                                size: 13,
+                                                color: selected
+                                                    ? colors.foreground
+                                                    : colors.mutedForeground,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -318,11 +398,10 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
                   ),
                 ),
               ),
-            ),
           );
         }),
         if (widget.onAdd != null) ...[
-          const Gap(4),
+          const material.SizedBox(width: 4),
           material.MouseRegion(
             cursor: material.SystemMouseCursors.click,
             child: material.GestureDetector(
@@ -332,7 +411,8 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
                 key: const material.ValueKey('querya_tab_add_button'),
                 padding: const material.EdgeInsets.all(6),
                 decoration: material.BoxDecoration(
-                  borderRadius: material.BorderRadius.circular(6),
+                  borderRadius:
+                                material.BorderRadius.circular(QueryaControlMetrics.radius),
                 ),
                 child: material.Icon(
                   material.Icons.add_rounded,
@@ -362,34 +442,43 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
       ),
     );
 
-    return material.IntrinsicWidth(
-      child: material.Listener(
-        onPointerSignal: (signal) {
-          if (signal is PointerScrollEvent &&
-              _effectiveScrollController.hasClients) {
-            if (signal.scrollDelta.dy != 0 && signal.scrollDelta.dx == 0) {
-              final target = (_effectiveScrollController.offset +
-                      signal.scrollDelta.dy)
-                  .clamp(
-                0.0,
-                _effectiveScrollController.position.maxScrollExtent,
-              );
-              if (target != _effectiveScrollController.offset) {
-                _effectiveScrollController.jumpTo(target);
-              }
+    final scrollableStrip = material.Listener(
+      onPointerSignal: (signal) {
+        if (signal is PointerScrollEvent &&
+            _effectiveScrollController.hasClients) {
+          if (signal.scrollDelta.dy != 0 && signal.scrollDelta.dx == 0) {
+            final target = (_effectiveScrollController.offset +
+                    signal.scrollDelta.dy)
+                .clamp(
+              0.0,
+              _effectiveScrollController.position.maxScrollExtent,
+            );
+            if (target != _effectiveScrollController.offset) {
+              _effectiveScrollController.jumpTo(target);
             }
           }
-        },
-        child: material.ScrollConfiguration(
-          behavior:
-              const material.ScrollBehavior().copyWith(scrollbars: false),
-          child: material.SingleChildScrollView(
-            controller: _effectiveScrollController,
-            scrollDirection: material.Axis.horizontal,
-            child: stripContent,
-          ),
+        }
+      },
+      child: material.ScrollConfiguration(
+        behavior:
+            const material.ScrollBehavior().copyWith(scrollbars: false),
+        child: material.SingleChildScrollView(
+          controller: _effectiveScrollController,
+          scrollDirection: material.Axis.horizontal,
+          child: stripContent,
         ),
       ),
+    );
+
+    return material.LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.hasBoundedWidth) {
+          return scrollableStrip;
+        }
+        return material.IntrinsicWidth(
+          child: scrollableStrip,
+        );
+      },
     );
   }
 }
@@ -408,8 +497,8 @@ class _TabStripIndicator extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    return ListenableBuilder(
-      listenable: Listenable.merge([left, width]),
+    return material.ListenableBuilder(
+      listenable: material.Listenable.merge([left, width]),
       builder: (context, __) {
         final w = width.value;
         if (w <= 0) return const material.SizedBox.shrink();
@@ -424,7 +513,8 @@ class _TabStripIndicator extends material.StatelessWidget {
               child: material.DecoratedBox(
                 decoration: material.BoxDecoration(
                   color: color,
-                  borderRadius: material.BorderRadius.circular(6),
+                  borderRadius:
+                                material.BorderRadius.circular(QueryaControlMetrics.radius),
                 ),
               ),
             ),

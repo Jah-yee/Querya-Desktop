@@ -2,7 +2,13 @@ import 'dart:async' show Timer;
 
 import 'package:flutter/material.dart' as material
     show
-        AlertDialog,
+        Center,
+        DecoratedBox,
+        DecorationPosition,
+        DragTarget,
+        Draggable,
+        Opacity,
+        pointerDragAnchorStrategy,
         TextEditingValue,
         ValueListenableBuilder,
         BuildContext,
@@ -44,7 +50,6 @@ import 'package:flutter/material.dart' as material
         Colors,
         Padding,
         Widget,
-        Navigator,
         ValueKey,
         FontWeight,
         VoidCallback,
@@ -58,7 +63,8 @@ import 'package:flutter/material.dart' as material
         InputBorder,
         TextEditingController,
         FocusNode;
-import 'package:flutter/services.dart' show LogicalKeyboardKey;
+import 'package:flutter/services.dart'
+    show Clipboard, ClipboardData, LogicalKeyboardKey;
 import 'package:querya_desktop/core/actions/querya_schema_object.dart';
 import 'package:querya_desktop/core/actions/querya_schema_object_cache.dart';
 import 'package:querya_desktop/core/actions/querya_schema_object_loader.dart';
@@ -71,8 +77,9 @@ import 'package:querya_desktop/core/database/sqlite_service.dart';
 import 'package:querya_desktop/core/extensions/extension_driver_catalog.dart';
 import 'package:querya_desktop/core/extensions/extension_driver_session.dart';
 import 'package:querya_desktop/core/extensions/local_extension_registry.dart';
-import 'package:querya_desktop/core/sdui/sdui_tree_builder.dart';
+import 'package:querya_desktop/features/connections/sdui_tree_builder.dart';
 import 'package:querya_desktop/core/sdui/sdui_tree_schema.dart';
+import 'package:querya_desktop/core/storage/connection_secrets_store.dart';
 import 'package:querya_desktop/core/storage/folders_storage.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/theme/querya_typography.dart';
@@ -330,6 +337,7 @@ class _ConnectionsTreeSelection {
     this.selectedExtensionObject,
     this.selectedRedisDb,
     this.selectedMongoDb,
+    this.selectedMongoCollection,
   });
 
   static const empty = _ConnectionsTreeSelection();
@@ -350,6 +358,7 @@ class _ConnectionsTreeSelection {
   final ({String database, String name})? selectedExtensionObject;
   final int? selectedRedisDb;
   final String? selectedMongoDb;
+  final String? selectedMongoCollection;
 
   @override
   bool operator ==(Object other) {
@@ -361,7 +370,8 @@ class _ConnectionsTreeSelection {
         selectedSqliteObject == other.selectedSqliteObject &&
         selectedExtensionObject == other.selectedExtensionObject &&
         selectedRedisDb == other.selectedRedisDb &&
-        selectedMongoDb == other.selectedMongoDb;
+        selectedMongoDb == other.selectedMongoDb &&
+        selectedMongoCollection == other.selectedMongoCollection;
   }
 
   @override
@@ -373,6 +383,7 @@ class _ConnectionsTreeSelection {
         selectedExtensionObject,
         selectedRedisDb,
         selectedMongoDb,
+        selectedMongoCollection,
       );
 }
 
@@ -462,9 +473,11 @@ class ConnectionsPanel extends StatefulWidget {
     this.selectedExtensionObject,
     this.selectedRedisDb,
     this.selectedMongoDb,
+    this.selectedMongoCollection,
     this.onConnectionSelected,
     this.onRedisDatabaseSelected,
     this.onMongoDBDatabaseSelected,
+    this.onMongoCollectionSelected,
     this.onPostgresObjectSelected,
     this.onPostgresOpenSqlWorkspace,
     this.onMysqlObjectSelected,
@@ -472,6 +485,7 @@ class ConnectionsPanel extends StatefulWidget {
     this.onSqliteObjectSelected,
     this.onSqliteOpenSqlWorkspace,
     this.onExtensionObjectSelected,
+    this.onConnectionRemoved,
 
     /// When true, [initState] does not call [_loadData]. Widget tests that seed
     /// SQLite in setUp should call [ConnectionsPanelState.reloadConnectionsFromDb]
@@ -492,6 +506,7 @@ class ConnectionsPanel extends StatefulWidget {
   final ({String database, String name})? selectedExtensionObject;
   final int? selectedRedisDb;
   final String? selectedMongoDb;
+  final String? selectedMongoCollection;
 
   /// Called when the user taps a connection tile.
   final void Function(ConnectionRow connection)? onConnectionSelected;
@@ -503,6 +518,13 @@ class ConnectionsPanel extends StatefulWidget {
   /// Called when the user taps a MongoDB database node in the tree.
   final void Function(ConnectionRow connection, String database)?
       onMongoDBDatabaseSelected;
+
+  /// Called when the user taps a MongoDB collection node in the tree.
+  final void Function(
+    ConnectionRow connection,
+    String database,
+    String collection,
+  )? onMongoCollectionSelected;
 
   /// Called when the user taps a PostgreSQL table, view, function, or sequence.
   final void Function(
@@ -544,6 +566,10 @@ class ConnectionsPanel extends StatefulWidget {
     String name,
   )? onExtensionObjectSelected;
 
+  /// Called after a connection was removed, so the shell can leave its
+  /// workspace if it was the open one.
+  final void Function(int connectionId)? onConnectionRemoved;
+
   final bool skipInitialDbLoadForTest;
 
   @override
@@ -554,6 +580,19 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
   List<String> _folders = [];
   List<ConnectionRow> _connections = [];
   Map<String, int> _folderIdByName = {};
+
+  /// The connection being dragged, while a drag is in progress.
+  int? _draggedId;
+
+  @visibleForTesting
+  int? get draggedConnectionIdForTesting => _draggedId;
+
+  /// `id: folderId` of the connections the panel currently holds.
+  @visibleForTesting
+  Map<int, int?> get connectionFoldersForTesting => {
+        for (final c in _connections)
+          if (c.id != null) c.id!: c.folderId,
+      };
   final Set<String> _expandedFolders = {};
   final Set<int> _expandedConnections = {};
 
@@ -603,6 +642,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
       selectedExtensionObject: widget.selectedExtensionObject,
       selectedRedisDb: widget.selectedRedisDb,
       selectedMongoDb: widget.selectedMongoDb,
+      selectedMongoCollection: widget.selectedMongoCollection,
     );
   }
 
@@ -664,7 +704,9 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
     final name = await showNewFolderDialog(menuContext);
     if (name == null || !mounted) return;
     await FoldersStorage.instance.add(name);
-    if (mounted) setState(() => _folders = FoldersStorage.instance.folders);
+    // Reload, not only the names: the new folder needs its id in
+    // [_folderIdByName] before its contents are looked up.
+    if (mounted) await _loadData();
   }
 
   Future<void> _createConnection({
@@ -683,8 +725,20 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
   Future<void> _editConnection(ConnectionRow conn) async {
     final edited = await promptEditConnection(context, conn);
     if (edited == null || !mounted) return;
-    final toSave = await mergeSecretsForConnectionUpdate(edited);
-    await LocalDb.instance.updateConnection(toSave);
+    try {
+      final toSave = await mergeSecretsForConnectionUpdate(edited);
+      await LocalDb.instance.updateConnection(toSave);
+    } on SecretsStoreUnavailableException catch (e) {
+      // Saving would write the secrets it could not read as empty ones.
+      if (mounted) {
+        showAppToast(
+          context: context,
+          variant: AppToastVariant.error,
+          message: 'The connection was not saved. ${e.toString()}',
+        );
+      }
+      return;
+    }
     await _loadData();
     if (!mounted) return;
     ConnectionRow? updated;
@@ -705,14 +759,86 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
     }
   }
 
-  Future<void> _removeConnection(int id) async {
+  /// The "Move to folder" submenu of a connection: every other folder and,
+  /// when the connection is in one, "No folder". Empty when there is nowhere to
+  /// move it.
+  List<MenuItem> _moveItems(ConnectionRow conn) {
+    final theme = Theme.of(context);
+    final current = conn.folderId;
+    final targets = <MenuItem>[
+      for (final name in _folders)
+        if (_folderIdByName[name] != current)
+          MenuButton(
+            leading: material.Icon(material.Icons.folder_outlined,
+                size: 18, color: theme.colorScheme.mutedForeground),
+            onPressed: (_) => _moveConnection(conn, _folderIdByName[name]),
+            child: Text(name),
+          ),
+      if (current != null)
+        MenuButton(
+          leading: material.Icon(material.Icons.folder_off_outlined,
+              size: 18, color: theme.colorScheme.mutedForeground),
+          onPressed: (_) => _moveConnection(conn, null),
+          child: const Text('No folder'),
+        ),
+    ];
+    if (targets.isEmpty) return const [];
+    return [
+      MenuButton(
+        leading: material.Icon(material.Icons.drive_file_move_outlined,
+            size: 18, color: theme.colorScheme.mutedForeground),
+        subMenu: targets,
+        child: const Text('Move to folder'),
+      ),
+    ];
+  }
+
+  Future<void> _moveConnection(ConnectionRow conn, int? folderId) async {
+    if (conn.id == null) return;
+    await LocalDb.instance.setConnectionFolder(conn.id!, folderId);
+    if (mounted) await _loadData();
+  }
+
+  Future<void> _closeSessionsOf(int id) async {
     await MongoService.instance.disconnectByConnectionId(id);
     await ExtensionDriverSession.instance.disconnect(id);
     SqliteService.instance.interruptAllModes(
       ConnectionRow(id: id, type: 'sqlite', name: '', createdAt: ''),
     );
+  }
+
+  /// Asks first: removing a connection deletes its saved settings and
+  /// password and closes its sessions. The database itself is not touched.
+  Future<void> _removeConnection(int id) async {
+    String? name;
+    for (final c in _connections) {
+      if (c.id == id) {
+        name = c.name;
+        break;
+      }
+    }
+    final confirmed = await QueryaConfirmDialog.show(
+      context: context,
+      title: 'Remove connection?',
+      message: name == null || name.isEmpty
+          ? 'The connection and its saved password are removed from Querya. '
+              'The database itself is not changed.'
+          : '"$name" and its saved password are removed from Querya. '
+              'The database itself is not changed.',
+      confirmLabel: 'Remove',
+      isDestructive: true,
+    );
+    if (confirmed != true || !mounted) return;
+    await _closeSessionsOf(id);
     await LocalDb.instance.removeConnection(id);
+    widget.onConnectionRemoved?.call(id);
     await _loadData();
+  }
+
+  /// Removes the folder; its connections stay in the list without one.
+  Future<void> _removeFolder(String name) async {
+    await FoldersStorage.instance.remove(name);
+    if (mounted) await _loadData();
   }
 
   void connect(int connectionId) {
@@ -775,7 +901,80 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
     }
   }
 
+  /// A connection tile that can be dragged onto a folder (or onto the list
+  /// itself to leave its folder).
   Widget _buildConnectionTile(ConnectionRow conn) {
+    final tile = _connectionTileCore(conn);
+    final id = conn.id;
+    if (id == null) return tile;
+    final theme = Theme.of(context);
+    return material.Draggable<int>(
+      data: id,
+      maxSimultaneousDrags: 1,
+      onDragStarted: () {
+        if (mounted) setState(() => _draggedId = id);
+      },
+      onDragEnd: (_) {
+        if (mounted) setState(() => _draggedId = null);
+      },
+      dragAnchorStrategy: material.pointerDragAnchorStrategy,
+      feedback: material.Material(
+        color: material.Colors.transparent,
+        child: material.Container(
+          padding:
+              const material.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: material.BoxDecoration(
+            color: theme.colorScheme.popover,
+            borderRadius: material.BorderRadius.circular(8),
+            border: material.Border.all(color: theme.colorScheme.primary),
+          ),
+          child: material.Row(
+            mainAxisSize: material.MainAxisSize.min,
+            children: [
+              material.Icon(QueryaIcons.connectionIcon(conn.type),
+                  size: 16, color: theme.colorScheme.primary),
+              const material.SizedBox(width: 8),
+              material.Text(conn.name,
+                  style: material.TextStyle(
+                      fontSize: 13, color: theme.colorScheme.foreground)),
+            ],
+          ),
+        ),
+      ),
+      childWhenDragging: material.Opacity(opacity: 0.4, child: tile),
+      child: tile,
+    );
+  }
+
+  ConnectionRow? _connectionById(int id) {
+    for (final c in _connections) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  /// Whether dropping connection [id] on [folderName] (null: the list itself,
+  /// meaning "no folder") would change anything.
+  bool _acceptsDrop(int id, String? folderName) {
+    final conn = _connectionById(id);
+    if (conn == null) return false;
+    final target = folderName == null ? null : _folderIdByName[folderName];
+    if (folderName != null && target == null) return false;
+    return conn.folderId != target;
+  }
+
+  Future<void> _dropConnection(int id, String? folderName) async {
+    final conn = _connectionById(id);
+    if (conn == null || !_acceptsDrop(id, folderName)) return;
+    final target = folderName == null ? null : _folderIdByName[folderName];
+    await _moveConnection(conn, target);
+    if (folderName != null && mounted) {
+      // Show what was dropped.
+      setState(() => _expandedFolders.add(folderName));
+    }
+  }
+
+  Widget _connectionTileCore(ConnectionRow conn) {
     final isSelected = widget.selectedConnectionId != null &&
         widget.selectedConnectionId == conn.id;
     final isExpanded = _expandedConnections.contains(conn.id);
@@ -797,6 +996,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
         iconAsset: QueryaIcons.connectionAsset(conn.type),
         onRemove: () => _removeConnection(conn.id!),
         onEdit: () => _editConnection(conn),
+        moveItems: _moveItems(conn),
         onTap: () => widget.onConnectionSelected?.call(conn),
         onPostgresObjectSelected: widget.onPostgresObjectSelected,
         onPostgresOpenSqlWorkspace: widget.onPostgresOpenSqlWorkspace,
@@ -811,6 +1011,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
         iconAsset: QueryaIcons.connectionAsset(conn.type),
         onRemove: () => _removeConnection(conn.id!),
         onEdit: () => _editConnection(conn),
+        moveItems: _moveItems(conn),
         onTap: () => widget.onConnectionSelected?.call(conn),
         onMysqlObjectSelected: widget.onMysqlObjectSelected,
         onMysqlOpenSqlWorkspace: widget.onMysqlOpenSqlWorkspace,
@@ -825,6 +1026,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
         iconAsset: QueryaIcons.connectionAsset(conn.type),
         onRemove: () => _removeConnection(conn.id!),
         onEdit: () => _editConnection(conn),
+        moveItems: _moveItems(conn),
         onTap: () => widget.onConnectionSelected?.call(conn),
         onDatabaseTap: (db) => widget.onRedisDatabaseSelected?.call(conn, db),
         isExpanded: isExpanded,
@@ -838,8 +1040,11 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
         iconAsset: QueryaIcons.connectionAsset(conn.type),
         onRemove: () => _removeConnection(conn.id!),
         onEdit: () => _editConnection(conn),
+        moveItems: _moveItems(conn),
         onTap: () => widget.onConnectionSelected?.call(conn),
         onDatabaseTap: (db) => widget.onMongoDBDatabaseSelected?.call(conn, db),
+        onCollectionTap: (db, col) =>
+            widget.onMongoCollectionSelected?.call(conn, db, col),
         isExpanded: isExpanded,
         onExpandedChanged: handleExpandedChanged,
       );
@@ -851,6 +1056,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
         iconAsset: QueryaIcons.connectionAsset(conn.type),
         onRemove: () => _removeConnection(conn.id!),
         onEdit: () => _editConnection(conn),
+        moveItems: _moveItems(conn),
         onTap: () => widget.onConnectionSelected?.call(conn),
         onSqliteObjectSelected: widget.onSqliteObjectSelected,
         onSqliteOpenSqlWorkspace: widget.onSqliteOpenSqlWorkspace,
@@ -865,6 +1071,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
         iconAsset: QueryaIcons.connectionAsset(conn.type),
         onRemove: () => _removeConnection(conn.id!),
         onEdit: () => _editConnection(conn),
+        moveItems: _moveItems(conn),
         onTap: () => widget.onConnectionSelected?.call(conn),
         onObjectSelected: widget.onExtensionObjectSelected,
         isExpanded: isExpanded,
@@ -878,6 +1085,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
       iconAsset: QueryaIcons.connectionAsset(conn.type),
       onRemove: () => _removeConnection(conn.id!),
       onEdit: () => _editConnection(conn),
+        moveItems: _moveItems(conn),
       onTap: () => widget.onConnectionSelected?.call(conn),
     );
   }
@@ -1065,13 +1273,52 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
                   ),
                 ),
               ),
-              Divider(
+              QueryaDivider(
                 height: 1,
                 color: theme.colorScheme.border.withValues(alpha: 0.22),
               ),
+              // While a connection from a folder is dragged, a labelled place
+              // to drop it: the empty part of the list works too, but nobody
+              // would know.
+              // A fixed slot: inserting and removing a child here would shift
+              // the list below it, and rebuilding it drops the tile that is
+              // being dragged (and the drag with it).
+              _draggedId != null && _acceptsDrop(_draggedId!, null)
+                  ? material.DragTarget<int>(
+                  onWillAcceptWithDetails: (d) => _acceptsDrop(d.data, null),
+                  onAcceptWithDetails: (d) => _dropConnection(d.data, null),
+                  builder: (context, candidates, _) => material.Container(
+                    key: const material.ValueKey('drop_out_of_folder'),
+                    margin: const material.EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    padding: const material.EdgeInsets.symmetric(vertical: 10),
+                    decoration: material.BoxDecoration(
+                      color: theme.colorScheme.primary.withValues(
+                          alpha: candidates.isEmpty ? 0.06 : 0.18),
+                      borderRadius: material.BorderRadius.circular(8),
+                      border: material.Border.all(
+                        color: theme.colorScheme.primary
+                            .withValues(alpha: candidates.isEmpty ? 0.4 : 1),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: material.Center(
+                      child: material.Text(
+                        'Drop here to take it out of the folder',
+                        style: material.TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                  : const material.SizedBox.shrink(),
               Expanded(
                 child: material.RepaintBoundary(
-                  child: material.CustomScrollView(
+                  child: material.DragTarget<int>(
+                    onWillAcceptWithDetails: (d) => _acceptsDrop(d.data, null),
+                    onAcceptWithDetails: (d) => _dropConnection(d.data, null),
+                    builder: (context, candidates, _) => material.CustomScrollView(
                     slivers: [
                       material.SliverPadding(
                         padding: const material.EdgeInsets.symmetric(
@@ -1104,14 +1351,13 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
                                       _expandedFolders.remove(folderName);
                                     }
                                   },
-                                  connections: filteredConnections
-                                      .where((c) =>
-                                          c.folderId == _folderIdByName[name])
-                                      .toList(),
-                                  onRemove: () async {
-                                    await FoldersStorage.instance.remove(name);
-                                    await _loadData();
-                                  },
+                                  connections: connectionsInFolder(
+                                    filteredConnections,
+                                    _folderIdByName[name],
+                                  ),
+                                  onRemove: () => _removeFolder(name),
+                                  acceptsDrop: (id) => _acceptsDrop(id, name),
+                                  onDrop: (id) => _dropConnection(id, name),
                                   onNewConnection: (folderName) async {
                                     final folderId = await LocalDb.instance
                                         .getFolderIdByName(folderName);
@@ -1179,6 +1425,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
                   ),
                 ],
               ),
+                  ),
             ),
           ),
         ],
@@ -1187,4 +1434,19 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
   ),
 );
 }
+}
+
+/// The connections that live in the folder with id [folderId]. A folder whose
+/// id is not known yet holds none: matching `folderId == null` there listed
+/// every top-level connection inside a freshly created folder.
+@visibleForTesting
+List<ConnectionRow> connectionsInFolder(
+  List<ConnectionRow> connections,
+  int? folderId,
+) {
+  if (folderId == null) return const [];
+  return [
+    for (final c in connections)
+      if (c.folderId == folderId) c,
+  ];
 }

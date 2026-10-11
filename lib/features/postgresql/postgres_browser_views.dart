@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/database/postgres_service.dart';
 import 'package:querya_desktop/core/database/postgres_metadata.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 String _formatBytes(int? b) {
   if (b == null) return '—';
@@ -47,13 +48,6 @@ class _PostgresIndexListViewState
   @override
   void dispose() {
     _scroll.dispose();
-    if (_loading) {
-      PostgresService.instance.interrupt(
-        widget.connectionRow,
-        database: widget.database,
-        mode: PgSessionMode.readOnly,
-      );
-    }
     _lease?.release();
     super.dispose();
   }
@@ -99,7 +93,7 @@ class _PostgresIndexListViewState
       return material.Container(
         color: cs.background,
         child: const material.Center(
-          child: material.CircularProgressIndicator(strokeWidth: 2),
+          child: QueryaSpinner(size: QueryaSpinnerSize.md),
         ),
       );
     }
@@ -227,13 +221,6 @@ class _PostgresTriggerListViewState
   @override
   void dispose() {
     _scroll.dispose();
-    if (_loading) {
-      PostgresService.instance.interrupt(
-        widget.connectionRow,
-        database: widget.database,
-        mode: PgSessionMode.readOnly,
-      );
-    }
     _lease?.release();
     super.dispose();
   }
@@ -279,7 +266,7 @@ class _PostgresTriggerListViewState
       return material.Container(
         color: cs.background,
         child: const material.Center(
-          child: material.CircularProgressIndicator(strokeWidth: 2),
+          child: QueryaSpinner(size: QueryaSpinnerSize.md),
         ),
       );
     }
@@ -399,13 +386,6 @@ class _PostgresTypeListViewState extends material.State<PostgresTypeListView> {
   @override
   void dispose() {
     _scroll.dispose();
-    if (_loading) {
-      PostgresService.instance.interrupt(
-        widget.connectionRow,
-        database: widget.database,
-        mode: PgSessionMode.readOnly,
-      );
-    }
     _lease?.release();
     super.dispose();
   }
@@ -449,7 +429,7 @@ class _PostgresTypeListViewState extends material.State<PostgresTypeListView> {
     final cs = Theme.of(context).colorScheme;
     if (_loading) {
       return const material.Center(
-        child: material.CircularProgressIndicator(strokeWidth: 2),
+        child: QueryaSpinner(size: QueryaSpinnerSize.md),
       );
     }
     if (_error != null) {
@@ -551,13 +531,6 @@ class _PostgresExtensionListViewState
   @override
   void dispose() {
     _scroll.dispose();
-    if (_loading) {
-      PostgresService.instance.interrupt(
-        widget.connectionRow,
-        database: widget.database,
-        mode: PgSessionMode.readOnly,
-      );
-    }
     _lease?.release();
     super.dispose();
   }
@@ -601,7 +574,7 @@ class _PostgresExtensionListViewState
     final cs = Theme.of(context).colorScheme;
     if (_loading) {
       return const material.Center(
-        child: material.CircularProgressIndicator(strokeWidth: 2),
+        child: QueryaSpinner(size: QueryaSpinnerSize.md),
       );
     }
     if (_error != null) {
@@ -697,13 +670,6 @@ class _PostgresFdwListViewState extends material.State<PostgresFdwListView> {
   @override
   void dispose() {
     _scroll.dispose();
-    if (_loading) {
-      PostgresService.instance.interrupt(
-        widget.connectionRow,
-        database: widget.database,
-        mode: PgSessionMode.readOnly,
-      );
-    }
     _lease?.release();
     super.dispose();
   }
@@ -750,7 +716,7 @@ class _PostgresFdwListViewState extends material.State<PostgresFdwListView> {
     final cs = Theme.of(context).colorScheme;
     if (_loading) {
       return const material.Center(
-        child: material.CircularProgressIndicator(strokeWidth: 2),
+        child: QueryaSpinner(size: QueryaSpinnerSize.md),
       );
     }
     if (_error != null) {
@@ -867,12 +833,11 @@ material.Widget _browserToolbar(
         material.Expanded(
           child: Text(title).semiBold().small(),
         ),
-        OutlineButton(
-          size: ButtonSize.small,
+        QueryaButton.secondary(
+          label: 'Refresh',
+          icon: material.Icons.refresh_rounded,
           onPressed: onRefresh,
-          leading:
-              const material.Icon(material.Icons.refresh_rounded, size: 14),
-          child: const Text('Refresh'),
+          size: QueryaControlSize.sm,
         ),
       ],
     ),

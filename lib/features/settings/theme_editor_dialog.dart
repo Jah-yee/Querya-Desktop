@@ -11,6 +11,7 @@ import 'package:querya_desktop/core/theme/theme_editor_draft.dart';
 import 'package:querya_desktop/core/theme/theme_editor_loader.dart';
 import 'package:querya_desktop/features/settings/theme_color_picker_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows the focused Theme Studio modal dialog with live token editing and real-time preview.
 Future<void> showThemeEditorDialog(material.BuildContext context) {
@@ -147,51 +148,18 @@ class _ThemeEditorDialogState extends material.State<ThemeEditorDialog> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    return material.AlertDialog(
-      backgroundColor: cs.popover,
-      shape: material.RoundedRectangleBorder(
-        borderRadius: material.BorderRadius.circular(12),
-        side: material.BorderSide(color: cs.border.withValues(alpha: 0.35)),
-      ),
-      titlePadding: const material.EdgeInsets.fromLTRB(20, 16, 16, 12),
-      contentPadding: const material.EdgeInsets.symmetric(horizontal: 20),
-      actionsPadding: const material.EdgeInsets.fromLTRB(20, 12, 20, 16),
-      title: material.Row(
-        children: [
-          material.Icon(
-            material.Icons.palette_outlined,
-            size: 20,
-            color: cs.primary,
-          ),
-          const material.SizedBox(width: 10),
-          material.Expanded(
-            child: material.Column(
-              crossAxisAlignment: material.CrossAxisAlignment.start,
-              children: [
-                const Text('Theme Studio')
-                    .semiBold()
-                    .medium()
-                    .foreground(),
-                const material.SizedBox(height: 2),
-                const Text(
-                  'Customize color tokens with real-time UI preview',
-                ).muted().xSmall(),
-              ],
-            ),
-          ),
-          IconButton.ghost(
-            icon: const material.Icon(material.Icons.close, size: 16),
-            onPressed: () => material.Navigator.of(context).pop(),
-            density: ButtonDensity.compact,
-          ),
-        ],
-      ),
+    return QueryaModalDialog(
+      constraints: const material.BoxConstraints(maxWidth: 580),
+      title: const Text('Theme Studio'),
+      description: const Text('Customize color tokens with real-time UI preview'),
+      icon: const material.Icon(material.Icons.palette_outlined),
+      showCloseButton: true,
       content: material.SizedBox(
         width: 540,
         height: 480,
         child: _loading
             ? const material.Center(
-                child: material.CircularProgressIndicator(),
+                child: QueryaSpinner(size: QueryaSpinnerSize.lg),
               )
             : material.SingleChildScrollView(
                 child: material.Column(
@@ -264,7 +232,7 @@ class _ThemeEditorDialogState extends material.State<ThemeEditorDialog> {
                                 i < themeEditorMvpColorFields.length;
                                 i++) ...[
                               if (i > 0)
-                                Divider(
+                                QueryaDivider(
                                   height: 1,
                                   color: cs.border.withValues(alpha: 0.18),
                                 ),
@@ -287,20 +255,21 @@ class _ThemeEditorDialogState extends material.State<ThemeEditorDialog> {
               ),
       ),
       actions: [
-        OutlineButton(
+        QueryaButton.secondary(
+          label: 'Reset from current',
           onPressed: _loading ? null : () => unawaited(_loadDraft()),
-          child: const material.Text('Reset from current'),
+          size: QueryaControlSize.lg,
         ),
         if (_draft != null)
-          OutlineButton(
+          QueryaButton.secondary(
+            label: _exporting ? 'Exporting…' : 'Export theme…',
             onPressed: _exporting ? null : () => unawaited(_exportDraft()),
-            child: material.Text(
-              _exporting ? 'Exporting…' : 'Export theme…',
-            ),
+            size: QueryaControlSize.lg,
           ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Done',
           onPressed: () => material.Navigator.of(context).pop(),
-          child: const material.Text('Done'),
+          size: QueryaControlSize.lg,
         ),
       ],
     );

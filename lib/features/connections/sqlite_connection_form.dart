@@ -2,11 +2,15 @@ import 'dart:async';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart' as material;
 import 'package:path/path.dart' as p;
+import 'package:querya_desktop/core/security/connection_environment.dart';
+import 'package:querya_desktop/features/connections/connection_test_result.dart';
+import 'package:querya_desktop/features/connections/environment_section.dart';
 import 'package:querya_desktop/core/database/sqlite_connection.dart';
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/form_validity_notifier.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows SQLite connection form dialog.
 /// Returns ConnectionRow if saved, null if cancelled.
@@ -41,6 +45,7 @@ class _SqliteConnectionFormContent extends material.StatefulWidget {
 
 class _SqliteConnectionFormContentState
     extends material.State<_SqliteConnectionFormContent> {
+  ConnectionEnvironment? _environment;
   final _nameController = material.TextEditingController();
   final _pathController = material.TextEditingController();
 
@@ -66,6 +71,7 @@ class _SqliteConnectionFormContentState
       _nameController.text = initial.name;
       _pathController.text = initial.host ?? '';
       _readOnly = initial.useSSL;
+      _environment = initial.environment;
     }
 
     _nameController.addListener(() {
@@ -103,7 +109,7 @@ class _SqliteConnectionFormContentState
       _isTesting = false;
       _testResult = result;
     });
-    _dismissTimer = Timer(const Duration(seconds: 5), () {
+    _dismissTimer = Timer(connectionTestResultLifetime(result), () {
       if (mounted) setState(() => _testResult = null);
     });
   }
@@ -190,7 +196,7 @@ class _SqliteConnectionFormContentState
       folderId: initial?.folderId ?? widget.folderId,
       sortOrder: initial?.sortOrder ?? 0,
     );
-    material.Navigator.of(context).pop(row);
+    material.Navigator.of(context).pop(row.withEnvironment(_environment));
   }
 
   @override
@@ -260,6 +266,11 @@ class _SqliteConnectionFormContentState
                           ),
                         ],
                         const Gap(16),
+                        EnvironmentSection(
+                          value: _environment,
+                          onChanged: (e) => setState(() => _environment = e),
+                        ),
+                        const Gap(16),
                         // Database File Path
                         const Text('Database file path').small().semiBold(),
                         const Gap(8),
@@ -272,9 +283,10 @@ class _SqliteConnectionFormContentState
                               ),
                             ),
                             const Gap(10),
-                            OutlineButton(
+                            QueryaButton.secondary(
+                              label: 'Browse…',
                               onPressed: _pickFile,
-                              child: const Text('Browse…'),
+                              size: QueryaControlSize.lg,
                             ),
                           ],
                         ),
@@ -306,7 +318,7 @@ class _SqliteConnectionFormContentState
                   ),
                 ),
               ),
-              const material.Divider(height: 1),
+              const QueryaDivider(height: 1),
               // Test result banner
               if (_testResult != null)
                 material.Padding(
@@ -345,29 +357,19 @@ class _SqliteConnectionFormContentState
                             const Gap(10),
                             material.Expanded(
                               child: Text(
-                                _testResult == 'success'
-                                    ? 'Connection successful!'
-                                    : _testResult!.startsWith('error:')
-                                        ? _testResult!.substring(7)
-                                        : 'Connection failed',
+                                connectionTestMessage(_testResult!),
                                 style: material.TextStyle(
                                   fontSize: 13,
                                   color: theme.foreground,
                                 ),
                               ).small(),
                             ),
-                            material.IconButton(
-                              icon: material.Icon(
-                                material.Icons.close,
-                                size: 18,
-                                color: theme.mutedForeground,
-                              ),
-                              onPressed: _dismissResult,
-                              style: material.IconButton.styleFrom(
-                                minimumSize: const material.Size(28, 28),
-                                padding: material.EdgeInsets.zero,
-                              ),
-                            ),
+                            QueryaIconButton(
+icon: const material.Icon(material.Icons.close),
+tooltip: 'Dismiss',
+size: QueryaControlSize.sm,
+onPressed: _dismissResult,
+),
                           ],
                         ),
                       ),
@@ -377,64 +379,29 @@ class _SqliteConnectionFormContentState
               // Footer
               material.FocusTraversalGroup(
                 policy: material.WidgetOrderTraversalPolicy(),
-                child: material.Container(
-                  padding: const material.EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 16),
-                  child: ValueListenableBuilder<bool>(
-                    valueListenable: _formValidNotifier.listenable,
-                    builder: (context, formValid, _) {
-                      return material.Wrap(
-                        spacing: 12,
-                        runSpacing: 8,
-                        alignment: material.WrapAlignment.spaceBetween,
-                        children: [
-                          OutlineButton(
-                            onPressed:
-                                formValid && !_isTesting ? _testConnection : null,
-                            leading: _isTesting
-                                ? material.SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: material.CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: theme.primary,
-                                    ),
-                                  )
-                                : material.Icon(
-                                    material.Icons.link_rounded,
-                                    size: 18,
-                                    color: formValid
-                                        ? theme.primary
-                                        : theme.mutedForeground,
-                                  ),
-                            child: Text(
-                              'Test Connection',
-                              style: material.TextStyle(
-                                fontWeight: material.FontWeight.w500,
-                                color: formValid
-                                    ? theme.primary
-                                    : theme.mutedForeground,
-                              ),
-                            ),
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _formValidNotifier.listenable,
+                  builder: (context, formValid, _) => QueryaDialogActions(
+                    secondary: [
+                      QueryaButton.secondary(
+                            label: 'Test Connection',
+                            icon: material.Icons.link_rounded,
+                            loading: _isTesting,
+                            size: QueryaControlSize.lg,
+                            onPressed: formValid && !_isTesting ? _testConnection : null,
                           ),
-                          material.Row(
-                            mainAxisSize: material.MainAxisSize.min,
-                            children: [
-                              GhostButton(
+                    ],
+                    cancel: QueryaButton.ghost(
+                                label: 'Cancel',
                                 onPressed: () =>
                                     material.Navigator.of(context).pop(),
-                                child: const Text('Cancel'),
+                                size: QueryaControlSize.lg,
                               ),
-                              const Gap(12),
-                              PrimaryButton(
+                    primary: QueryaButton.primary(
+                                label: 'Save',
                                 onPressed: formValid ? _save : null,
-                                child: const Text('Save'),
+                                size: QueryaControlSize.lg,
                               ),
-                            ],
-                          ),
-                        ],
-                      );
-                    },
                   ),
                 ),
               ),

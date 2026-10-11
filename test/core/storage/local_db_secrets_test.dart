@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
 import 'package:querya_desktop/core/storage/connection_secrets_store.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/connections/connection_creation_flow.dart';
@@ -287,6 +288,59 @@ void main() {
       expect(loaded.name, 'PG Renamed');
     });
 
+    test(
+        'SSH secrets are saved to secure store and merged during update',
+        () async {
+      final initialRow = ConnectionRow(
+        type: 'postgresql',
+        name: 'PG with SSH',
+        host: 'localhost',
+        port: 5432,
+        username: 'admin',
+        password: 'db-password',
+        createdAt: '2026-01-01T00:00:00Z',
+        sshSecrets: SshTunnelSecrets(
+          password: 'ssh-pass-123',
+          privateKey: 'ssh-key-data',
+          passphrase: 'key-passphrase',
+        ),
+      );
+      final id = await LocalDb.instance.addConnection(initialRow);
+
+      final readSsh =
+          await ConnectionSecretsStore.readSshSecretsForConnection(id);
+      expect(readSsh.password, 'ssh-pass-123');
+      expect(readSsh.privateKey, 'ssh-key-data');
+      expect(readSsh.passphrase, 'key-passphrase');
+
+      // Edit connection without re-entering SSH secrets (empty/blank)
+      final edited = ConnectionRow(
+        id: id,
+        type: 'postgresql',
+        name: 'PG with SSH Renamed',
+        createdAt: '2026-01-01T00:00:00Z',
+        sshSecrets: SshTunnelSecrets(),
+      );
+
+      final merged = await mergeSecretsForConnectionUpdate(edited);
+      expect(merged.sshSecrets?.password, 'ssh-pass-123');
+      expect(merged.sshSecrets?.privateKey, 'ssh-key-data');
+      expect(merged.sshSecrets?.passphrase, 'key-passphrase');
+
+      await LocalDb.instance.updateConnection(merged);
+      final afterUpdate =
+          await ConnectionSecretsStore.readSshSecretsForConnection(id);
+      expect(afterUpdate.password, 'ssh-pass-123');
+      expect(afterUpdate.privateKey, 'ssh-key-data');
+
+      // Deleting connection also deletes SSH secrets
+      await LocalDb.instance.removeConnection(id);
+      final afterDelete =
+          await ConnectionSecretsStore.readSshSecretsForConnection(id);
+      expect(afterDelete.password, isNull);
+      expect(afterDelete.privateKey, isNull);
+    });
+
     test('getConnections does not read secure store by default', () async {
       const row = ConnectionRow(
         type: 'mysql',
@@ -313,7 +367,7 @@ void main() {
     });
 
     test(
-        'readForConnection and _hydrateConnection handle Keychain error gracefully without throwing',
+        'a store that cannot be read throws, and hydrating a list survives it',
         () async {
       const row = ConnectionRow(
         type: 'mysql',
@@ -326,20 +380,232 @@ void main() {
       );
       final id = await LocalDb.instance.addConnection(row);
 
-      testMemorySecrets.failNextRead = StateError('org.freedesktop.DBus.Error.NoReply');
+      testMemorySecrets.failNextRead =
+          Exception('org.freedesktop.DBus.Error.NoReply');
 
-      // readForConnection should return nulls instead of throwing
-      final secrets = await ConnectionSecretsStore.readForConnection(id);
-      expect(secrets.password, isNull);
-      expect(secrets.connectionString, isNull);
+      // Not "no password": the caller must be able to tell (#1303).
+      await expectLater(ConnectionSecretsStore.readForConnection(id),
+          throwsA(isA<SecretsStoreUnavailableException>()));
 
-      testMemorySecrets.failNextRead = StateError('Keychain locked');
+      testMemorySecrets.failNextRead = Exception('Keychain locked');
+      await expectLater(ConnectionSecretsStore.readSshSecretsForConnection(id),
+          throwsA(isA<SecretsStoreUnavailableException>()));
 
-      // getConnections(hydrateSecrets: true) should still succeed and return the connection row
+      // A list still loads: that row is just without its password.
+      testMemorySecrets.failNextRead = Exception('Keychain locked');
       final list = await LocalDb.instance.getConnections(hydrateSecrets: true);
       final conn = list.singleWhere((c) => c.id == id);
       expect(conn.name, 'MySQL_Faulty');
       expect(conn.password, isNull);
+
+      // And the secret is still there once the store answers again.
+      final secrets = await ConnectionSecretsStore.readForConnection(id);
+      expect(secrets.password, 'secret-password');
+    });
+
+    test('an absent secret reads as null, not as an error', () async {
+      final secrets = await ConnectionSecretsStore.readForConnection(987654);
+      expect(secrets.password, isNull);
+      expect(secrets.connectionString, isNull);
+      final ssh = await ConnectionSecretsStore.readSshSecretsForConnection(
+          987654);
+      expect(ssh.password, isNull);
+    });
+
+    test(
+        'an edit while the store cannot be read changes nothing and keeps '
+        'the saved password', () async {
+      const row = ConnectionRow(
+        type: 'postgresql',
+        name: 'Before',
+        host: 'localhost',
+        port: 5432,
+        username: 'admin',
+        password: 'keep-me',
+        createdAt: '2026-01-01T00:00:00Z',
+      );
+      final id = await LocalDb.instance.addConnection(row);
+      final edited = ConnectionRow(
+        id: id,
+        type: 'postgresql',
+        name: 'After',
+        host: 'localhost',
+        port: 5432,
+        username: 'admin',
+        createdAt: '2026-01-01T00:00:00Z',
+      );
+
+      // The merge reads the saved password first and stops there.
+      testMemorySecrets.failNextRead = Exception('Keychain locked');
+      await expectLater(mergeSecretsForConnectionUpdate(edited),
+          throwsA(isA<SecretsStoreUnavailableException>()));
+
+      // Writing the unmerged row would erase it: updateConnection refuses to
+      // run on a store it cannot read.
+      testMemorySecrets.failNextRead = Exception('Keychain locked');
+      await expectLater(LocalDb.instance.updateConnection(edited),
+          throwsA(isA<SecretsStoreUnavailableException>()));
+
+      final loaded = (await LocalDb.instance.getConnections(hydrateSecrets: true))
+          .singleWhere((c) => c.id == id);
+      expect(loaded.name, 'Before');
+      expect(loaded.password, 'keep-me');
+    });
+
+    test('Remove the saved password removes it; a typed one replaces it',
+        () async {
+      const row = ConnectionRow(
+        type: 'postgresql',
+        name: 'PG',
+        host: 'localhost',
+        port: 5432,
+        username: 'admin',
+        password: 'old-secret',
+        createdAt: '2026-01-01T00:00:00Z',
+      );
+      final id = await LocalDb.instance.addConnection(row);
+      ConnectionRow edit({String? password, bool remove = false}) =>
+          ConnectionRow(
+            id: id,
+            type: 'postgresql',
+            name: 'PG',
+            host: 'localhost',
+            port: 5432,
+            username: 'admin',
+            password: password,
+            createdAt: '2026-01-01T00:00:00Z',
+            removeSavedPassword: remove,
+          );
+
+      // Blank keeps it (as before) ...
+      var merged = await mergeSecretsForConnectionUpdate(edit());
+      expect(merged.password, 'old-secret');
+
+      // ... unless removal was asked for.
+      merged = await mergeSecretsForConnectionUpdate(edit(remove: true));
+      expect(merged.password, isNull);
+      await LocalDb.instance.updateConnection(merged);
+      expect((await ConnectionSecretsStore.readForConnection(id)).password,
+          isNull);
+
+      // A password typed with the request replaces: nothing is lost by it.
+      merged = await mergeSecretsForConnectionUpdate(
+          edit(password: 'new-secret', remove: true));
+      expect(merged.password, 'new-secret');
+    });
+
+    test('turning the SSH tunnel off removes its secrets from the store',
+        () async {
+      final withTunnel = ConnectionRow(
+        type: 'postgresql',
+        name: 'PG via bastion',
+        host: 'db.internal',
+        port: 5432,
+        createdAt: '2026-01-01T00:00:00Z',
+        sshSecrets: SshTunnelSecrets(
+          password: 'ssh-pass',
+          privateKey: 'ssh-key',
+          passphrase: 'phrase',
+          jumpPassword: 'jump',
+        ),
+      ).withSshTunnelConfig(const SshTunnelConfig(
+        enabled: true,
+        host: 'bastion.example',
+        port: 22,
+        username: 'deploy',
+      ));
+      final id = await LocalDb.instance.addConnection(withTunnel);
+      expect(
+          (await ConnectionSecretsStore.readSshSecretsForConnection(id))
+              .privateKey,
+          'ssh-key');
+
+      // The form saves without a tunnel and without SSH secrets.
+      final off = ConnectionRow(
+        id: id,
+        type: 'postgresql',
+        name: 'PG via bastion',
+        host: 'db.internal',
+        port: 5432,
+        createdAt: '2026-01-01T00:00:00Z',
+      ).withSshTunnelConfig(null);
+      await LocalDb.instance.updateConnection(
+          await mergeSecretsForConnectionUpdate(off));
+
+      final left = await ConnectionSecretsStore.readSshSecretsForConnection(id);
+      expect(left.password, isNull);
+      expect(left.privateKey, isNull);
+      expect(left.passphrase, isNull);
+      expect(left.jumpPassword, isNull);
+    });
+
+    test('a failed update restores the SSH secrets as well', () async {
+      const tunnel = SshTunnelConfig(
+        enabled: true,
+        host: 'bastion.example',
+        port: 22,
+        username: 'deploy',
+      );
+      final id = await LocalDb.instance.addConnection(ConnectionRow(
+        type: 'postgresql',
+        name: 'PG',
+        host: 'db.internal',
+        port: 5432,
+        password: 'db-pass',
+        createdAt: '2026-01-01T00:00:00Z',
+        sshSecrets:
+            SshTunnelSecrets(password: 'ssh-old', privateKey: 'key-old'),
+      ).withSshTunnelConfig(tunnel));
+
+      // Writes of the update: password, connection string, then the four SSH
+      // keys: the fourth write (the private key) fails.
+      final real = ConnectionSecretsStore.backend;
+      ConnectionSecretsStore.backend = _FailsOnWrite(real, failOn: 4);
+      addTearDown(() => ConnectionSecretsStore.backend = real);
+
+      await expectLater(
+        LocalDb.instance.updateConnection(ConnectionRow(
+          id: id,
+          type: 'postgresql',
+          name: 'PG',
+          host: 'db.internal',
+          port: 5432,
+          password: 'db-pass',
+          createdAt: '2026-01-01T00:00:00Z',
+          sshSecrets:
+              SshTunnelSecrets(password: 'ssh-new', privateKey: 'key-new'),
+        ).withSshTunnelConfig(tunnel)),
+        throwsA(isA<StateError>()),
+      );
+      ConnectionSecretsStore.backend = real;
+
+      final ssh = await ConnectionSecretsStore.readSshSecretsForConnection(id);
+      expect(ssh.password, 'ssh-old');
+      expect(ssh.privateKey, 'key-old');
+      expect((await ConnectionSecretsStore.readForConnection(id)).password,
+          'db-pass');
     });
   });
+}
+
+/// A backend whose [failOn]th write (1-based, counted from the first write
+/// through it) throws; every other call goes to [inner].
+class _FailsOnWrite implements SecretsStorageBackend {
+  _FailsOnWrite(this.inner, {required this.failOn});
+
+  final SecretsStorageBackend inner;
+  final int failOn;
+  int _writes = 0;
+
+  @override
+  Future<String?> read(String key) => inner.read(key);
+
+  @override
+  Future<void> write(String key, String? value) async {
+    if (++_writes == failOn) throw StateError('keyring write failed');
+    await inner.write(key, value);
+  }
+
+  @override
+  Future<void> delete(String key) => inner.delete(key);
 }

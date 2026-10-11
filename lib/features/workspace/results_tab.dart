@@ -2,8 +2,10 @@ import 'dart:async' show Timer, unawaited;
 
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
+import 'package:querya_desktop/core/security/pii_masking_controller.dart';
 import 'package:querya_desktop/core/actions/data_grid_command_bridge.dart';
 import 'package:querya_desktop/core/widgets/virtual_selectable_text_view.dart';
+import 'package:querya_desktop/features/results/charts/quick_chart_view.dart';
 import 'package:querya_desktop/features/workspace/data_grid_calc_bar.dart';
 import 'package:querya_desktop/features/workspace/data_grid_filter_bar.dart';
 import 'package:querya_desktop/features/workspace/data_grid_groupings_view.dart';
@@ -15,10 +17,12 @@ import 'package:querya_desktop/features/workspace/grid_selection_calc_engine.dar
 import 'package:querya_desktop/features/workspace/result_grid_view.dart';
 import 'package:querya_desktop/shared/services/data_export_service.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 enum ResultViewMode {
   grid,
   groupings,
+  charts,
 }
 
 /// Query output: grid, loading, error, or placeholder.
@@ -48,6 +52,7 @@ class ResultsTab extends material.StatefulWidget {
     this.isLoading = false,
     this.affectedRows,
     this.statusLine,
+    this.elapsed,
     this.showExportToolbar = true,
     this.stagingBuffer,
     this.onApplyChanges,
@@ -62,6 +67,9 @@ class ResultsTab extends material.StatefulWidget {
   final bool isLoading;
   final int? affectedRows;
   final String? statusLine;
+
+  /// Time the query took, shown as a badge next to the row count.
+  final Duration? elapsed;
   final bool showExportToolbar;
   final DataGridStagingBuffer? stagingBuffer;
   final material.VoidCallback? onApplyChanges;
@@ -101,6 +109,96 @@ class _ResultsTabState extends material.State<ResultsTab> {
   List<List<String>>? _memoEffectiveRows;
   List<List<String>> _cachedFilteredRows = const [];
   List<int>? _cachedFilteredIndices;
+  int _filterSeq = 0;
+  Timer? _filterDebounceTimer;
+
+  void _onFilterChanged(String text) {
+    if (_filterText == text) return;
+    _filterText = text;
+    final effectiveRows = widget.stagingBuffer != null
+        ? widget.stagingBuffer!.effectiveRows
+        : widget.rows;
+    _applyFilter(effectiveRows, widget.columns);
+  }
+
+  void _onFilterClosed() {
+    _showFilterBar = false;
+    _filterDebounceTimer?.cancel();
+    _filterSeq++;
+    _filterText = '';
+    final effectiveRows = widget.stagingBuffer != null
+        ? widget.stagingBuffer!.effectiveRows
+        : widget.rows;
+    _memoFilterText = '';
+    _memoEffectiveRows = effectiveRows;
+    _memoColumns = widget.columns;
+    _cachedFilteredRows = effectiveRows;
+    _cachedFilteredIndices = null;
+    setState(() {});
+  }
+
+  void _applyFilter(
+    List<List<String>> effectiveRows,
+    List<String> columns, {
+    bool forceSyncIfSmall = true,
+  }) {
+    final seq = ++_filterSeq;
+    _filterDebounceTimer?.cancel();
+
+    if (_filterText.trim().isEmpty) {
+      _memoFilterText = _filterText;
+      _memoEffectiveRows = effectiveRows;
+      _memoColumns = columns;
+      _cachedFilteredRows = effectiveRows;
+      _cachedFilteredIndices = null;
+      if (mounted) setState(() {});
+      return;
+    }
+
+    if (forceSyncIfSmall &&
+        effectiveRows.length < GridFilterEngine.defaultIsolateThreshold) {
+      final filteredIndices = GridFilterEngine.filterRowIndices(
+        filterText: _filterText,
+        columns: columns,
+        rows: effectiveRows,
+      );
+      final isFiltered = filteredIndices.length != effectiveRows.length;
+      final filteredRows = !isFiltered
+          ? effectiveRows
+          : filteredIndices.map((i) => effectiveRows[i]).toList();
+
+      _memoFilterText = _filterText;
+      _memoEffectiveRows = effectiveRows;
+      _memoColumns = columns;
+      _cachedFilteredRows = filteredRows;
+      _cachedFilteredIndices = isFiltered ? filteredIndices : null;
+      if (mounted) setState(() {});
+      return;
+    }
+
+    _filterDebounceTimer = Timer(const Duration(milliseconds: 150), () {
+      unawaited(
+        GridFilterEngine.filterRowIndicesAdaptive(
+          filterText: _filterText,
+          columns: columns,
+          rows: effectiveRows,
+        ).then((filteredIndices) {
+          if (!mounted || seq != _filterSeq) return;
+          final isFiltered = filteredIndices.length != effectiveRows.length;
+          final filteredRows = !isFiltered
+              ? effectiveRows
+              : filteredIndices.map((i) => effectiveRows[i]).toList();
+          setState(() {
+            _memoFilterText = _filterText;
+            _memoEffectiveRows = effectiveRows;
+            _memoColumns = columns;
+            _cachedFilteredRows = filteredRows;
+            _cachedFilteredIndices = isFiltered ? filteredIndices : null;
+          });
+        }),
+      );
+    });
+  }
 
   List<List<String>> _getFilteredRows(
     List<List<String>> effectiveRows,
@@ -112,24 +210,35 @@ class _ResultsTabState extends material.State<ResultsTab> {
       return _cachedFilteredRows;
     }
 
-    final filteredIndices = GridFilterEngine.filterRowIndices(
-      filterText: _filterText,
-      columns: columns,
-      rows: effectiveRows,
-    );
+    if (_filterText.trim().isEmpty) {
+      _memoFilterText = _filterText;
+      _memoEffectiveRows = effectiveRows;
+      _memoColumns = columns;
+      _cachedFilteredRows = effectiveRows;
+      _cachedFilteredIndices = null;
+      return effectiveRows;
+    }
 
-    final isFiltered = filteredIndices.length != effectiveRows.length;
-    final filteredRows = !isFiltered
-        ? effectiveRows
-        : filteredIndices.map((i) => effectiveRows[i]).toList();
+    if (effectiveRows.length < GridFilterEngine.defaultIsolateThreshold) {
+      final filteredIndices = GridFilterEngine.filterRowIndices(
+        filterText: _filterText,
+        columns: columns,
+        rows: effectiveRows,
+      );
+      final isFiltered = filteredIndices.length != effectiveRows.length;
+      final filteredRows = !isFiltered
+          ? effectiveRows
+          : filteredIndices.map((i) => effectiveRows[i]).toList();
+      _memoFilterText = _filterText;
+      _memoEffectiveRows = effectiveRows;
+      _memoColumns = columns;
+      _cachedFilteredRows = filteredRows;
+      _cachedFilteredIndices = isFiltered ? filteredIndices : null;
+      return filteredRows;
+    }
 
-    _memoFilterText = _filterText;
-    _memoEffectiveRows = effectiveRows;
-    _memoColumns = columns;
-    _cachedFilteredRows = filteredRows;
-    _cachedFilteredIndices = isFiltered ? filteredIndices : null;
-
-    return filteredRows;
+    _applyFilter(effectiveRows, columns, forceSyncIfSmall: false);
+    return _cachedFilteredRows.isNotEmpty ? _cachedFilteredRows : effectiveRows;
   }
 
   @override
@@ -142,6 +251,22 @@ class _ResultsTabState extends material.State<ResultsTab> {
   void didUpdateWidget(covariant ResultsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     _syncGridBridge();
+    if (!identical(oldWidget.rows, widget.rows) ||
+        !identical(oldWidget.columns, widget.columns) ||
+        oldWidget.stagingBuffer != widget.stagingBuffer) {
+      final effectiveRows = widget.stagingBuffer != null
+          ? widget.stagingBuffer!.effectiveRows
+          : widget.rows;
+      if (_filterText.isNotEmpty) {
+        _applyFilter(effectiveRows, widget.columns);
+      } else {
+        _memoFilterText = '';
+        _memoEffectiveRows = effectiveRows;
+        _memoColumns = widget.columns;
+        _cachedFilteredRows = effectiveRows;
+        _cachedFilteredIndices = null;
+      }
+    }
   }
 
   void _syncGridBridge() {
@@ -239,6 +364,8 @@ class _ResultsTabState extends material.State<ResultsTab> {
 
   @override
   void dispose() {
+    _filterDebounceTimer?.cancel();
+    _filterSeq++;
     _statsDebounce?.cancel();
     _statsSeq++;
     _selectedRowIndex.dispose();
@@ -255,19 +382,11 @@ class _ResultsTabState extends material.State<ResultsTab> {
   @override
   material.Widget build(material.BuildContext context) {
     if (widget.isLoading) {
-      return material.Center(
-        key: const material.ValueKey('results_mode_loading'),
-        child: material.Row(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 16,
-              height: 16,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(12),
-            const Text('Executing query...').muted().small(),
-          ],
+      return const material.Center(
+        key: material.ValueKey('results_mode_loading'),
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.sm,
+          label: 'Executing query...',
         ),
       );
     }
@@ -279,6 +398,7 @@ class _ResultsTabState extends material.State<ResultsTab> {
           padding: const material.EdgeInsets.all(32),
           child: material.Column(
             mainAxisAlignment: material.MainAxisAlignment.center,
+            mainAxisSize: material.MainAxisSize.min,
             children: [
               material.Icon(
                 material.Icons.error_outline_rounded,
@@ -288,11 +408,15 @@ class _ResultsTabState extends material.State<ResultsTab> {
               const Gap(16),
               const Text('Query Error').large().semiBold(),
               const Gap(8),
-              VirtualSelectableTextView(
-                text: widget.errorMessage!,
-                style: material.TextStyle(
-                  color: Theme.of(context).colorScheme.mutedForeground,
-                  fontSize: 13,
+              // A long driver message scrolls inside the space left, instead
+              // of pushing the column past the pane.
+              material.Flexible(
+                child: VirtualSelectableTextView(
+                  text: widget.errorMessage!,
+                  style: material.TextStyle(
+                    color: Theme.of(context).colorScheme.mutedForeground,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               if (widget.errorAction != null) ...[
@@ -401,35 +525,20 @@ class _ResultsTabState extends material.State<ResultsTab> {
               ),
               child: material.SingleChildScrollView(
                 scrollDirection: material.Axis.horizontal,
-                child: material.Row(
+                child: QueryaControlScope(
+                  size: QueryaControlSize.sm,
+                  child: material.Row(
                   mainAxisSize: material.MainAxisSize.min,
                   children: [
                     // Grid / Groupings View Selector
-                    material.SizedBox(
-                      height: 28,
-                      child: material.SegmentedButton<ResultViewMode>(
-                        segments: const [
-                          material.ButtonSegment(
-                            value: ResultViewMode.grid,
-                            label: Text('Grid'),
-                            icon: material.Icon(material.Icons.table_chart_outlined, size: 14),
-                          ),
-                          material.ButtonSegment(
-                            value: ResultViewMode.groupings,
-                            label: Text('Groupings'),
-                            icon: material.Icon(material.Icons.grid_view_rounded, size: 14),
-                          ),
-                        ],
-                        selected: {_viewMode},
-                        onSelectionChanged: (selected) {
-                          setState(() => _viewMode = selected.first);
-                        },
-                        showSelectedIcon: false,
-                        style: material.SegmentedButton.styleFrom(
-                          padding: const material.EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                          visualDensity: material.VisualDensity.compact,
-                        ),
-                      ),
+                    // Sized by its labels: a fixed box clipped the tabs and
+                    // let "Groupings" run into its neighbours at larger UI
+                    // scales.
+                    QueryaTabStrip(
+                      labels: const ['Grid', 'Groupings', 'Charts'],
+                      selectedIndex: ResultViewMode.values.indexOf(_viewMode),
+                      onSelected: (i) =>
+                          setState(() => _viewMode = ResultViewMode.values[i]),
                     ),
                     const Gap(10),
                     Text(
@@ -438,39 +547,63 @@ class _ResultsTabState extends material.State<ResultsTab> {
                               ? 'Rows affected: ${widget.affectedRows}'
                               : '${filteredRows.length}${_filterText.isNotEmpty ? ' of ${effectiveRows.length}' : ''} rows'),
                     ).small().semiBold(),
+                    if (widget.elapsed != null) ...[
+                      const Gap(8),
+                      QueryaBadge(
+                        key: const material.ValueKey('result_elapsed'),
+                        label: formatResultElapsed(widget.elapsed!),
+                        isMonospace: true,
+                      ),
+                    ],
 
                     const Gap(16),
 
                     // Toggle Quick Filter
-                    material.IconButton(
+                    QueryaIconButton(
                       icon: material.Icon(
                         _showFilterBar ? material.Icons.filter_alt : material.Icons.filter_alt_outlined,
                         size: 15,
                       ),
                       tooltip: 'Toggle Quick Filter',
-                      padding: material.EdgeInsets.zero,
-                      constraints: const material.BoxConstraints(minWidth: 28, minHeight: 28),
-                      color: _showFilterBar || _filterText.isNotEmpty
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.mutedForeground,
+                      isActive: _showFilterBar || _filterText.isNotEmpty,
                       onPressed: () {
                         setState(() => _showFilterBar = !_showFilterBar);
                       },
                     ),
                     const Gap(4),
 
+                    // Mask sensitive data (passwords, tokens, emails, phones, cards)
+                    material.ListenableBuilder(
+                      listenable: PiiMaskingController.instance,
+                      builder: (context, _) {
+                        final masked = PiiMaskingController.instance.enabled;
+                        return QueryaIconButton(
+                          key: const material.Key(
+                              'results_mask_sensitive_toggle'),
+                          icon: material.Icon(
+                            masked
+                                ? material.Icons.visibility_off_rounded
+                                : material.Icons.visibility_outlined,
+                            size: 15,
+                          ),
+                          tooltip: masked
+                              ? 'Sensitive data is masked — click to show'
+                              : 'Mask sensitive data',
+                          isActive: masked,
+                          onPressed: PiiMaskingController.instance.toggle,
+                        );
+                      },
+                    ),
+                    const Gap(4),
+
                     // Toggle Value Side Panel
-                    material.IconButton(
+                    QueryaIconButton(
                       icon: material.Icon(
                         _showValuePanel ? material.Icons.dock : material.Icons.data_object_rounded,
                         size: 15,
                       ),
                       tooltip: 'Inspect Cell Panel',
-                      padding: material.EdgeInsets.zero,
-                      constraints: const material.BoxConstraints(minWidth: 28, minHeight: 28),
-                      color: _showValuePanel
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.mutedForeground,
+                      isActive: _showValuePanel,
                       onPressed: () {
                         setState(() => _showValuePanel = !_showValuePanel);
                       },
@@ -478,14 +611,14 @@ class _ResultsTabState extends material.State<ResultsTab> {
                     const Gap(8),
 
                     ExportMenuButton(
-                      label: 'Export ▾',
+                      label: 'Export',
                       icon: material.Icons.copy_rounded,
                       isSave: false,
                       onSelected: (format) => unawaited(_copyAs(format)),
                     ),
                     const Gap(6),
                     ExportMenuButton(
-                      label: 'Save File ▾',
+                      label: 'Save File',
                       icon: material.Icons.download_rounded,
                       isSave: true,
                       onSelected: (format) {
@@ -511,6 +644,7 @@ class _ResultsTabState extends material.State<ResultsTab> {
                       },
                     ),
                   ],
+                  ),
                 ),
               ),
             ),
@@ -521,14 +655,11 @@ class _ResultsTabState extends material.State<ResultsTab> {
           expanded: _showFilterBar || _filterText.isNotEmpty,
           child: DataGridFilterBar(
             filterText: _filterText,
-            onFilterChanged: (text) => setState(() => _filterText = text),
+            onFilterChanged: _onFilterChanged,
             totalRowCount: effectiveRows.length,
             filteredRowCount: filteredRows.length,
             columns: widget.columns,
-            onClose: () => setState(() {
-              _showFilterBar = false;
-              _filterText = '';
-            }),
+            onClose: _onFilterClosed,
           ),
         ),
 
@@ -536,7 +667,12 @@ class _ResultsTabState extends material.State<ResultsTab> {
         material.Expanded(
           child: QueryaFadeSlide(
             key: material.ValueKey(_viewMode),
-            child: _viewMode == ResultViewMode.groupings
+            child: _viewMode == ResultViewMode.charts
+                ? QuickChartView(
+                    columns: widget.columns,
+                    rows: filteredRows,
+                  )
+                : _viewMode == ResultViewMode.groupings
                 ? DataGridGroupingsView(
                     columns: widget.columns,
                     rows: filteredRows,
@@ -644,9 +780,10 @@ Future<void> _showSaveFileErrorDialog(material.BuildContext context) {
             const Gap(20),
             material.Align(
               alignment: material.Alignment.centerRight,
-              child: PrimaryButton(
+              child: QueryaButton.primary(
+                label: 'OK',
                 onPressed: () => material.Navigator.of(ctx).pop(),
-                child: const Text('OK'),
+                size: QueryaControlSize.md,
               ),
             ),
           ],
@@ -654,4 +791,13 @@ Future<void> _showSaveFileErrorDialog(material.BuildContext context) {
       ),
     ),
   );
+}
+
+/// `14 ms`, `1.2 s`, `2 min 5 s`: what the elapsed badge shows.
+String formatResultElapsed(Duration d) {
+  if (d.inMilliseconds < 1000) return '${d.inMilliseconds} ms';
+  if (d.inSeconds < 60) {
+    return '${(d.inMilliseconds / 1000).toStringAsFixed(1)} s';
+  }
+  return '${d.inMinutes} min ${d.inSeconds % 60} s';
 }

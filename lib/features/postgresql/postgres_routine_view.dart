@@ -6,6 +6,7 @@ import 'package:querya_desktop/core/editor/querya_code_language.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/workspace/sql_editor_chrome.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows [pg_get_functiondef] for each overload of a PostgreSQL function.
 class PostgresRoutineView extends material.StatefulWidget {
@@ -61,18 +62,13 @@ class _PostgresRoutineViewState extends material.State<PostgresRoutineView> {
     }
     _definitionControllers.clear();
     _scrollController.dispose();
-    _disconnectCurrent(interruptIfBusy: true);
+    _disconnectCurrent();
     super.dispose();
   }
 
-  void _disconnectCurrent({bool interruptIfBusy = false}) {
-    if (interruptIfBusy && _loading) {
-      PostgresService.instance.interrupt(
-        widget.connectionRow,
-        database: widget.database,
-        mode: PgSessionMode.readOnly,
-      );
-    }
+  /// Releases the lease. The session is shared with the tree, the table tabs
+  /// and MCP, so closing this view never interrupts it.
+  void _disconnectCurrent() {
     _lease?.release();
     _lease = null;
   }
@@ -137,18 +133,10 @@ class _PostgresRoutineViewState extends material.State<PostgresRoutineView> {
     if (_loading) {
       return material.Container(
         color: cs.background,
-        child: material.Center(
-          child: material.Column(
-            mainAxisSize: material.MainAxisSize.min,
-            children: [
-              const material.SizedBox(
-                width: 28,
-                height: 28,
-                child: material.CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const Gap(12),
-              const Text('Loading function…').muted().small(),
-            ],
+        child: const material.Center(
+          child: QueryaSpinner(
+            size: QueryaSpinnerSize.md,
+            label: 'Loading function…',
           ),
         ),
       );
@@ -172,11 +160,11 @@ class _PostgresRoutineViewState extends material.State<PostgresRoutineView> {
                     style: material.TextStyle(
                         color: cs.mutedForeground, fontSize: 13)),
                 const Gap(24),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Retry',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _connectAndLoad,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 18),
-                  child: const Text('Retry'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),
@@ -215,12 +203,11 @@ class _PostgresRoutineViewState extends material.State<PostgresRoutineView> {
                     overflow: material.TextOverflow.ellipsis,
                   ),
                 ),
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Refresh',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _connectAndLoad,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 14),
-                  child: const Text('Refresh'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),

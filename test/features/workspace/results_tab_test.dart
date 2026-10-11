@@ -143,6 +143,37 @@ void main() {
       );
       expect(result, equals(initial));
     });
+
+    test('reuses precomputed maxRowChars and yields identical distributed widths', () {
+      final columns = ['app_id', 'country', 'description'];
+      final rows = [
+        ['292030', 'kz', 'x' * 100],
+      ];
+      final maxRowChars = <int>[];
+      final initialWidths = computeResultGridColumnWidths(
+        columns: columns,
+        rows: rows,
+        outMaxRowChars: maxRowChars,
+      );
+      expect(maxRowChars, [6, 2, 100]);
+
+      final withoutPrecomputed = distributeResultGridSpareWidth(
+        columnWidths: initialWidths,
+        columns: columns,
+        rows: rows,
+        availableWidth: 1000.0,
+      );
+
+      final withPrecomputed = distributeResultGridSpareWidth(
+        columnWidths: initialWidths,
+        columns: columns,
+        rows: rows,
+        availableWidth: 1000.0,
+        maxRowChars: maxRowChars,
+      );
+
+      expect(withPrecomputed, equals(withoutPrecomputed));
+    });
   });
 
   group('sortResultGridRows', () {
@@ -507,6 +538,43 @@ void main() {
         find.byKey(const material.ValueKey('results_mode_loading')),
         findsNothing,
       );
+    });
+
+    testWidgets('a long error scrolls inside a short pane without overflow',
+        (tester) async {
+      final longError = [
+        for (var i = 0; i < 40; i++)
+          'SqliteException(1): while preparing statement, no such table, '
+              'line $i of the driver message',
+      ].join('\n');
+      await tester.pumpWidget(
+        resultsShell(
+          child: material.Scaffold(
+            body: material.Center(
+              child: material.SizedBox(
+                width: 600,
+                height: 300,
+                child: ResultsTab(
+                  isLoading: false,
+                  errorMessage: longError,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const material.ValueKey('results_mode_error')),
+        findsOneWidget,
+      );
+      final pane = tester.getRect(find.byType(ResultsTab));
+      final error = tester.getRect(
+        find.byKey(const material.ValueKey('results_mode_error')),
+      );
+      expect(error.bottom, lessThanOrEqualTo(pane.bottom));
     });
 
     testWidgets('shows idle / loading / error / grid mode keys', (tester) async {
@@ -1091,7 +1159,7 @@ void main() {
       buffer.dispose();
     });
 
-    testWidgets('ResultsTab renders Export ▾ button with file export options', (tester) async {
+    testWidgets('ResultsTab renders Export button with file export options', (tester) async {
       final rows = [
         ['1', 'Alice'],
       ];
@@ -1112,8 +1180,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Export ▾'), findsOneWidget);
-      expect(find.text('Save File ▾'), findsOneWidget);
+      expect(find.text('Export'), findsOneWidget);
+      expect(find.text('Save File'), findsOneWidget);
     });
 
     testWidgets('ResultsTab toggles filter bar and closes it when close button or Escape is triggered', (tester) async {
@@ -1343,5 +1411,50 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
-}
 
+  group('result view tabs', () {
+    testWidgets(
+        'Grid, Groupings and Charts sit side by side at any text scale',
+        (tester) async {
+      for (final scale in [1.0, 1.3, 1.6]) {
+        await tester.pumpWidget(
+          material.MediaQuery(
+            data: material.MediaQueryData(
+              size: const material.Size(900, 500),
+              textScaler: material.TextScaler.linear(scale),
+            ),
+            child: resultsShell(
+              child: const material.Scaffold(
+                body: material.SizedBox(
+                  width: 900,
+                  height: 500,
+                  child: ResultsTab(
+                    columns: ['id', 'name'],
+                    rows: [
+                      ['1', 'Alice'],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final grid =
+            tester.getRect(find.byKey(const material.ValueKey('querya_tab_Grid')));
+        final groupings = tester.getRect(
+            find.byKey(const material.ValueKey('querya_tab_Groupings')));
+        final charts = tester.getRect(
+            find.byKey(const material.ValueKey('querya_tab_Charts')));
+
+        expect(grid.right, lessThanOrEqualTo(groupings.left), reason: 'x$scale');
+        expect(groupings.right, lessThanOrEqualTo(charts.left),
+            reason: 'x$scale');
+        // The tabs are as tall as their own content: nothing is clipped by a
+        // box that is shorter than them.
+        expect(tester.takeException(), isNull, reason: 'x$scale');
+      }
+    });
+  });
+}

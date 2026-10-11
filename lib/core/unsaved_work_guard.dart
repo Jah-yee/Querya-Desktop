@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/unsaved_work_registry.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Confirms before Home / Close / tree navigation discards SQL, staged grid
 /// edits, or a dirty document editor. Returns true when it is safe to tear
@@ -40,13 +41,15 @@ Future<bool?> showDiscardUnsavedWorkDialog(material.BuildContext context) {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    OutlineButton(
+                    QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(ctx).pop(false),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.lg,
                     ),
-                    DestructiveButton(
+                    QueryaButton.destructive(
+                      label: 'Discard',
                       onPressed: () => material.Navigator.of(ctx).pop(true),
-                      child: const Text('Discard'),
+                      size: QueryaControlSize.lg,
                     ),
                   ],
                 ),

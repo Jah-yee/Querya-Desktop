@@ -1,3 +1,5 @@
+import 'package:querya_desktop/core/database/sql_statement_splitter.dart';
+
 /// Categorization of destructive SQL / Mongo / Redis operations that can
 /// alter or destroy schema/data.
 enum DestructiveSqlType {
@@ -16,7 +18,11 @@ enum DestructiveSqlType {
   redisSrem,
   redisZrem,
   redisRename,
-  redisLrem;
+  redisLrem,
+  redisFlushAll,
+  redisFlushDb,
+  redisShutdown,
+  redisKeys;
 
   String get label => switch (this) {
         DestructiveSqlType.dropDatabase => 'DROP DATABASE',
@@ -35,6 +41,10 @@ enum DestructiveSqlType {
         DestructiveSqlType.redisZrem => 'ZREM',
         DestructiveSqlType.redisRename => 'RENAME',
         DestructiveSqlType.redisLrem => 'LREM',
+        DestructiveSqlType.redisFlushAll => 'FLUSHALL',
+        DestructiveSqlType.redisFlushDb => 'FLUSHDB',
+        DestructiveSqlType.redisShutdown => 'SHUTDOWN',
+        DestructiveSqlType.redisKeys => 'KEYS *',
       };
 
   String get riskLevel => switch (this) {
@@ -52,6 +62,10 @@ enum DestructiveSqlType {
         DestructiveSqlType.redisZrem => 'HIGH',
         DestructiveSqlType.redisRename => 'HIGH',
         DestructiveSqlType.redisLrem => 'HIGH',
+        DestructiveSqlType.redisFlushAll => 'CRITICAL',
+        DestructiveSqlType.redisFlushDb => 'CRITICAL',
+        DestructiveSqlType.redisShutdown => 'CRITICAL',
+        DestructiveSqlType.redisKeys => 'HIGH',
         DestructiveSqlType.dropMaterializedView => 'MEDIUM',
         DestructiveSqlType.dropView => 'MEDIUM',
       };
@@ -101,6 +115,14 @@ class DestructiveSqlOperation {
           'Renaming will overwrite existing key "$targetName". The existing value will be permanently lost.',
         DestructiveSqlType.redisLrem =>
           'Permanently removes list element "$targetName".',
+        DestructiveSqlType.redisFlushAll =>
+          'Permanently deletes all keys across all Redis databases! This cannot be undone.',
+        DestructiveSqlType.redisFlushDb =>
+          'Permanently deletes all keys in the current Redis database ($targetName).',
+        DestructiveSqlType.redisShutdown =>
+          'Shuts down the Redis server instance. All clients will be disconnected.',
+        DestructiveSqlType.redisKeys =>
+          'Scanning all keys with "KEYS $targetName" can block Redis on large production instances. Consider SCAN instead.',
       };
 }
 
@@ -267,107 +289,9 @@ abstract final class DestructiveSqlDetector {
 
   /// Splits an SQL query into individual statements on `;`, taking into account
   /// comments and string literals.
-  static List<String> splitStatements(String sql) {
-    final statements = <String>[];
-    final current = StringBuffer();
-    final len = sql.length;
-    var i = 0;
-
-    while (i < len) {
-      // Line comment
-      if (i + 1 < len && sql[i] == '-' && sql[i + 1] == '-') {
-        while (i < len && sql[i] != '\n' && sql[i] != '\r') {
-          current.write(sql[i]);
-          i++;
-        }
-        continue;
-      }
-
-      // Block comment
-      if (i + 1 < len && sql[i] == '/' && sql[i + 1] == '*') {
-        current.write('/*');
-        i += 2;
-        while (i + 1 < len && !(sql[i] == '*' && sql[i + 1] == '/')) {
-          current.write(sql[i]);
-          i++;
-        }
-        if (i + 1 < len) {
-          current.write('*/');
-          i += 2;
-        } else {
-          i = len;
-        }
-        continue;
-      }
-
-      // Dollar quotes
-      if (sql[i] == '\$') {
-        final match =
-            RegExp(r'^\$([a-zA-Z0-9_]*)\$').matchAsPrefix(sql.substring(i));
-        if (match != null) {
-          final tag = match.group(0)!;
-          current.write(tag);
-          i += tag.length;
-          final closeIdx = sql.indexOf(tag, i);
-          if (closeIdx != -1) {
-            current.write(sql.substring(i, closeIdx + tag.length));
-            i = closeIdx + tag.length;
-          } else {
-            current.write(sql.substring(i));
-            i = len;
-          }
-          continue;
-        }
-      }
-
-      // String literal
-      if (sql[i] == "'") {
-        current.write("'");
-        i++;
-        while (i < len) {
-          if (sql[i] == "'") {
-            current.write("'");
-            if (i + 1 < len && sql[i + 1] == "'") {
-              current.write("'");
-              i += 2;
-            } else {
-              i++;
-              break;
-            }
-          } else if (sql[i] == '\\' && i + 1 < len) {
-            current.write(sql[i]);
-            current.write(sql[i + 1]);
-            i += 2;
-          } else {
-            current.write(sql[i]);
-            i++;
-          }
-        }
-        continue;
-      }
-
-      // Statement delimiter
-      if (sql[i] == ';') {
-        final stmt = current.toString().trim();
-        if (stmt.isNotEmpty) {
-          statements.add(stmt);
-        }
-        current.clear();
-        i++;
-        continue;
-      }
-
-      current.write(sql[i]);
-      i++;
-    }
-
-    final remaining = current.toString().trim();
-    if (remaining.isNotEmpty) {
-      statements.add(remaining);
-    }
-
-    return statements;
-  }
+  static List<String> splitStatements(String sql) => [
+        for (final span in SqlStatementSplitter.spans(sql)) span.textIn(sql),
+      ];
 
   /// Inspects [sql] and returns any detected destructive operations.
   static DestructiveSqlInspectionResult inspect(String sql) {

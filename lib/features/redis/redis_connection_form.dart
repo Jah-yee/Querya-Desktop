@@ -1,14 +1,22 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart' as material;
+import 'package:querya_desktop/features/connections/connection_test_result.dart';
+import 'package:querya_desktop/features/connections/connection_default_name.dart';
+import 'package:querya_desktop/core/security/connection_environment.dart';
+import 'package:querya_desktop/features/connections/environment_section.dart';
 import 'package:querya_desktop/core/database/redis_connection.dart';
 import 'package:querya_desktop/core/layout/window_layout.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
+import 'package:querya_desktop/features/connections/remove_saved_password_option.dart';
 import 'package:querya_desktop/features/connections/connection_creation_flow.dart';
+import 'package:querya_desktop/features/connections/ssh_tunnel_section.dart';
 import 'package:querya_desktop/features/connections/ssl_certificate_support.dart';
 import 'package:querya_desktop/shared/widgets/form_validity_notifier.dart';
 import 'package:querya_desktop/shared/widgets/ssl_certificate_fields.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows Redis connection form dialog. Returns ConnectionRow if saved, null if cancelled.
 Future<ConnectionRow?> showRedisConnectionForm(
@@ -52,6 +60,11 @@ class _RedisConnectionFormContentState
   final _sslCertController = material.TextEditingController();
   final _sslKeyController = material.TextEditingController();
 
+  SshTunnelConfig _sshConfig = const SshTunnelConfig();
+  ConnectionEnvironment? _environment;
+  final SshTunnelSecrets _sshSecrets = SshTunnelSecrets();
+
+  bool _removeSavedPassword = false;
   bool _useSSL = false;
   bool _showPassword = false;
   bool _isTesting = false;
@@ -81,12 +94,16 @@ class _RedisConnectionFormContentState
     final initial = widget.initial;
     if (initial != null) {
       _nameController.text = initial.name;
+      _environment = initial.environment;
       _hostController.text = initial.host ?? '';
       _portController.text = (initial.port ?? 6379).toString();
       _usernameController.text = initial.username ?? '';
       _useSSL = initial.useSSL;
       _connectionStringController.text =
           redactUriPassword(initial.connectionString) ?? '';
+      if (initial.sshTunnelConfig != null) {
+        _sshConfig = initial.sshTunnelConfig!;
+      }
     }
 
     _formValidNotifier.seed();
@@ -164,7 +181,7 @@ class _RedisConnectionFormContentState
       _isTesting = false;
       _testResult = result;
     });
-    _dismissTimer = Timer(const Duration(seconds: 5), () {
+    _dismissTimer = Timer(connectionTestResultLifetime(result), () {
       if (mounted) setState(() => _testResult = null);
     });
   }
@@ -184,9 +201,24 @@ class _RedisConnectionFormContentState
       _testResult = null;
     });
     try {
-      final conn = RedisConnection.fromConnectionRow(_draftRow());
-      final ok = await conn.testConnection();
-      if (mounted) _showTestResult(ok ? 'success' : 'failed');
+      final draft = _draftRow();
+      // Blank secret fields mean the saved ones when a connection is edited.
+      final secrets = await secretsForConnectionTest(
+        connectionId: widget.initial?.id,
+        password: draft.password,
+        connectionString: draft.connectionString,
+        sshSecrets: draft.sshSecrets,
+        useSavedPassword: !_removeSavedPassword,
+      );
+      final conn = RedisConnection.fromConnectionRow(draft.copyWith(
+        password: secrets.password,
+        connectionString: secrets.connectionString,
+        sshSecrets: secrets.sshSecrets,
+      ));
+      final result = await conn.testConnection();
+      if (mounted) {
+        _showTestResult(result.ok ? 'success' : (result.error ?? 'failed'));
+      }
     } catch (e) {
       if (mounted) _showTestResult('error: $e');
     }
@@ -198,9 +230,16 @@ class _RedisConnectionFormContentState
     final host = _hostController.text.trim();
     final port = int.tryParse(_portController.text.trim()) ?? 6379;
     final uri = _effectiveConnectionUri();
-    final displayName = name.isNotEmpty ? name : 'Redis $host:$port';
+    final displayName = name.isNotEmpty
+        ? name
+        : defaultConnectionName(
+            label: 'Redis',
+            defaultPort: 6379,
+            uri: uri,
+            fields: 'Redis $host:$port',
+          );
     final initial = widget.initial;
-    return ConnectionRow(
+    var row = ConnectionRow(
       id: id,
       type: initial?.type ?? 'redis',
       name: displayName.isEmpty ? 'test' : displayName,
@@ -218,12 +257,19 @@ class _RedisConnectionFormContentState
       folderId: initial?.folderId ?? widget.folderId,
       sortOrder: initial?.sortOrder ?? 0,
       createdAt: initial?.createdAt ?? DateTime.now().toUtc().toIso8601String(),
+      sshSecrets: _sshConfig.enabled ? _sshSecrets : null,
     );
+    return row
+        .withSshTunnelConfig(_sshConfig.enabled ? _sshConfig : null)
+        .withEnvironment(_environment);
   }
 
   void _save() {
     if (!_formValidNotifier.value) return;
-    material.Navigator.of(context).pop(_draftRow(id: widget.initial?.id));
+    material.Navigator.of(context).pop(
+      _draftRow(id: widget.initial?.id)
+          .copyWith(removeSavedPassword: _removeSavedPassword),
+    );
   }
 
   @override
@@ -292,7 +338,7 @@ class _RedisConnectionFormContentState
                 ],
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             material.Expanded(
               child: material.FocusTraversalGroup(
                 policy: material.WidgetOrderTraversalPolicy(),
@@ -369,11 +415,18 @@ class _RedisConnectionFormContentState
                     ),
                     const Gap(16),
                     const Text('Password (optional)').small().semiBold(),
+                    if (_isEditing)
+                      RemoveSavedPasswordOption(
+                        value: _removeSavedPassword,
+                        onChanged: (v) =>
+                            setState(() => _removeSavedPassword = v),
+                      ),
                     const Gap(8),
                     material.Stack(
                       children: [
                         TextField(
                           controller: _passwordController,
+                          enabled: !_removeSavedPassword,
                           placeholder: Text(
                             _isEditing
                                 ? 'Leave blank to keep existing'
@@ -386,23 +439,19 @@ class _RedisConnectionFormContentState
                           top: 0,
                           bottom: 0,
                           child: material.Center(
-                            child: material.IconButton(
-                              icon: material.Icon(
-                                _showPassword
+                            child: QueryaIconButton(
+icon: material.Icon(_showPassword
                                     ? material.Icons.visibility_off
-                                    : material.Icons.visibility,
-                                size: 20,
-                              ),
-                              onPressed: () => setState(
+                                    : material.Icons.visibility),
+tooltip: _showPassword ? 'Hide password' : 'Show password',
+size: QueryaControlSize.sm,
+onPressed: () => setState(
                                   () => _showPassword = !_showPassword),
-                              padding: material.EdgeInsets.zero,
-                              constraints: const material.BoxConstraints(),
-                            ),
+),
                           ),
                         ),
                       ],
                     ),
-                    const Gap(16),
                     material.Row(
                       children: [
                         material.Checkbox(
@@ -423,12 +472,30 @@ class _RedisConnectionFormContentState
                         onChanged: _syncUriSslParams,
                       ),
                     ],
+                    const Gap(16),
+                    EnvironmentSection(
+                      value: _environment,
+                      onChanged: (e) => setState(() => _environment = e),
+                    ),
+                    const Gap(16),
+                    // SSH Tunneling Section
+                    SshTunnelSection(
+                      config: _sshConfig,
+                      secrets: _sshSecrets,
+                      connectionId: widget.initial?.id,
+                      onChanged: (cfg) => setState(() => _sshConfig = cfg),
+                      targetHost: _hostController.text.trim().isNotEmpty
+                          ? _hostController.text.trim()
+                          : 'localhost',
+                      targetPort:
+                          int.tryParse(_portController.text.trim()) ?? 6379,
+                    ),
                   ],
                 ),
               ),
             ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             if (_testResult != null)
               material.Padding(
                 padding: const material.EdgeInsets.fromLTRB(24, 8, 16, 8),
@@ -466,29 +533,19 @@ class _RedisConnectionFormContentState
                           const Gap(10),
                           material.Expanded(
                             child: Text(
-                              _testResult == 'success'
-                                  ? 'Connection successful!'
-                                  : _testResult!.startsWith('error:')
-                                      ? _testResult!.substring(7)
-                                      : 'Connection failed',
+                              connectionTestMessage(_testResult!),
                               style: material.TextStyle(
                                 fontSize: 13,
                                 color: theme.foreground,
                               ),
                             ).small(),
                           ),
-                          material.IconButton(
-                            icon: material.Icon(
-                              material.Icons.close,
-                              size: 18,
-                              color: theme.mutedForeground,
-                            ),
-                            onPressed: _dismissResult,
-                            style: material.IconButton.styleFrom(
-                              minimumSize: const material.Size(28, 28),
-                              padding: material.EdgeInsets.zero,
-                            ),
-                          ),
+                          QueryaIconButton(
+icon: const material.Icon(material.Icons.close),
+tooltip: 'Dismiss',
+size: QueryaControlSize.sm,
+onPressed: _dismissResult,
+),
                         ],
                       ),
                     ),
@@ -497,56 +554,28 @@ class _RedisConnectionFormContentState
               ),
             material.FocusTraversalGroup(
               policy: material.WidgetOrderTraversalPolicy(),
-              child: material.Container(
-                padding: const material.EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 16),
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: _formValidNotifier.listenable,
-                  builder: (context, formValid, _) {
-                    return material.Row(
-                      children: [
-                        OutlineButton(
-                          onPressed:
-                              formValid && !_isTesting ? _testConnection : null,
-                          leading: _isTesting
-                              ? material.SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: material.CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: theme.primary,
-                                  ),
-                                )
-                              : material.Icon(
-                                  material.Icons.link_rounded,
-                                  size: 18,
-                                  color: formValid
-                                      ? theme.primary
-                                      : theme.mutedForeground,
-                                ),
-                          child: Text(
-                            'Test Connection',
-                            style: material.TextStyle(
-                              fontWeight: material.FontWeight.w500,
-                              color: formValid
-                                  ? theme.primary
-                                  : theme.mutedForeground,
-                            ),
-                          ),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _formValidNotifier.listenable,
+                builder: (context, formValid, _) => QueryaDialogActions(
+                  secondary: [
+                    QueryaButton.secondary(
+                          label: 'Test Connection',
+                          icon: material.Icons.link_rounded,
+                          loading: _isTesting,
+                          size: QueryaControlSize.lg,
+                          onPressed: formValid && !_isTesting ? _testConnection : null,
                         ),
-                        const material.Spacer(),
-                        GhostButton(
+                  ],
+                  cancel: QueryaButton.ghost(
+                          label: 'Cancel',
                           onPressed: () => material.Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
+                          size: QueryaControlSize.lg,
                         ),
-                        const Gap(12),
-                        PrimaryButton(
+                  primary: QueryaButton.primary(
+                          label: 'Save',
                           onPressed: formValid ? _save : null,
-                          child: const Text('Save'),
+                          size: QueryaControlSize.lg,
                         ),
-                      ],
-                    );
-                  },
                 ),
               ),
             ),

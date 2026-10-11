@@ -40,6 +40,36 @@ jobs:
             echo "Tag $RAW matches pubspec semver $VER."
           fi
 
+  # End-to-end scenarios (test/e2e) must pass before a release is published.
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Linux dependencies
+        timeout-minutes: 8
+        run: |
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20"
+          sudo apt-get $APT update
+          # bubblewrap runs the extension sandbox scenario; without it it skips.
+          sudo apt-get $APT install -y libsecret-1-dev bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run E2E tests
+        run: flutter test test/e2e
+
   build-windows:
     name: Build Windows
     runs-on: windows-latest
@@ -64,7 +94,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.6'
+          flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
 
@@ -74,11 +104,20 @@ jobs:
       - name: Build Windows (release)
         run: flutter build windows --release
 
+      - name: Bundle querya-mcp (MCP stdio bridge)
+        run: |
+          cd packages\querya_mcp_bridge
+          dart pub get
+          dart compile exe bin\querya_mcp.dart -o ..\..\build\windows\x64\runner\Release\querya-mcp.exe
+
       - name: Zip Windows artifact (portable)
         run: |
           $v = "${{ steps.version.outputs.version }}"
           $dir = "build\windows\x64\runner\Release"
+          New-Item -ItemType File -Path "$dir\.portable" -Force | Out-Null
+          New-Item -ItemType File -Path "$dir\portable.txt" -Force | Out-Null
           Compress-Archive -Path "$dir\*" -DestinationPath "Querya-Desktop-$v-windows.zip"
+          Remove-Item -Path "$dir\.portable", "$dir\portable.txt" -Force
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
@@ -125,7 +164,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.6'
+          flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
 
@@ -140,10 +179,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/linux/apply_patched_engine.sh
 
+      - name: Bundle querya-mcp (MCP stdio bridge)
+        run: |
+          cd packages/querya_mcp_bridge
+          dart pub get
+          dart compile exe bin/querya_mcp.dart -o ../../build/linux/x64/release/bundle/querya-mcp
+
       - name: Zip Linux artifact (portable)
         run: |
           cd build/linux/x64/release/bundle
+          touch .portable portable.txt
           zip -r "${GITHUB_WORKSPACE}/Querya-Desktop-${{ steps.version.outputs.version }}-linux.zip" .
+          rm -f .portable portable.txt
 
       - name: Build Linux AppImage (installable)
         run: ./scripts/linux/build_appimage.sh
@@ -194,7 +241,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.6'
+          flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
 
@@ -264,15 +311,162 @@ jobs:
           test -d "$APP"
           ditto -c -k --keepParent "$APP" "Querya-Desktop-${{ steps.version.outputs.version }}-macos.zip"
 
+      - name: Build macOS .dmg
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          APP="build/macos/Build/Products/Release/querya_desktop.app"
+          DMG="Querya-Desktop-${{ steps.version.outputs.version }}-macos.dmg"
+          test -d "$APP"
+
+          # Drag-to-Applications layout: the app next to an /Applications link.
+          STAGE="$RUNNER_TEMP/dmg-stage"
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          ditto "$APP" "$STAGE/Querya Desktop.app"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create -volname "Querya Desktop" -srcfolder "$STAGE" \
+            -fs HFS+ -format UDZO -ov "$DMG"
+
+          if [ -z "${MACOS_SIGN_IDENTITY:-}" ] || [ -z "${MACOS_NOTARY_KEY:-}" ]; then
+            echo "Skipping .dmg signing/notarization — secrets not configured."
+            exit 0
+          fi
+
+          # The signing keychain was created by the previous signing step.
+          codesign --force --timestamp --sign "$MACOS_SIGN_IDENTITY" "$DMG"
+          NOTARY_KEY="$RUNNER_TEMP/notary_key_dmg.p8"
+          echo -n "$MACOS_NOTARY_KEY" | base64 --decode -o "$NOTARY_KEY"
+          xcrun notarytool submit "$DMG" \
+            --key "$NOTARY_KEY" \
+            --key-id "$MACOS_NOTARY_KEY_ID" \
+            --issuer "$MACOS_NOTARY_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          rm "$NOTARY_KEY"
+
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-macos
-          path: Querya-Desktop-${{ steps.version.outputs.version }}-macos.zip
+          path: |
+            Querya-Desktop-${{ steps.version.outputs.version }}-macos.zip
+            Querya-Desktop-${{ steps.version.outputs.version }}-macos.dmg
+          if-no-files-found: error
+
+  build-ext-tester:
+    name: Build querya-ext-tester (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+            archive: tar.gz
+          - os: macos-latest
+            target: macos-arm64
+            archive: tar.gz
+          - os: macos-15-intel
+            target: macos-x64
+            archive: tar.gz
+          - os: windows-latest
+            target: windows-x64
+            archive: zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from pubspec.yaml
+        id: version
+        shell: bash
+        run: |
+          FULL_VERSION=$(grep "^version:" pubspec.yaml | sed 's/version: //')
+          VERSION=$(echo "$FULL_VERSION" | sed 's/+.*//')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Compile standalone executable (AOT)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/ext-tester
+          EXE=querya-ext-tester
+          if [ "${{ runner.os }}" = "Windows" ]; then EXE=querya-ext-tester.exe; fi
+          dart compile exe bin/querya_ext_tester.dart -o "build/ext-tester/$EXE"
+          MCP=querya-mcp
+          if [ "${{ runner.os }}" = "Windows" ]; then MCP=querya-mcp.exe; fi
+          mkdir -p build/mcp
+          # Own dependency-free package: one static binary, no build hooks.
+          (cd packages/querya_mcp_bridge && dart pub get && \
+            dart compile exe bin/querya_mcp.dart -o "../../build/mcp/$MCP")
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE=build/ext-tester/querya-ext-tester
+          if [ "${{ runner.os }}" = "Windows" ]; then EXE=build/ext-tester/querya-ext-tester.exe; fi
+          "$EXE" --help | grep -q "Usage: querya-ext-tester"
+          # An empty directory has no manifest.json: the run must fail with exit code 1.
+          mkdir -p build/ext-tester-empty
+          set +e
+          "$EXE" build/ext-tester-empty --no-color > smoke.log
+          code=$?
+          set -e
+          cat smoke.log
+          test "$code" -eq 1
+          grep -q "manifest.json not found" smoke.log
+          MCP=build/mcp/querya-mcp
+          if [ "${{ runner.os }}" = "Windows" ]; then MCP=build/mcp/querya-mcp.exe; fi
+          "$MCP" --help | grep -q "Usage: querya-mcp"
+          # No endpoint file: initialize must be answered with a clear error.
+          set +e
+          echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+            | QUERYA_MCP_ENDPOINT="$PWD/build/no-such-endpoint.json" "$MCP" > mcp-smoke.log
+          code=$?
+          set -e
+          cat mcp-smoke.log
+          test "$code" -eq 1
+          grep -q "Querya Desktop is not running" mcp-smoke.log
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="querya-ext-tester-v${{ steps.version.outputs.version }}-${{ matrix.target }}"
+          MCP_NAME="querya-mcp-v${{ steps.version.outputs.version }}-${{ matrix.target }}"
+          cd build/ext-tester
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a -tzip "../../$NAME.zip" querya-ext-tester.exe
+            cd ../mcp && 7z a -tzip "../../$MCP_NAME.zip" querya-mcp.exe
+          else
+            tar -czf "../../$NAME.tar.gz" querya-ext-tester
+            cd ../mcp && tar -czf "../../$MCP_NAME.tar.gz" querya-mcp
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tester-${{ matrix.target }}
+          path: |
+            querya-ext-tester-v${{ steps.version.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+            querya-mcp-v${{ steps.version.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
           if-no-files-found: error
 
   publish:
     name: Publish GitHub Release
-    needs: [build-windows, build-linux, build-macos]
+    needs: [e2e, build-windows, build-linux, build-macos, build-ext-tester]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ needs.build-windows.outputs.version }}
@@ -288,18 +482,31 @@ jobs:
           pattern: bundle-*
           merge-multiple: true
 
+      - uses: actions/download-artifact@v4
+        with:
+          path: tester-artifacts
+          pattern: tester-*
+          merge-multiple: true
+
       - name: Layout distribution files
         run: |
           set -euo pipefail
           mkdir -p dist
-          find artifacts \( -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.flatpak' -o -name '*-windows-setup.exe' \) \
+          find artifacts \( -name '*.zip' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.flatpak' -o -name '*-windows-setup.exe' \) \
             -exec mv -t dist/ {} +
           test "$(find dist -name '*.zip' | wc -l)" -eq 3
+          test "$(find dist -name '*.dmg' | wc -l)" -eq 1
           test "$(find dist -name '*.AppImage' | wc -l)" -eq 1
           test "$(find dist -name '*.deb' | wc -l)" -eq 1
           test "$(find dist -name '*.rpm' | wc -l)" -eq 1
           test "$(find dist -name '*.flatpak' | wc -l)" -eq 1
           test "$(find dist -name '*-windows-setup.exe' | wc -l)" -eq 1
+          find tester-artifacts -type f \( -name 'querya-ext-tester-*.tar.gz' -o -name 'querya-ext-tester-*.zip' \) \
+            -exec mv -t dist/ {} +
+          test "$(find dist -name 'querya-ext-tester-*' | wc -l)" -eq 4
+          find tester-artifacts -type f \( -name 'querya-mcp-*.tar.gz' -o -name 'querya-mcp-*.zip' \) \
+            -exec mv -t dist/ {} +
+          test "$(find dist -name 'querya-mcp-*' | wc -l)" -eq 4
           cd dist
           sha256sum *.* | tee SHA256SUMS.txt
 
@@ -318,6 +525,7 @@ jobs:
             echo "- **Linux**: \`Querya-Desktop-${VERSION}-linux.zip\`"
             echo "- **Windows**: \`Querya-Desktop-${VERSION}-windows.zip\`"
             echo "- **macOS**: \`Querya-Desktop-${VERSION}-macos.zip\` (signed, notarized and stapled \`.app\` when Apple Developer secrets are configured; otherwise unsigned)"
+            echo "- **macOS disk image**: \`Querya-Desktop-${VERSION}-macos.dmg\` (drag to Applications; notarized and stapled when Apple Developer secrets are configured)"
             echo ""
             echo "Optional USB-style profile: set \`QUERYA_PORTABLE=1\` or create a \`QueryaData/\` folder next to the binary (see docs/packaging.md)."
             echo ""
@@ -329,6 +537,12 @@ jobs:
             echo "- **Windows setup**: \`Querya-Desktop-${VERSION}-windows-setup.exe\` (Inno Setup)"
             echo ""
             echo "**Arch (AUR):** \`querya-desktop\` — \`yay -S querya-desktop\` (auto-published when \`AUR_SSH_PRIVATE_KEY\` is configured)."
+            echo ""
+            echo "#### Extension developers"
+            echo "- **querya-ext-tester** (headless extension test runner, no Flutter needed): \`querya-ext-tester-v${VERSION}-linux-x64.tar.gz\`, \`-macos-arm64.tar.gz\`, \`-macos-x64.tar.gz\`, \`-windows-x64.zip\` — see docs/extension-testing.md"
+            echo ""
+            echo "#### MCP (AI clients)"
+            echo "- **querya-mcp** (stdio bridge for Claude Desktop, Cursor, VS Code and other MCP clients; also bundled with the Linux and Windows builds): \`querya-mcp-v${VERSION}-linux-x64.tar.gz\`, \`-macos-arm64.tar.gz\`, \`-macos-x64.tar.gz\`, \`-windows-x64.zip\`"
             echo ""
             echo "Verify checksums: \`SHA256SUMS.txt\`"
             echo ""
@@ -354,7 +568,10 @@ jobs:
           body_path: release-notes.md
           fail_on_unmatched_files: false
           files: |
-            dist/*.zip
+            dist/Querya-Desktop-*.zip
+            dist/*.dmg
+            dist/querya-ext-tester-*
+            dist/querya-mcp-*
             dist/*.deb
             dist/*.rpm
             dist/*.flatpak
@@ -401,3 +618,58 @@ jobs:
           TAG="${{ needs.publish.outputs.release_tag }}"
           chmod +x ./scripts/linux/aur_publish.sh
           ./scripts/linux/aur_publish.sh "$VER" "$TAG"
+
+  publish-linux-repo:
+    name: Publish APT + DNF repository
+    needs: [publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check repository secrets
+        id: repo
+        env:
+          GPG_KEY: ${{ secrets.PACKAGE_REPO_GPG_PRIVATE_KEY }}
+          TOKEN: ${{ secrets.PACKAGE_REPO_TOKEN }}
+        run: |
+          if [ -n "${GPG_KEY}" ] && [ -n "${TOKEN}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "PACKAGE_REPO_GPG_PRIVATE_KEY / PACKAGE_REPO_TOKEN not set; skipping."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.repo.outputs.enabled == 'true'
+
+      - uses: actions/download-artifact@v4
+        if: steps.repo.outputs.enabled == 'true'
+        with:
+          name: bundle-linux
+          path: artifacts/linux
+
+      - name: Install repository tooling
+        if: steps.repo.outputs.enabled == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-utils createrepo-c rpm
+
+      - name: Import signing key
+        if: steps.repo.outputs.enabled == 'true'
+        id: gpg
+        env:
+          GPG_KEY: ${{ secrets.PACKAGE_REPO_GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "$GPG_KEY" | gpg --batch --import
+          fpr="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          echo "fpr=$fpr" >> "$GITHUB_OUTPUT"
+
+      - name: Publish
+        if: steps.repo.outputs.enabled == 'true'
+        env:
+          PACKAGE_REPO_URL: https://x-access-token:${{ secrets.PACKAGE_REPO_TOKEN }}@github.com/QueryaHub/repo.git
+          GPG_KEY_ID: ${{ steps.gpg.outputs.fpr }}
+        run: |
+          set -euo pipefail
+          deb="$(find artifacts/linux -name '*.deb' | head -n1)"
+          rpm="$(find artifacts/linux -name '*.rpm' | head -n1)"
+          ./scripts/linux/publish_package_repo.sh "$deb" "$rpm"

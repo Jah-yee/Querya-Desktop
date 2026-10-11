@@ -2,8 +2,8 @@
 
 Living document for planned work. Not a commitment order; adjust as priorities change.
 
-**GitHub Latest Release:** [0.4.17](https://github.com/QueryaHub/Querya-Desktop/releases/tag/0.4.17) (2026-09-20).  
-**This cut:** **0.4.18** — shell/motion perf (<0.5ms build), data-loss guards, driver session correctness, and high-refresh grid reliability — [CHANGELOG.md](../CHANGELOG.md) `[0.4.18]`.  
+**GitHub Latest Release:** [0.4.18](https://github.com/QueryaHub/Querya-Desktop/releases/tag/0.4.18) (2026-09-28).  
+**This cut:** **0.4.19** — NoSQL workbench, SSH and Production safeguards, ER diagram, MCP server, SQL run modes and toolbar, one control scale and button family (UI kit), security fixes — [CHANGELOG.md](../CHANGELOG.md) `[0.4.19]`.  
 **Next product release:** **0.5.0** — live Marketplace download and install — see below.
 
 ## Theme system
@@ -31,7 +31,8 @@ Living document for planned work. Not a commitment order; adjust as priorities c
 - **Shipped in 0.4.13–0.4.15:** interactive Data Grid, fluid motion, multi-tab SQL, preferences/keymap — [CHANGELOG.md](../CHANGELOG.md).
 - **Shipped in 0.4.16:** Table Browser in-place DML, Command Palette + Quick Switcher, workspace chrome / connections-tree parity, Mongo per-field Save to DB, updater hardening — [CHANGELOG.md](../CHANGELOG.md) `[0.4.16]`.
 - **Shipped in 0.4.17:** driver/grid correctness after 0.4.16 — schema vs PK (#772), SQLite `rowid` (#774), Mongo writes/filter/discard (#776/#778/#782/#783), Postgres/MySQL/SQLite/Redis session and type round-trips — [CHANGELOG.md](../CHANGELOG.md) `[0.4.17]`.
-- **0.4.18 (this cut):** shell/motion perf (<0.5ms build, #984/#1004), data-loss guard rails (#867–#873, #910, #912, #1007), driver correctness, and grid reliability (#1005–#1011) — [CHANGELOG.md](../CHANGELOG.md) `[0.4.18]`.
+- **Shipped in 0.4.18:** shell/motion perf (<0.5ms build, #984/#1004), data-loss guard rails (#867–#873, #910, #912, #1007), driver correctness, and grid reliability (#1005–#1011) — [CHANGELOG.md](../CHANGELOG.md) `[0.4.18]`.
+- **0.4.19 (this cut):** NoSQL workbench (Mongo viewer, aggregations, indexes, Redis CLI), SSH tunnelling and Production safeguards, ER diagram (groups, notes, saved views, DBML / PDF export), read-only MCP server, SQL run modes and one-row toolbar, UI kit (control scale, `QueryaButton` family, own toast and text styles), PostgreSQL TLS and sandbox fixes — [CHANGELOG.md](../CHANGELOG.md) `[0.4.19]`.
 - **Planned 0.5.0:** Marketplace Launch — live download, `sha256` validation, install themes (and later DB drivers) from the network.
 
 ## Query history and favorites
@@ -45,11 +46,19 @@ Living document for planned work. Not a commitment order; adjust as priorities c
 - **Done:** CSV, JSON, Markdown, and SQL dump from ResultsTab / table toolbars (0.4.11 candidate, #326) — [`ResultsTab`](lib/features/main_screen/results_tab.dart), [`lib/shared/services/data_export_service.dart`](lib/shared/services/data_export_service.dart).
 - **Later:** alignment with `AppSettings` max rows for very large grids (warn or truncate before export).
 
+## NoSQL evolution (stages 1 and 2)
+
+- **Done:** nested collection subtree in the connections panel (#1023), one-click return to the active Mongo collection / Redis key (#1024), Redis key folder tree by delimiter (#1025), Mongo document viewer in Table / Tree / JSON modes (#1026), Aggregation Pipeline Builder (#1027), visual Index Manager (#1028), interactive Redis CLI console (#1029) and MQL query / shell console (#1030). See the [user guide](user-guide.md#mongodb-and-redis).
+
+## MCP server (AI clients)
+
+- **Done (epic [#1133](https://github.com/QueryaHub/Querya-Desktop/issues/1133)):** read-only MCP server inside the app for PostgreSQL, MySQL and SQLite — tools `list_connections`, `list_tables`, `describe_table`, `sample_rows`, `run_query`, `explain_query` and a `schema://` resource; `querya-mcp` stdio bridge (bundled on Linux / Windows, release asset for all platforms); per-connection opt-in, activity log, three read-only layers — [mcp-server.md](mcp-server.md), [security.md](security.md#mcp-server).
+- **Later:** writes through a `propose_write` tool confirmed in the Querya window; Streamable HTTP transport; MongoDB / Redis tools; extension drivers; views in `list_tables`; bundling `querya-mcp` in the macOS app and Flatpak.
+
 ## SSH and advanced networking
 
-- **Today:** the app does not embed SSH tunnels or jump hosts (see [security.md](security.md)).
-- **Near term:** expand user-facing docs with recipes: `ssh -L`, cloud provider consoles, VPN.
-- **Later (if demand):** optional “local proxy command” or documented integration with external tools; avoid shipping full SSH client scope unless clearly justified.
+- **Done:** SSH tunnels through a bastion / jump host (password, private key or agent auth, optional second hop, host key fingerprint pinning, keep-alive) with a loopback-only forwarded port and a *Test SSH Connection* button. Security model: [security.md](security.md#ssh-tunnels-bastion-hosts). Setup guide: [user-guide.md](user-guide.md#connecting-through-a-bastion-host).
+- **Later (if demand):** optional "local proxy command" or documented integration with external tools; avoid growing into a full SSH client.
 
 ## Connections tree maintainability
 

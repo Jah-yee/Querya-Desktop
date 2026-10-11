@@ -5,21 +5,20 @@ Querya Desktop ships (and will ship) two download channels. See epic
 
 | Channel | Typical artifact | Profile data |
 |---------|------------------|--------------|
-| **Portable** | `Querya-Desktop-{ver}-{os}.zip` (Flutter bundle) | OS app-support by default; optional sidecar — see below |
+| **Portable** | `Querya-Desktop-{ver}-{os}.zip` (Flutter bundle) | Portable sidecar (`QueryaData/`) automatically via `.portable` marker |
 | **Installable** | AppImage, Windows setup, `.deb`, `.rpm`, Flatpak | Normal OS locations |
 
 ## Portable profile (`QueryaData`)
 
-By default the zip is a **relocatable binary** only: settings DB, themes, and
-extensions still use OS paths (`getApplicationSupportDirectory`,
-`~/.querya/extensions`, …).
+Official release zip archives include a `.portable` marker file out-of-the-box.
+On launch, Querya detects the marker (or explicit `QueryaData` / `QUERYA_PORTABLE=1`)
+and automatically creates `QueryaData/` next to the binary if it does not exist yet.
 
-To keep profile data next to the app (USB-style):
-
-1. Set environment variable **`QUERYA_PORTABLE=1`** (also `true` / `yes` / `on`),
-   **or**
-2. Create a folder named **`QueryaData`** next to `querya_desktop` /
-   `querya_desktop.exe` / the `.AppImage` file.
+To run in portable mode:
+1. Use the pre-packaged portable zip (contains `.portable` marker file out-of-the-box),
+2. **or** create a `.portable` or `portable.txt` file next to the binary,
+3. **or** create a folder named **`QueryaData`** next to the binary,
+4. **or** set environment variable **`QUERYA_PORTABLE=1`** (also `true` / `yes` / `on`).
 
 Then local data is stored under that folder:
 
@@ -88,4 +87,29 @@ custom TLS stores) may need extra permissions, e.g.:
 flatpak override --user com.queryahub.querya_desktop --filesystem=/var/run/postgresql:ro
 ```
 
-Flathub submission can reuse [`packaging/linux/flatpak/com.queryahub.querya_desktop.yml`](../packaging/linux/flatpak/com.queryahub.querya_desktop.yml).
+Flathub submission uses [`packaging/linux/flatpak/com.queryahub.querya_desktop.flathub.yml`](../packaging/linux/flatpak/com.queryahub.querya_desktop.flathub.yml) (downloads release zip with checksum), while local build script uses [`packaging/linux/flatpak/com.queryahub.querya_desktop.yml`](../packaging/linux/flatpak/com.queryahub.querya_desktop.yml).
+
+## APT and DNF repository (`repo.querya.app`)
+
+The Release workflow job `publish-linux-repo` runs
+[`scripts/linux/publish_package_repo.sh`](../scripts/linux/publish_package_repo.sh)
+after the GitHub Release is created. It adds the new `.deb` / `.rpm` to the
+`gh-pages` branch of `QueryaHub/repo`, regenerates the APT indexes
+(`apt-ftparchive`, signed `InRelease` / `Release.gpg`) and the DNF metadata
+(`createrepo_c`, signed packages and `repomd.xml.asc`). Older versions stay in
+the pool, so users can pin them.
+
+The job is skipped while its secrets are not set, like the AUR job.
+
+One-time setup:
+
+1. Create a signing key without a passphrase: `gpg --quick-generate-key "Querya Packages <packages@querya.app>" rsa4096 sign never`.
+2. Add repository secrets in `QueryaHub/Querya-Desktop`:
+   `PACKAGE_REPO_GPG_PRIVATE_KEY` (`gpg --armor --export-secret-keys <fpr>`) and
+   `PACKAGE_REPO_TOKEN` (a token with write access to `QueryaHub/repo`).
+3. In `QueryaHub/repo`, serve the `gh-pages` branch with GitHub Pages and set the
+   custom domain `repo.querya.app` (DNS `CNAME` to `queryahub.github.io`).
+4. Run a release (or re-run `publish-linux-repo`) and check
+   `https://repo.querya.app/gpg.key` and `https://repo.querya.app/apt/dists/stable/InRelease`.
+
+Rotating the key means re-running the job and asking users to refresh `gpg.key`.

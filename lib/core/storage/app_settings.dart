@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 import '../motion/querya_motion_scope.dart';
 import '../theme/querya_theme_preset.dart';
@@ -110,6 +111,7 @@ abstract final class AppSettingsKeys {
   static const sqliteSqlStmtTimeoutSeconds = 'sqlite_sql_stmt_timeout_seconds';
   static const sqlResultMaxRows = 'sql_result_max_rows';
   static const sqlEditorFontSizePoints = 'sql_editor_font_size_points';
+  static const exportCurrentTheme = 'export_current_theme';
   static const sqlHistoryMaxEntries = 'sql_history_max_entries';
   static const themeMode = 'theme_mode';
   static const themePreset = 'theme_preset';
@@ -131,6 +133,7 @@ abstract final class AppSettingsKeys {
   static const updateDismissedVersion = 'update_dismissed_version';
   static const hasCompletedWelcomeTour = 'has_completed_welcome_tour';
   static const confirmDestructiveOperations = 'confirm_destructive_operations';
+  static const mongoDocumentsViewMode = 'mongo_documents_view_mode';
 }
 
 /// Bumps [listenable] when any preference is persisted (theme, legacy listeners).
@@ -313,6 +316,33 @@ class AppSettings {
     await LocalDb.instance.setAppSetting(
       AppSettingsKeys.connectionsPanelWidth,
       normalized.toStringAsFixed(1),
+    );
+  }
+
+  /// Chart and diagram exports. False (default): a light palette for documents.
+  /// True: the colours of the current theme.
+  /// Test seam: answers [getExportCurrentTheme] without the local database.
+  @visibleForTesting
+  static Future<bool> Function()? exportCurrentThemeOverride;
+
+  Future<bool> getExportCurrentTheme() async {
+    final override = exportCurrentThemeOverride;
+    if (override != null) return override();
+    try {
+      final value = await LocalDb.instance.getAppSetting(
+        AppSettingsKeys.exportCurrentTheme,
+      );
+      return value == '1' || value?.toLowerCase() == 'true';
+    } catch (_) {
+      // No readable store (tests, a damaged database): export the default.
+      return false;
+    }
+  }
+
+  Future<void> setExportCurrentTheme(bool value) async {
+    await LocalDb.instance.setAppSetting(
+      AppSettingsKeys.exportCurrentTheme,
+      value ? '1' : '0',
     );
   }
 
@@ -755,6 +785,23 @@ class AppSettings {
     await LocalDb.instance.setAppSetting(
       AppSettingsKeys.hasCompletedWelcomeTour,
       completed ? 'true' : 'false',
+    );
+    AppSettingsRevision.bump();
+  }
+
+  /// Active view mode for MongoDB documents browser ('table', 'tree', 'json', 'cards').
+  Future<String> getMongoDocumentsViewMode() async {
+    final v = await LocalDb.instance.getAppSetting(
+      AppSettingsKeys.mongoDocumentsViewMode,
+    );
+    if (v == null || v.isEmpty) return 'table';
+    return v;
+  }
+
+  Future<void> setMongoDocumentsViewMode(String mode) async {
+    await LocalDb.instance.setAppSetting(
+      AppSettingsKeys.mongoDocumentsViewMode,
+      mode,
     );
     AppSettingsRevision.bump();
   }

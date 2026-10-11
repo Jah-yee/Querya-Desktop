@@ -8,13 +8,20 @@ class ShortcutItem {
     required this.category,
     required this.action,
     required this.keys,
+    this.alternativeKeys = const [],
     this.description,
   });
 
   final String category;
   final String action;
   final List<String> keys;
+
+  /// Other key combinations bound to the same action, shown after "or".
+  final List<List<String>> alternativeKeys;
   final String? description;
+
+  /// [keys] and then every [alternativeKeys] combination.
+  List<List<String>> get allKeys => [keys, ...alternativeKeys];
 }
 
 /// Interactive shortcuts reference table grouped by category with OS-aware keycaps.
@@ -32,13 +39,19 @@ class PreferencesShortcutsSection extends material.StatefulWidget {
           category: 'SQL Editor',
           action: 'Execute query / selection',
           keys: [_modKey, 'Enter'],
+          alternativeKeys: [
+            [_modKey, 'R'],
+          ],
           description: 'Runs statement under cursor or selected text',
         ),
         ShortcutItem(
           category: 'SQL Editor',
           action: 'Execute all statements',
           keys: [_modKey, 'Shift', 'Enter'],
-          description: 'Runs entire query script sequentially',
+          alternativeKeys: const [
+            ['F5'],
+          ],
+          description: 'Runs the script one statement at a time, stops at the first error',
         ),
         ShortcutItem(
           category: 'SQL Editor',
@@ -75,12 +88,6 @@ class PreferencesShortcutsSection extends material.StatefulWidget {
           action: 'Format SQL statement',
           keys: ['Shift', 'Alt', 'F'],
           description: 'Formats keywords and statement indentation',
-        ),
-        const ShortcutItem(
-          category: 'SQL Editor',
-          action: 'Toggle full-screen editor',
-          keys: ['F11'],
-          description: 'Maximizes the SQL query workspace area',
         ),
 
         // Data Grid
@@ -132,6 +139,18 @@ class PreferencesShortcutsSection extends material.StatefulWidget {
           keys: ['Right Click', 'Filter'],
           description: 'Filters grid by value matching selected cell',
         ),
+        const ShortcutItem(
+          category: 'Data Grid',
+          action: 'Refresh table data',
+          keys: ['F5'],
+          description: 'Reloads the rows in the table browser',
+        ),
+        ShortcutItem(
+          category: 'Data Grid',
+          action: 'Toggle edit mode',
+          keys: [_modKey, 'E'],
+          description: 'Turns cell editing on or off in the table browser',
+        ),
 
         // Navigation & App
         ShortcutItem(
@@ -152,11 +171,17 @@ class PreferencesShortcutsSection extends material.StatefulWidget {
           keys: [_modKey, ','],
           description: 'Opens application settings dialog',
         ),
-        const ShortcutItem(
+        ShortcutItem(
           category: 'Navigation & App',
-          action: 'Refresh schema / connection',
-          keys: ['F5'],
-          description: 'Refreshes databases and table tree',
+          action: 'Command palette',
+          keys: [_modKey, 'P'],
+          description: 'Searches and runs any command',
+        ),
+        ShortcutItem(
+          category: 'Navigation & App',
+          action: 'Quick switcher',
+          keys: [_modKey, 'K'],
+          description: 'Jumps to a connection, database or table',
         ),
         ShortcutItem(
           category: 'Navigation & App',
@@ -197,7 +222,8 @@ class _PreferencesShortcutsSectionState
       final matchAction = item.action.toLowerCase().contains(q);
       final matchCategory = item.category.toLowerCase().contains(q);
       final matchDesc = item.description?.toLowerCase().contains(q) ?? false;
-      final matchKeys = item.keys.any((k) => k.toLowerCase().contains(q));
+      final matchKeys = item.allKeys
+          .any((combo) => combo.any((k) => k.toLowerCase().contains(q)));
       return matchAction || matchCategory || matchDesc || matchKeys;
     }).toList();
 
@@ -317,7 +343,7 @@ class _PreferencesShortcutsSectionState
               children: [
                 for (var i = 0; i < entry.value.length; i++) ...[
                   if (i > 0)
-                    Divider(
+                    QueryaDivider(
                       height: 1,
                       color: theme.colorScheme.border.withValues(alpha: 0.18),
                     ),
@@ -358,48 +384,59 @@ class _PreferencesShortcutsSectionState
           material.Row(
             mainAxisSize: material.MainAxisSize.min,
             children: [
-              for (var j = 0; j < item.keys.length; j++) ...[
-                if (j > 0)
+              for (var c = 0; c < item.allKeys.length; c++) ...[
+                if (c > 0)
                   material.Padding(
-                    padding: const material.EdgeInsets.symmetric(horizontal: 3),
-                    child: const Text('+')
-                        .muted()
-                        .xSmall(),
+                    padding: const material.EdgeInsets.symmetric(horizontal: 6),
+                    child: const Text('or').muted().xSmall(),
                   ),
-                material.Container(
-                  padding: const material.EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 3,
-                  ),
-                  decoration: material.BoxDecoration(
-                    color: theme.colorScheme.background,
-                    borderRadius: material.BorderRadius.circular(4),
-                    border: material.Border.all(
-                      color: theme.colorScheme.border.withValues(alpha: 0.4),
-                    ),
-                    boxShadow: [
-                      material.BoxShadow(
-                        color: material.Colors.black.withValues(alpha: 0.08),
-                        offset: const material.Offset(0, 1),
-                        blurRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: material.Text(
-                    item.keys[j],
-                    style: material.TextStyle(
-                      fontFamily: QueryaTypography.mono,
-                      fontSize: 11,
-                      fontWeight: material.FontWeight.w600,
-                      color: theme.colorScheme.foreground,
-                    ),
-                  ),
-                ),
+                ..._keycaps(item.allKeys[c], theme),
               ],
             ],
           ),
         ],
       ),
     );
+  }
+
+  List<material.Widget> _keycaps(List<String> keys, ThemeData theme) {
+    return [
+      for (var j = 0; j < keys.length; j++) ...[
+        if (j > 0)
+          material.Padding(
+            padding: const material.EdgeInsets.symmetric(horizontal: 3),
+            child: const Text('+').muted().xSmall(),
+          ),
+        material.Container(
+          padding: const material.EdgeInsets.symmetric(
+            horizontal: 7,
+            vertical: 3,
+          ),
+          decoration: material.BoxDecoration(
+            color: theme.colorScheme.background,
+            borderRadius: material.BorderRadius.circular(4),
+            border: material.Border.all(
+              color: theme.colorScheme.border.withValues(alpha: 0.4),
+            ),
+            boxShadow: [
+              material.BoxShadow(
+                color: material.Colors.black.withValues(alpha: 0.08),
+                offset: const material.Offset(0, 1),
+                blurRadius: 1,
+              ),
+            ],
+          ),
+          child: material.Text(
+            keys[j],
+            style: material.TextStyle(
+              fontFamily: QueryaTypography.mono,
+              fontSize: 11,
+              fontWeight: material.FontWeight.w600,
+              color: theme.colorScheme.foreground,
+            ),
+          ),
+        ),
+      ],
+    ];
   }
 }

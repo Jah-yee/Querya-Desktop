@@ -10,9 +10,11 @@ import 'package:querya_desktop/features/settings/preferences_appearance_section.
 import 'package:querya_desktop/features/settings/preferences_category.dart';
 import 'package:querya_desktop/features/settings/preferences_controls.dart';
 import 'package:querya_desktop/features/settings/preferences_extensions_section.dart';
+import 'package:querya_desktop/features/settings/preferences_mcp_section.dart';
 import 'package:querya_desktop/features/settings/preferences_shortcuts_section.dart';
 import 'package:querya_desktop/features/settings/sql_statement_timeout_dropdown.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 export 'preferences_category.dart';
 
@@ -194,11 +196,17 @@ class PreferencesDialogContentState
             .contains(q)) {
           count++;
         }
+      case PreferencesCategory.mcp:
+        if ('mcp ai model claude cursor vscode copilot llm server share token'
+            .contains(q)) {
+          count++;
+        }
       case PreferencesCategory.shortcuts:
         final matching = PreferencesShortcutsSection.allShortcuts.where(
           (s) =>
               s.action.toLowerCase().contains(q) ||
-              s.keys.any((k) => k.toLowerCase().contains(q)),
+              s.allKeys.any(
+                  (combo) => combo.any((k) => k.toLowerCase().contains(q))),
         );
         count += matching.length;
       case PreferencesCategory.about:
@@ -338,18 +346,12 @@ class PreferencesDialogContentState
                         ),
                       ),
                       const Gap(8),
-                      material.IconButton(
-                        icon: const material.Icon(material.Icons.close_rounded,
-                            size: 18),
-                        padding: material.EdgeInsets.zero,
-                        constraints: const material.BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
-                        ),
-                        splashRadius: 16,
-                        tooltip: 'Close',
-                        onPressed: () => material.Navigator.of(context).pop(),
-                      ),
+                      QueryaIconButton(
+icon: const material.Icon(material.Icons.close_rounded),
+tooltip: 'Close',
+size: QueryaControlSize.sm,
+onPressed: () => material.Navigator.of(context).pop(),
+),
                     ],
                   ),
                 ),
@@ -401,30 +403,14 @@ class PreferencesDialogContentState
                 ),
 
                 // Footer Actions
-                material.Container(
-                  padding: const material.EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+                QueryaDialogActions(
+                  leading: const PreferencesHint(
+                    'Changes apply immediately and persist locally.',
                   ),
-                  decoration: material.BoxDecoration(
-                    border: material.Border(
-                      top: material.BorderSide(
-                        color: theme.border.withValues(alpha: 0.28),
-                      ),
-                    ),
-                  ),
-                  child: material.Row(
-                    children: [
-                      const material.Expanded(
-                        child: PreferencesHint(
-                          'Changes apply immediately and persist locally.',
-                        ),
-                      ),
-                      PrimaryButton(
-                        onPressed: () => material.Navigator.of(context).pop(),
-                        child: const Text('Close'),
-                      ),
-                    ],
+                  cancel: QueryaButton.ghost(
+                    label: 'Close',
+                    onPressed: () => material.Navigator.of(context).pop(),
+                    size: QueryaControlSize.lg,
                   ),
                 ),
               ],
@@ -524,6 +510,8 @@ class PreferencesDialogContentState
         return _buildDataGridSection(theme);
       case PreferencesCategory.extensions:
         return const PreferencesExtensionsSection();
+      case PreferencesCategory.mcp:
+        return const PreferencesMcpSection();
       case PreferencesCategory.shortcuts:
         return PreferencesShortcutsSection(searchQuery: _searchQuery);
       case PreferencesCategory.about:

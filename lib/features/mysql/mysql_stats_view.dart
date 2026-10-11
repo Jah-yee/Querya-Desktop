@@ -3,11 +3,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/motion/ticker_gated_polling.dart';
+import 'package:querya_desktop/core/stats/metric_history.dart';
 import 'package:querya_desktop/core/util/deep_collection_equals.dart';
 import 'package:querya_desktop/core/database/mysql_service.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
+import 'package:querya_desktop/shared/widgets/querya_sparkline.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _pollInterval = Duration(seconds: 5);
 const _summaryChipHeight = 88.0;
@@ -30,6 +34,9 @@ class MysqlStatsView extends material.StatefulWidget {
 class _MysqlStatsViewState extends material.State<MysqlStatsView> {
   MysqlLease? _lease;
   Map<String, dynamic>? _stats;
+
+  /// Samples of the last poll results: threads and queries per second.
+  final _history = MetricHistory();
   bool _loading = true;
   String? _error;
   Timer? _timer;
@@ -120,14 +127,29 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
     }
   }
 
+  /// Records the poll's numbers. No query is added: the poll already fetched them.
+  void _recordHistory(Map<String, dynamic> stats) {
+    final now = DateTime.now();
+    double statusValue(String key) =>
+        double.tryParse((stats['status'] as Map<String, String>?)?[key] ?? '') ??
+        0.0;
+    _history
+      ..record('threads_connected', statusValue('Threads_connected'), now)
+      ..record('threads_running', statusValue('Threads_running'), now);
+    _history.recordCounter(
+        'queries_per_second', statusValue('Questions'), now);
+  }
+
   Future<void> _onPollTick() async {
     final conn = _lease?.connection;
     if (conn == null || !conn.isConnected) return;
     try {
       final stats = await conn.serverStats();
       if (!mounted) return;
-      if (!replaceIfChanged(_stats, stats, (v) => _stats = v)) return;
-      setState(() => _stats = stats);
+      _recordHistory(stats);
+      // The sparklines move with every sample, so rebuild even when the numbers
+      // did not change.
+      setState(() => replaceIfChanged(_stats, stats, (v) => _stats = v));
     } catch (_) {}
   }
 
@@ -150,18 +172,10 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
     final cs = Theme.of(context).colorScheme;
 
     if (_loading) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Connecting...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Connecting...',
         ),
       );
     }
@@ -188,11 +202,11 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
                     material.TextStyle(color: cs.mutedForeground, fontSize: 13),
               ),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _load,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -287,11 +301,11 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
             ],
           ),
         ),
-        OutlineButton(
+        QueryaButton.secondary(
+          label: 'Refresh',
+          icon: material.Icons.refresh_rounded,
           onPressed: _load,
-          leading:
-              const material.Icon(material.Icons.refresh_rounded, size: 18),
-          child: const Text('Refresh'),
+          size: QueryaControlSize.md,
         ),
       ],
     );
@@ -480,6 +494,14 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
               context, 'Max used', _status(stats, 'Max_used_connections')),
           _metricRow(
               context, 'Max allowed', _variable(stats, 'max_connections')),
+          QueryaSparkline(
+            samples: _history.series('threads_connected'),
+            color: context.workbench.accent,
+          ),
+          QueryaSparkline(
+            samples: _history.series('queries_per_second'),
+            color: context.workbench.accent,
+          ),
         ],
         stretch: true,
       ),
@@ -583,7 +605,7 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
               ],
             ),
           ),
-          material.Divider(height: 1, color: cs.border.withValues(alpha: 0.3)),
+          QueryaDivider(height: 1, color: cs.border.withValues(alpha: 0.3)),
           for (final db in databases)
             material.Padding(
               padding: const material.EdgeInsets.symmetric(vertical: 5),

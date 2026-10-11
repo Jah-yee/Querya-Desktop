@@ -2,12 +2,22 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart' as material;
+import 'package:querya_desktop/features/connections/connection_test_result.dart';
+import 'package:querya_desktop/features/connections/connection_default_name.dart';
+import 'package:querya_desktop/core/security/connection_environment.dart';
+import 'package:querya_desktop/features/connections/environment_section.dart';
 import 'package:querya_desktop/core/database/postgres_connection.dart';
 import 'package:querya_desktop/core/layout/window_layout.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
+import 'package:querya_desktop/features/connections/ssh_tunnel_section.dart';
 import 'package:querya_desktop/features/connections/connection_creation_flow.dart';
+import 'package:querya_desktop/features/connections/forms/connection_auth_section.dart';
+import 'package:querya_desktop/features/connections/forms/connection_database_section.dart';
+import 'package:querya_desktop/features/connections/forms/connection_host_port_section.dart';
 import 'package:querya_desktop/shared/widgets/form_validity_notifier.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows PostgreSQL connection form dialog.
 /// Returns ConnectionRow if saved, null if cancelled.
@@ -53,8 +63,13 @@ class _PostgresConnectionFormContentState
   final _sslCertController = material.TextEditingController();
   final _sslKeyController = material.TextEditingController();
 
+  SshTunnelConfig _sshConfig = const SshTunnelConfig();
+  ConnectionEnvironment? _environment;
+  final SshTunnelSecrets _sshSecrets = SshTunnelSecrets();
+
   bool _useSSL = false;
-  bool _showPassword = false;
+  String _sslMode = 'require';
+  bool _removeSavedPassword = false;
   bool _isTesting = false;
   String? _testResult;
   Timer? _dismissTimer;
@@ -84,13 +99,27 @@ class _PostgresConnectionFormContentState
     final initial = widget.initial;
     if (initial != null) {
       _nameController.text = initial.name;
+      _environment = initial.environment;
       _hostController.text = initial.host ?? '';
       _portController.text = (initial.port ?? 5432).toString();
       _usernameController.text = initial.username ?? '';
       _databaseController.text = initial.databaseName ?? '';
       _useSSL = initial.useSSL;
+      final connStr = initial.connectionString;
       _connectionStringController.text =
-          redactUriPassword(initial.connectionString) ?? '';
+          redactUriPassword(connStr) ?? '';
+      if (connStr != null && connStr.isNotEmpty) {
+        final parsed = Uri.tryParse(connStr);
+        final mode = parsed?.queryParameters['sslmode'];
+        if (mode != null && mode.isNotEmpty) {
+          _sslMode = mode;
+        } else if (_useSSL) {
+          _sslMode = 'require';
+        }
+      }
+      if (initial.sshTunnelConfig != null) {
+        _sshConfig = initial.sshTunnelConfig!;
+      }
       // Password left empty — mergeSecretsForConnectionUpdate keeps existing.
     }
 
@@ -120,6 +149,11 @@ class _PostgresConnectionFormContentState
     _sslRootCertController.text = parsed.queryParameters['sslrootcert'] ?? '';
     _sslCertController.text = parsed.queryParameters['sslcert'] ?? '';
     _sslKeyController.text = parsed.queryParameters['sslkey'] ?? '';
+    final mode = parsed.queryParameters['sslmode'];
+    if (mode != null && mode.isNotEmpty) {
+      _sslMode = mode;
+      _useSSL = mode != 'disable';
+    }
   }
 
   void _setOrRemoveSslParam(
@@ -144,9 +178,13 @@ class _PostgresConnectionFormContentState
     _setOrRemoveSslParam(params, 'sslrootcert', _sslRootCertController);
     _setOrRemoveSslParam(params, 'sslcert', _sslCertController);
     _setOrRemoveSslParam(params, 'sslkey', _sslKeyController);
-    if (!params.containsKey('sslmode') &&
-        _sslRootCertController.text.trim().isNotEmpty) {
-      params['sslmode'] = 'verify-full';
+    if (_useSSL) {
+      params['sslmode'] = _sslRootCertController.text.trim().isNotEmpty &&
+              _sslMode == 'require'
+          ? 'verify-full'
+          : _sslMode;
+    } else {
+      params.remove('sslmode');
     }
     final newUri = Uri(
       scheme: parsed.scheme,
@@ -183,6 +221,7 @@ class _PostgresConnectionFormContentState
     String? sslRootCert,
     String? sslCert,
     String? sslKey,
+    String? sslMode,
   }) {
     final userInfoParts = <String>[
       if (username != null && username.isNotEmpty)
@@ -190,11 +229,19 @@ class _PostgresConnectionFormContentState
       if (password != null && password.isNotEmpty)
         Uri.encodeComponent(password),
     ];
+    // A root CA with the default `require` mode means the user wants the
+    // server verified, same as _syncUriSslParams does for a typed URI.
+    final hasRootCert = sslRootCert != null && sslRootCert.isNotEmpty;
+    final requestedMode = sslMode ?? (_useSSL ? _sslMode : null);
+    final effectiveMode =
+        hasRootCert && (requestedMode == null || requestedMode == 'require')
+            ? 'verify-full'
+            : requestedMode;
     final queryParams = <String, String>{
-      if (sslRootCert != null && sslRootCert.isNotEmpty) ...{
+      if (sslRootCert != null && sslRootCert.isNotEmpty)
         'sslrootcert': sslRootCert,
-        'sslmode': 'verify-full',
-      },
+      if (effectiveMode != null && effectiveMode.isNotEmpty)
+        'sslmode': effectiveMode,
       if (sslCert != null && sslCert.isNotEmpty) 'sslcert': sslCert,
       if (sslKey != null && sslKey.isNotEmpty) 'sslkey': sslKey,
     };
@@ -214,16 +261,19 @@ class _PostgresConnectionFormContentState
     final sslRootCert = _sslRootCertController.text.trim();
     final sslCert = _sslCertController.text.trim();
     final sslKey = _sslKeyController.text.trim();
-    if (sslRootCert.isEmpty && sslCert.isEmpty && sslKey.isEmpty) return '';
+    if (!_useSSL && sslRootCert.isEmpty && sslCert.isEmpty && sslKey.isEmpty) {
+      return '';
+    }
     return _buildConnectionUri(
       host: _hostController.text.trim(),
       port: int.tryParse(_portController.text.trim()) ?? 5432,
       username: _usernameController.text.trim(),
       password: _passwordController.text,
       database: _databaseController.text.trim(),
-      sslRootCert: sslRootCert,
-      sslCert: sslCert,
-      sslKey: sslKey,
+      sslRootCert: sslRootCert.isEmpty ? null : sslRootCert,
+      sslCert: sslCert.isEmpty ? null : sslCert,
+      sslKey: sslKey.isEmpty ? null : sslKey,
+      sslMode: _useSSL ? _sslMode : null,
     );
   }
 
@@ -239,7 +289,7 @@ class _PostgresConnectionFormContentState
       _isTesting = false;
       _testResult = result;
     });
-    _dismissTimer = Timer(const Duration(seconds: 5), () {
+    _dismissTimer = Timer(connectionTestResultLifetime(result), () {
       if (mounted) setState(() => _testResult = null);
     });
   }
@@ -261,6 +311,15 @@ class _PostgresConnectionFormContentState
     try {
       final uri = _effectiveConnectionUri();
       final hasUri = uri.isNotEmpty;
+      // Blank secret fields mean the saved ones when a connection is edited.
+      final secrets = await secretsForConnectionTest(
+        connectionId: widget.initial?.id,
+        password:
+            _passwordController.text.isEmpty ? null : _passwordController.text,
+        connectionString: hasUri ? uri : null,
+        sshSecrets: _sshConfig.enabled ? _sshSecrets : null,
+        useSavedPassword: !_removeSavedPassword,
+      );
       final conn = PostgresConnection(
         id: 0,
         name: _nameController.text.trim().isEmpty
@@ -274,10 +333,9 @@ class _PostgresConnectionFormContentState
         username: _usernameController.text.trim().isEmpty
             ? null
             : _usernameController.text.trim(),
-        password:
-            _passwordController.text.isEmpty ? null : _passwordController.text,
+        password: secrets.password,
         useSSL: _useSSL || _hasSslCertificateFields(),
-        connectionString: hasUri ? uri : null,
+        connectionString: secrets.connectionString,
         sslRootCert: _sslRootCertController.text.trim().isEmpty
             ? null
             : _sslRootCertController.text.trim(),
@@ -287,6 +345,8 @@ class _PostgresConnectionFormContentState
         sslKey: _sslKeyController.text.trim().isEmpty
             ? null
             : _sslKeyController.text.trim(),
+        sshConfig: _sshConfig.enabled ? _sshConfig : null,
+        sshSecrets: secrets.sshSecrets,
       );
       final result = await conn.testConnection();
       if (mounted) {
@@ -321,15 +381,16 @@ class _PostgresConnectionFormContentState
       }
     }
 
-    final effectiveHost = uriHost ?? host;
-    final effectivePort = uriPort ?? port;
     final displayName = name.isNotEmpty
         ? name
-        : (effectiveUri.isNotEmpty
-            ? 'PostgreSQL: $effectiveHost:$effectivePort'
-            : 'PostgreSQL $host:$port/$database');
+        : defaultConnectionName(
+            label: 'PostgreSQL',
+            defaultPort: 5432,
+            uri: effectiveUri,
+            fields: 'PostgreSQL $host:$port/$database',
+          );
     final initial = widget.initial;
-    final row = ConnectionRow(
+    var row = ConnectionRow(
       id: initial?.id,
       type: initial?.type ?? 'postgresql',
       name: displayName,
@@ -349,7 +410,11 @@ class _PostgresConnectionFormContentState
       folderId: initial?.folderId ?? widget.folderId,
       sortOrder: initial?.sortOrder ?? 0,
       createdAt: initial?.createdAt ?? DateTime.now().toUtc().toIso8601String(),
+      sshSecrets: _sshConfig.enabled ? _sshSecrets : null,
     );
+    row = row.withSshTunnelConfig(_sshConfig.enabled ? _sshConfig : null);
+    row = row.withEnvironment(_environment);
+    row = row.copyWith(removeSavedPassword: _removeSavedPassword);
     material.Navigator.of(context).pop(row);
   }
 
@@ -374,9 +439,11 @@ class _PostgresConnectionFormContentState
               ),
             ),
             const Gap(8),
-            GhostButton(
+            QueryaButton.icon(
+              icon: material.Icons.folder_open_rounded,
+              tooltip: 'Browse…',
+              size: QueryaControlSize.lg,
               onPressed: () => _pickCertificateFile(controller),
-              child: const Icon(material.Icons.folder_open_rounded),
             ),
           ],
         ),
@@ -469,7 +536,7 @@ class _PostgresConnectionFormContentState
                 ],
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             // Form body
             material.Expanded(
               child: material.FocusTraversalGroup(
@@ -506,116 +573,27 @@ class _PostgresConnectionFormContentState
                         ),
                       ),
                       const Gap(16),
-                      // Host and Port Row
-                      material.Row(
-                        crossAxisAlignment: material.CrossAxisAlignment.start,
-                        children: [
-                          material.Expanded(
-                            flex: 3,
-                            child: material.Column(
-                              crossAxisAlignment:
-                                  material.CrossAxisAlignment.stretch,
-                              children: [
-                                const Text('Host').small().semiBold(),
-                                const Gap(8),
-                                TextField(
-                                  controller: _hostController,
-                                  placeholder: const Text('localhost'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Gap(16),
-                          material.Expanded(
-                            flex: 2,
-                            child: material.Column(
-                              crossAxisAlignment:
-                                  material.CrossAxisAlignment.stretch,
-                              children: [
-                                const Text('Port').small().semiBold(),
-                                const Gap(8),
-                                TextField(
-                                  controller: _portController,
-                                  placeholder: const Text('5432'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                      ConnectionHostPortSection(
+                        hostController: _hostController,
+                        portController: _portController,
+                        hostPlaceholder: 'localhost',
+                        portPlaceholder: '5432',
                       ),
                       const Gap(16),
-                      // Database
-                      const Text('Database').small().semiBold(),
-                      const Gap(8),
-                      TextField(
-                        controller: _databaseController,
-                        placeholder: const Text('postgres'),
+                      ConnectionDatabaseSection(
+                        databaseController: _databaseController,
+                        placeholder: 'postgres',
                       ),
                       const Gap(16),
-                      // Username and Password Row
-                      material.Row(
-                        crossAxisAlignment: material.CrossAxisAlignment.start,
-                        children: [
-                          material.Expanded(
-                            child: material.Column(
-                              crossAxisAlignment:
-                                  material.CrossAxisAlignment.stretch,
-                              children: [
-                                const Text('Username').small().semiBold(),
-                                const Gap(8),
-                                TextField(
-                                  controller: _usernameController,
-                                  placeholder: const Text('postgres'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Gap(16),
-                          material.Expanded(
-                            child: material.Column(
-                              crossAxisAlignment:
-                                  material.CrossAxisAlignment.stretch,
-                              children: [
-                                const Text('Password').small().semiBold(),
-                                const Gap(8),
-                                material.Stack(
-                                  children: [
-                                    TextField(
-                                      controller: _passwordController,
-                                      placeholder: Text(
-                                        _isEditing
-                                            ? 'Leave blank to keep existing'
-                                            : 'Password',
-                                      ),
-                                      obscureText: !_showPassword,
-                                    ),
-                                    material.Positioned(
-                                      right: 8,
-                                      top: 0,
-                                      bottom: 0,
-                                      child: material.Center(
-                                        child: material.IconButton(
-                                          icon: material.Icon(
-                                            _showPassword
-                                                ? material.Icons.visibility_off
-                                                : material.Icons.visibility,
-                                            size: 20,
-                                          ),
-                                          onPressed: () => setState(
-                                              () => _showPassword = !_showPassword),
-                                          padding: material.EdgeInsets.zero,
-                                          constraints: const material.BoxConstraints(),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                      ConnectionAuthSection(
+                        usernameController: _usernameController,
+                        passwordController: _passwordController,
+                        usernamePlaceholder: 'postgres',
+                        isEditing: _isEditing,
+                        removeSavedPassword: _removeSavedPassword,
+                        onRemoveSavedPasswordChanged: (v) =>
+                            setState(() => _removeSavedPassword = v),
                       ),
-                      const Gap(16),
                       // SSL/TLS Toggle
                       material.Row(
                         children: [
@@ -630,10 +608,43 @@ class _PostgresConnectionFormContentState
                       ),
                       if (_useSSL) ...[
                         const Gap(8),
+                        material.Row(
+                          children: [
+                            const Text('SSL Mode').small(),
+                            const Gap(12),
+                            material.SizedBox(
+                              width: 220,
+                              child: QueryaDropdown<String>(
+                                expandToParent: true,
+                                value: _sslMode,
+                                onSelected: (mode) {
+                                  if (mode != null) {
+                                    setState(() => _sslMode = mode);
+                                    _syncUriSslParams();
+                                  }
+                                },
+                                items: const [
+                                  QueryaDropdownItem(
+                                    value: 'require',
+                                    label: 'require (encrypted)',
+                                  ),
+                                  QueryaDropdownItem(
+                                    value: 'verify-ca',
+                                    label: 'verify-ca (check CA)',
+                                  ),
+                                  QueryaDropdownItem(
+                                    value: 'verify-full',
+                                    label: 'verify-full (strict)',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Gap(8),
                         const Text(
-                          'Without a Root CA this is sslmode=require: traffic is '
-                          'encrypted but the server certificate is not checked '
-                          '(MITM is possible). A Root CA enables verify-full. '
+                          'require encrypts traffic without checking server certificates. '
+                          'verify-ca and verify-full enforce CA validation against trusted roots. '
                           'A URI sslmode= value always wins.',
                         ).muted().small(),
                         const Gap(16),
@@ -670,12 +681,30 @@ class _PostgresConnectionFormContentState
                           ),
                         ),
                       ],
+                      const Gap(16),
+                      EnvironmentSection(
+                        value: _environment,
+                        onChanged: (e) => setState(() => _environment = e),
+                      ),
+                      const Gap(16),
+                      // SSH Tunneling Section
+                      SshTunnelSection(
+                        config: _sshConfig,
+                        secrets: _sshSecrets,
+                        connectionId: widget.initial?.id,
+                        onChanged: (cfg) => setState(() => _sshConfig = cfg),
+                        targetHost: _hostController.text.trim().isNotEmpty
+                            ? _hostController.text.trim()
+                            : 'localhost',
+                        targetPort:
+                            int.tryParse(_portController.text.trim()) ?? 5432,
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             // Test result banner
             if (_testResult != null)
               material.Padding(
@@ -714,29 +743,19 @@ class _PostgresConnectionFormContentState
                           const Gap(10),
                           material.Expanded(
                             child: Text(
-                              _testResult == 'success'
-                                  ? 'Connection successful!'
-                                  : _testResult!.startsWith('error:')
-                                      ? _testResult!.substring(7)
-                                      : 'Connection failed',
+                              connectionTestMessage(_testResult!),
                               style: material.TextStyle(
                                 fontSize: 13,
                                 color: theme.foreground,
                               ),
                             ).small(),
                           ),
-                          material.IconButton(
-                            icon: material.Icon(
-                              material.Icons.close,
-                              size: 18,
-                              color: theme.mutedForeground,
-                            ),
-                            onPressed: _dismissResult,
-                            style: material.IconButton.styleFrom(
-                              minimumSize: const material.Size(28, 28),
-                              padding: material.EdgeInsets.zero,
-                            ),
-                          ),
+                          QueryaIconButton(
+icon: const material.Icon(material.Icons.close),
+tooltip: 'Dismiss',
+size: QueryaControlSize.sm,
+onPressed: _dismissResult,
+),
                         ],
                       ),
                     ),
@@ -746,64 +765,29 @@ class _PostgresConnectionFormContentState
             // Footer — Wrap avoids overflow on narrow viewports (e.g. in tests)
             material.FocusTraversalGroup(
               policy: material.WidgetOrderTraversalPolicy(),
-              child: material.Container(
-                padding: const material.EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 16),
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: _formValidNotifier.listenable,
-                  builder: (context, formValid, _) {
-                    return material.Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      alignment: material.WrapAlignment.spaceBetween,
-                      children: [
-                        OutlineButton(
-                          onPressed:
-                              formValid && !_isTesting ? _testConnection : null,
-                          leading: _isTesting
-                              ? material.SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: material.CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: theme.primary,
-                                  ),
-                                )
-                              : material.Icon(
-                                  material.Icons.link_rounded,
-                                  size: 18,
-                                  color: formValid
-                                      ? theme.primary
-                                      : theme.mutedForeground,
-                                ),
-                          child: Text(
-                            'Test Connection',
-                            style: material.TextStyle(
-                              fontWeight: material.FontWeight.w500,
-                              color: formValid
-                                  ? theme.primary
-                                  : theme.mutedForeground,
-                            ),
-                          ),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _formValidNotifier.listenable,
+                builder: (context, formValid, _) => QueryaDialogActions(
+                  secondary: [
+                    QueryaButton.secondary(
+                          label: 'Test Connection',
+                          icon: material.Icons.link_rounded,
+                          loading: _isTesting,
+                          size: QueryaControlSize.lg,
+                          onPressed: formValid && !_isTesting ? _testConnection : null,
                         ),
-                        material.Row(
-                          mainAxisSize: material.MainAxisSize.min,
-                          children: [
-                            GhostButton(
+                  ],
+                  cancel: QueryaButton.ghost(
+                              label: 'Cancel',
                               onPressed: () =>
                                   material.Navigator.of(context).pop(),
-                              child: const Text('Cancel'),
+                              size: QueryaControlSize.lg,
                             ),
-                            const Gap(12),
-                            PrimaryButton(
+                  primary: QueryaButton.primary(
+                              label: 'Save',
                               onPressed: formValid ? _save : null,
-                              child: const Text('Save'),
+                              size: QueryaControlSize.lg,
                             ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
                 ),
               ),
             ),

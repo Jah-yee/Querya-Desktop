@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:querya_desktop/core/database/querya_database_exception.dart';
 import 'package:querya_desktop/core/database/postgres_connection.dart';
 import 'package:querya_desktop/core/database/postgres_connection_pool.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
@@ -28,12 +29,20 @@ class FakePostgresConnection extends PostgresConnection {
   bool? lastReadOnly;
   bool? openTransaction;
 
+  /// Thrown (once) by the next [connect].
+  Object? connectError;
+
   @override
   bool get isConnected => _connected;
 
   @override
   Future<void> connect() async {
     connectCount++;
+    final error = connectError;
+    if (error != null) {
+      connectError = null;
+      throw error;
+    }
     _connected = true;
   }
 
@@ -481,7 +490,7 @@ void main() {
       final l1 = await pool.acquire(_row(id: 1), database: 'postgres');
       await expectLater(
         pool.acquire(_row(id: 2), database: 'postgres'),
-        throwsA(isA<StateError>()),
+        throwsA(isA<PoolExhaustedException>()),
       );
       l1.release();
     });
@@ -558,5 +567,201 @@ void main() {
         ),
       );
     });
+  });
+
+  group('lease after interrupt (#1213)', () {
+    test('releasing a lease from before an interrupt keeps the replacement',
+        () async {
+      final created = <FakePostgresConnection>[];
+      final pool = PostgresConnectionPool(
+        idleDisposeDelay: const Duration(milliseconds: 20),
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakePostgresConnection();
+          await c.connect();
+          created.add(c);
+          return c;
+        },
+      );
+      final r = _row();
+      final before = await pool.acquire(r,
+          database: 'postgres', mode: PgSessionMode.readOnly);
+      pool.interrupt(r, database: 'postgres', mode: PgSessionMode.readOnly);
+      final after = await pool.acquire(r,
+          database: 'postgres', mode: PgSessionMode.readOnly);
+
+      before.release();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final replacement = created.last;
+      expect(identical(after.connection, replacement), isTrue);
+      expect(replacement.isConnected, isTrue);
+      expect(replacement.disconnectCount, 0);
+
+      after.release();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(replacement.disconnectCount, 1);
+    });
+  });
+
+  group('concurrent reconnect (#1214)', () {
+    test('two callers on a dropped slot share one reconnect and one setting',
+        () async {
+      final created = <FakePostgresConnection>[];
+      final pool = PostgresConnectionPool(
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakePostgresConnection();
+          await c.connect();
+          created.add(c);
+          return c;
+        },
+      );
+      final r = _row();
+      final first = await pool.acquire(r,
+          database: 'postgres', mode: PgSessionMode.readOnly);
+      final conn = first.connection as FakePostgresConnection;
+      await conn.forceClose();
+
+      final leases = await Future.wait([
+        pool.acquire(r, database: 'postgres', mode: PgSessionMode.readOnly),
+        pool.acquire(r, database: 'postgres', mode: PgSessionMode.readOnly),
+      ]);
+
+      expect(conn.connectCount, 2, reason: 'initial connect plus one reconnect');
+      expect(conn.setReadOnlyCount, 1);
+      expect(identical(leases[0].connection, conn), isTrue);
+      expect(identical(leases[1].connection, conn), isTrue);
+      first.release();
+      for (final l in leases) {
+        l.release();
+      }
+    });
+
+    test('a dropped socket (isConnected = false) triggers reconnect upon acquire (#1373)',
+        () async {
+      final pool = PostgresConnectionPool(
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakePostgresConnection();
+          await c.connect();
+          return c;
+        },
+      );
+      final r = _row();
+      final lease1 = await pool.acquire(r, database: 'postgres');
+      final conn = lease1.connection as FakePostgresConnection;
+      expect(conn.connectCount, 1);
+      lease1.release();
+
+      // Simulate remote socket drop without client calling forceClose()
+      conn._connected = false;
+      expect(conn.isConnected, isFalse);
+
+      final lease2 = await pool.acquire(r, database: 'postgres');
+      expect(conn.connectCount, 2,
+          reason: 'reconnected because isConnected was false');
+      expect(conn.isConnected, isTrue);
+      lease2.release();
+    });
+  });
+
+  group('MCP session (#1217)', () {
+    test('MCP has its own slot, read-only, with a server-side statement timeout',
+        () async {
+      expect(PgSessionMode.mcp.isReadOnlySession, isTrue);
+      expect(PgSessionMode.readOnly.statementTimeout, isNull);
+      expect(PgSessionMode.mcp.statementTimeout, mcpStatementTimeout);
+      final pool = PostgresConnectionPool(
+        createAndConnect: (row, {required database, required mode}) async =>
+            FakePostgresConnection(),
+      );
+      expect(pool.keyFor(1, 'app', PgSessionMode.mcp),
+          isNot(pool.keyFor(1, 'app', PgSessionMode.readOnly)));
+    });
+
+    test('an MCP lease never shares the connection of the read-only slot',
+        () async {
+      final created = <FakePostgresConnection>[];
+      final pool = PostgresConnectionPool(
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakePostgresConnection();
+          await c.connect();
+          created.add(c);
+          return c;
+        },
+      );
+      final r = _row();
+      final ui = await pool.acquire(r,
+          database: 'app', mode: PgSessionMode.readOnly);
+      final mcp = await pool.acquire(r,
+          database: 'app', mode: PgSessionMode.mcp);
+      expect(identical(ui.connection, mcp.connection), isFalse);
+      expect(created.length, 2);
+      ui.release();
+      mcp.release();
+    });
+  });
+
+  group('a failed reconnect gives the lease back (#1306)', () {
+    test('the entry is still idle-disposed afterwards', () async {
+      final fake = FakePostgresConnection();
+      final pool = PostgresConnectionPool(
+        idleDisposeDelay: const Duration(milliseconds: 20),
+        createAndConnect: (row, {required database, required mode}) async {
+          await fake.connect();
+          return fake;
+        },
+      );
+      final first = await pool.acquire(_row(), database: 'db');
+      await fake.forceClose(); // the session dropped
+      fake.connectError = StateError('server restarted');
+      await expectLater(
+          pool.acquire(_row(), database: 'db'), throwsStateError);
+
+      first.release();
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(fake.disconnectCount, 1);
+    });
+
+    test('failed reconnects do not exhaust the pool', () async {
+      final pool = PostgresConnectionPool(
+        maxEntries: 2,
+        createAndConnect: (row, {required database, required mode}) async {
+          final c = FakePostgresConnection();
+          await c.connect();
+          return c;
+        },
+      );
+      for (final db in ['a', 'b']) {
+        final lease = await pool.acquire(_row(), database: db);
+        final fake = lease.connection as FakePostgresConnection;
+        await fake.forceClose();
+        fake.connectError = StateError('down');
+        await expectLater(
+            pool.acquire(_row(), database: db), throwsStateError);
+        lease.release();
+      }
+      // Both slots are idle, so a third key evicts one instead of failing.
+      final c = await pool.acquire(_row(), database: 'c');
+      expect(c.connection.isConnected, isTrue);
+      c.release();
+    });
+  });
+
+  test('a full pool is a typed exception with a hint, not Bad state (#1316)',
+      () async {
+    final pool = PostgresConnectionPool(
+      maxEntries: 1,
+      createAndConnect: (row, {required database, required mode}) async =>
+          FakePostgresConnection(id: row.id ?? 1),
+    );
+    await pool.acquire(_row(id: 1), database: 'db1'); // in use
+
+    await expectLater(
+      pool.acquire(_row(id: 2), database: 'db2'),
+      throwsA(isA<PoolExhaustedException>().having(
+          (e) => e.toString(),
+          'text',
+          allOf(contains('PostgreSQL'), contains('Close tabs'),
+              isNot(contains('Bad state'))))),
+    );
   });
 }

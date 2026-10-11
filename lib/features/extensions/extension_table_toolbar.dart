@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/shared/services/data_export_service.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Standard toolbar for [ExtensionTableView] with title, pagination chip, DDL inspection, custom filter toggle, export/save actions, and navigation.
 class ExtensionTableToolbar extends material.StatelessWidget {
@@ -71,14 +72,11 @@ class ExtensionTableToolbar extends material.StatelessWidget {
           if (onNavigateHome != null) ...[
             material.Tooltip(
               message: 'Return to driver overview',
-              child: OutlineButton(
-                size: ButtonSize.small,
+              child: QueryaButton.secondary(
+                label: 'Driver',
+                icon: material.Icons.dns_outlined,
                 onPressed: onNavigateHome,
-                leading: const material.Icon(
-                  material.Icons.dns_outlined,
-                  size: 14,
-                ),
-                child: const Text('Driver'),
+                size: QueryaControlSize.sm,
               ),
             ),
             const Gap(10),
@@ -133,31 +131,25 @@ class ExtensionTableToolbar extends material.StatelessWidget {
                           editAction!,
                           const Gap(4),
                         ],
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'DDL',
+                          icon: material.Icons.code_rounded,
                           onPressed: onOpenDdl,
-                          leading: const material.Icon(
-                            material.Icons.code_rounded,
-                            size: 16,
-                          ),
-                          child: const Text('DDL'),
+                          size: QueryaControlSize.sm,
                         ),
                         const Gap(4),
-                        OutlineButton(
-                          size: ButtonSize.small,
-                          onPressed: onToggleFilter,
-                          leading: material.Icon(
-                            isFiltered
+                        QueryaButton.secondary(
+                          label: isFiltered ? 'Filter (active)' : 'Filter',
+                          icon: isFiltered
                                 ? material.Icons.filter_alt_rounded
                                 : material.Icons.filter_alt_outlined,
-                            size: 15,
-                          ),
-                          child: Text(isFiltered ? 'Filter (active)' : 'Filter'),
+                          onPressed: onToggleFilter,
+                          size: QueryaControlSize.sm,
                         ),
                         if (onCopyFormat != null) ...[
                           const Gap(4),
                           ExportMenuButton(
-                            label: 'Copy ▾',
+                            label: 'Copy',
                             icon: material.Icons.copy_rounded,
                             isSave: false,
                             onSelected: onCopyFormat!,
@@ -166,7 +158,7 @@ class ExtensionTableToolbar extends material.StatelessWidget {
                         if (onSaveFormat != null) ...[
                           const Gap(4),
                           ExportMenuButton(
-                            label: 'Export ▾',
+                            label: 'Export',
                             icon: material.Icons.file_download_outlined,
                             isSave: true,
                             onSelected: onSaveFormat!,
@@ -174,65 +166,43 @@ class ExtensionTableToolbar extends material.StatelessWidget {
                         ],
                         if (loading && onCancelQuery != null) ...[
                           const Gap(4),
-                          OutlineButton(
-                            size: ButtonSize.small,
+                          QueryaButton.ghost(
+                            label: 'Cancel',
+                            icon: material.Icons.cancel_outlined,
                             onPressed: onCancelQuery,
-                            leading: const material.Icon(
-                              material.Icons.cancel_outlined,
-                              size: 15,
-                            ),
-                            child: const Text('Cancel'),
+                            size: QueryaControlSize.sm,
                           ),
                         ],
                         const Gap(4),
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Prev',
+                          icon: material.Icons.chevron_left_rounded,
                           onPressed: canGoPrevious ? onGoPrevious : null,
-                          leading: const material.Icon(
-                            material.Icons.chevron_left_rounded,
-                            size: 16,
-                          ),
-                          child: const Text('Prev'),
+                          size: QueryaControlSize.sm,
                         ),
                         const Gap(4),
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Next',
+                          icon: material.Icons.chevron_right_rounded,
                           onPressed: canGoNext ? onGoNext : null,
-                          leading: const material.Icon(
-                            material.Icons.chevron_right_rounded,
-                            size: 16,
-                          ),
-                          child: const Text('Next'),
+                          size: QueryaControlSize.sm,
                         ),
                         const Gap(8),
                         if (onRestartDriver != null) ...[
-                          OutlineButton(
-                            size: ButtonSize.small,
+                          QueryaButton.secondary(
+                            label: isRestarting ? 'Restarting...' : 'Restart Driver',
+                            icon: material.Icons.restart_alt_rounded,
+                            loading: isRestarting,
                             onPressed: loading || isRestarting ? null : onRestartDriver,
-                            leading: isRestarting
-                                ? const material.SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: material.CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const material.Icon(
-                                    material.Icons.restart_alt_rounded,
-                                    size: 15,
-                                  ),
-                            child: Text(isRestarting ? 'Restarting...' : 'Restart Driver'),
+                            size: QueryaControlSize.sm,
                           ),
                           const Gap(4),
                         ],
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Refresh',
+                          icon: material.Icons.refresh_rounded,
                           onPressed: loading ? null : onRefresh,
-                          leading: const material.Icon(
-                            material.Icons.refresh_rounded,
-                            size: 14,
-                          ),
-                          child: const Text('Refresh'),
+                          size: QueryaControlSize.sm,
                         ),
                       ],
                     ),

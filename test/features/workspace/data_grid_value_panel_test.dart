@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 import 'package:querya_desktop/features/workspace/data_grid_value_panel.dart';
 import 'package:querya_desktop/features/workspace/xml_html_formatter.dart';
 
@@ -169,9 +170,50 @@ void main() {
       // Error banner should be displayed immediately
       expect(find.textContaining('Invalid JSON'), findsOneWidget);
 
-      // Elevated button is now disabled because _validationError != null
-      final button = tester.widget<material.ElevatedButton>(find.byType(material.ElevatedButton));
+      // The update button is now disabled because _validationError != null
+      final button = tester.widget<QueryaButton>(
+        find.byWidgetPredicate(
+          (w) => w is QueryaButton && w.label == 'Update Cell Value',
+        ),
+      );
       expect(button.onPressed, isNull);
+    });
+
+    testWidgets('didUpdateWidget validates immediately without scheduling redundant debounce', (tester) async {
+      await tester.pumpWidget(
+        queryaThemeTestShell(
+          child: material.Material(
+            child: DataGridValuePanel(
+              columnName: 'json_col',
+              cellValue: '{"valid":true}',
+              rowIndex: 0,
+              onClose: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Invalid JSON'), findsNothing);
+
+      // Change cellValue to invalid JSON via didUpdateWidget
+      await tester.pumpWidget(
+        queryaThemeTestShell(
+          child: material.Material(
+            child: DataGridValuePanel(
+              columnName: 'json_col',
+              cellValue: '{"invalid":,}',
+              rowIndex: 1,
+              onClose: () {},
+            ),
+          ),
+        ),
+      );
+      // Synchronous validation occurred immediately
+      await tester.pump();
+      expect(find.textContaining('Invalid JSON'), findsOneWidget);
+
+      // Verify no pending timer callback after pump
+      expect(tester.binding.hasScheduledFrame, isFalse);
     });
   });
 }

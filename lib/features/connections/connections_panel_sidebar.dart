@@ -76,6 +76,7 @@ class _ConnectionTile extends StatelessWidget {
     this.iconAsset,
     required this.onRemove,
     required this.onEdit,
+    this.moveItems = const [],
     this.onTap,
   });
 
@@ -85,6 +86,9 @@ class _ConnectionTile extends StatelessWidget {
   final String? iconAsset;
   final VoidCallback onRemove;
   final VoidCallback onEdit;
+
+  /// "Move to folder" menu entries; empty when there is nowhere to move.
+  final List<MenuItem> moveItems;
   final VoidCallback? onTap;
 
   @override
@@ -117,11 +121,15 @@ class _ConnectionTile extends StatelessWidget {
           onPressed: (_) => onEdit(),
           child: const Text('Edit connection…'),
         ),
+        ...moveItems,
         MenuButton(
           leading: material.Icon(material.Icons.delete_outline_rounded,
-              size: 18, color: theme.colorScheme.mutedForeground),
+              size: 18, color: theme.colorScheme.destructive),
           onPressed: (_) => onRemove(),
-          child: const Text('Remove connection'),
+          child: Text(
+            'Remove connection',
+            style: material.TextStyle(color: theme.colorScheme.destructive),
+          ),
         ),
       ],
       child: material.Padding(
@@ -183,11 +191,19 @@ class _FolderTile extends StatefulWidget {
     required this.onNewConnection,
     required this.iconForType,
     required this.onRemoveConnection,
+    this.acceptsDrop,
+    this.onDrop,
     this.onConnectionTap,
     this.onRedisDatabaseTap,
     this.onMongoDBDatabaseTap,
     this.buildConnectionTile,
   });
+
+  /// Whether dropping connection [id] on this folder changes anything.
+  final bool Function(int id)? acceptsDrop;
+
+  /// A connection was dropped on this folder.
+  final void Function(int id)? onDrop;
 
   final String name;
   final bool initiallyExpanded;
@@ -234,6 +250,30 @@ class _FolderTileState extends State<_FolderTile> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final drop = widget.onDrop;
+    final menu = _buildMenu(context, theme);
+    if (drop == null) return menu;
+    return material.DragTarget<int>(
+      onWillAcceptWithDetails: (d) => widget.acceptsDrop?.call(d.data) ?? true,
+      onAcceptWithDetails: (d) => drop(d.data),
+      builder: (context, candidates, _) => material.DecoratedBox(
+        key: material.ValueKey('folder-drop-${widget.name}'),
+        position: material.DecorationPosition.foreground,
+        decoration: material.BoxDecoration(
+          borderRadius: material.BorderRadius.circular(6),
+          border: material.Border.all(
+            color: candidates.isEmpty
+                ? material.Colors.transparent
+                : theme.colorScheme.primary,
+            width: 1.5,
+          ),
+        ),
+        child: menu,
+      ),
+    );
+  }
+
+  Widget _buildMenu(BuildContext context, ThemeData theme) {
     return ContextMenu(
       items: [
         MenuButton(

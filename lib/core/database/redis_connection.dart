@@ -1,6 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:querya_desktop/core/database/database_error_mapper.dart';
+import 'package:querya_desktop/core/database/querya_database_exception.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_manager.dart';
 import 'package:querya_desktop/core/security/ssl_certificate_support.dart';
 import 'package:querya_desktop/core/storage/connection_secrets_store.dart';
 import 'package:querya_desktop/core/database/redis_bulk.dart';
@@ -24,8 +29,26 @@ class RedisConnection {
     String? password,
     this.useSSL = false,
     String? connectionString,
-  })  : _password = password,
+    this.sshConfig,
+    this.sshSecrets,
+    Duration? connectTimeout,
+  })  : _connectTimeout = connectTimeout,
+        _password = password,
         _connectionString = connectionString;
+
+  /// How long the TCP connect, the TLS handshake and `AUTH` / `PING` may take,
+  /// each. The same 10 s as PostgreSQL and MySQL (#1307). [Duration.zero] means
+  /// no limit.
+  ///
+  /// A test seam: widget tests that leave a connect pending when they end
+  /// (a view opening a real connection to a closed port) would fail on the
+  /// timer the limit creates, so `flutter_test_config.dart` sets it to zero.
+  @visibleForTesting
+  static Duration defaultConnectTimeout = const Duration(seconds: 10);
+
+  final Duration? _connectTimeout;
+
+  Duration get connectTimeout => _connectTimeout ?? defaultConnectTimeout;
 
   /// Parses [ConnectionRow.connectionString] (`redis://` / `rediss://`) for
   /// host, port, userinfo, and TLS. Pass [id] `-1` for a sidebar probe that
@@ -59,6 +82,8 @@ class RedisConnection {
         password: pass ?? row.password,
         useSSL: row.useSSL || parsed.scheme == 'rediss',
         connectionString: uriText,
+        sshConfig: row.sshTunnelConfig,
+        sshSecrets: row.sshSecrets,
       );
     }
     return RedisConnection(
@@ -70,6 +95,8 @@ class RedisConnection {
       password: row.password,
       useSSL: row.useSSL,
       connectionString: row.connectionString,
+      sshConfig: row.sshTunnelConfig,
+      sshSecrets: row.sshSecrets,
     );
   }
 
@@ -82,14 +109,34 @@ class RedisConnection {
   final bool useSSL;
   String? _connectionString;
 
+  final SshTunnelConfig? sshConfig;
+  final SshTunnelSecrets? sshSecrets;
+  SshTunnelHandle? _sshTunnelHandle;
+
+  SshTunnelHandle? get sshTunnelHandle => _sshTunnelHandle;
+
   String? get password => _password;
   String? get connectionString => _connectionString;
 
   redis.RedisConnection? _conn;
   redis.Command? _command;
+  Socket? _socket;
   bool _isConnected = false;
 
   bool get isConnected => _isConnected && _command != null;
+
+  @visibleForTesting
+  void setConnectionForTest({
+    redis.RedisConnection? conn,
+    redis.Command? command,
+    Socket? socket,
+    bool isConnected = true,
+  }) {
+    _conn = conn;
+    _command = command;
+    _socket = socket;
+    _isConnected = isConnected;
+  }
 
   /// Scrubs sensitive in-memory credentials once the network handshake completes.
   void scrubCredentials() {
@@ -97,8 +144,42 @@ class RedisConnection {
     _connectionString = null;
   }
 
-  Future<void> connect() async {
-    if (_isConnected && _command != null) return;
+  /// Single-flight: a caller that arrives while an attempt is in progress waits
+  /// for that attempt. Without this, two callers opened two sockets and two SSH
+  /// tunnels, and the second overwrote the first's connection (#1307).
+  Future<void> connect() {
+    if (isConnected) return Future<void>.value();
+    final inFlight = _connecting;
+    if (inFlight != null) return inFlight;
+    final attempt = _connectOnce();
+    _connecting = attempt;
+    return attempt.whenComplete(() {
+      if (identical(_connecting, attempt)) _connecting = null;
+    });
+  }
+
+  Future<void>? _connecting;
+
+  Future<void> _connectOnce() async {
+    try {
+      await _openConnection();
+    } on RedisConnectionException {
+      rethrow;
+    } catch (e, st) {
+      rethrowMappedDatabaseError(e, st, driver: DatabaseDriver.redis);
+    }
+  }
+
+  Future<void> _openConnection() async {
+    if (isConnected) return;
+    if (_socket != null) {
+      try {
+        _socket?.destroy();
+      } catch (_) {}
+      _socket = null;
+      _command = null;
+      _conn = null;
+    }
 
     var effectivePassword = _password;
     var effectiveConnectionString = _connectionString;
@@ -107,61 +188,137 @@ class RedisConnection {
         (effectiveConnectionString == null ||
             effectiveConnectionString.isEmpty) &&
         id > 0) {
-      try {
-        final secrets = await ConnectionSecretsStore.readForConnection(id);
-        effectivePassword = secrets.password;
-        effectiveConnectionString = secrets.connectionString;
-      } catch (_) {}
+      // A store that cannot be read throws (#1303): connecting with no password
+      // would be reported as a wrong one.
+      final secrets = await ConnectionSecretsStore.readForConnection(id);
+      effectivePassword = secrets.password;
+      effectiveConnectionString = secrets.connectionString;
     }
 
-    _conn = redis.RedisConnection();
+    final client = redis.RedisConnection();
+    _conn = client;
+    // Owned here so that a failed attempt can close it, wherever it failed.
+    Socket? socket;
     final sslPaths =
         extractSslCertificatePathsFromString(effectiveConnectionString);
     final secure = useSSL || sslPaths.hasAny;
-    if (secure) {
-      final context = buildSecurityContext(sslPaths);
-      final socket = await SecureSocket.connect(
-        host,
-        port,
-        context: context,
-      );
-      _command = await _conn!.connectWithSocket(socket);
-    } else {
-      _command = await _conn!.connect(host, port);
-    }
-    _command!.setParser(redis.RedisParserBulkBinary());
-    if (effectivePassword != null && effectivePassword.isNotEmpty) {
-      if (username != null && username!.trim().isNotEmpty) {
-        await _command!
-            .send_object(['AUTH', username!.trim(), effectivePassword]);
-      } else {
-        await _command!.send_object(['AUTH', effectivePassword]);
+    final limit = connectTimeout > Duration.zero ? connectTimeout : null;
+
+    try {
+      if (sshConfig != null && sshConfig!.enabled) {
+        var sec = sshSecrets;
+        if (sec == null && id > 0) {
+          final stored =
+              await ConnectionSecretsStore.readSshSecretsForConnection(id);
+          sec = SshTunnelSecrets(
+            password: stored.password,
+            privateKey: stored.privateKey,
+            passphrase: stored.passphrase,
+            jumpPassword: stored.jumpPassword,
+          );
+        }
+        _sshTunnelHandle = await SshTunnelManager.instance.openTunnel(
+          config: sshConfig!,
+          secrets: sec ?? SshTunnelSecrets(),
+          remoteHost: host,
+          remotePort: port,
+        );
       }
-    }
-    final result = await _command!.send_object(['PING']);
-    if (result == null || result.toString().toUpperCase() != 'PONG') {
-      try {
-        await _conn?.close();
-      } catch (_) {}
+
+      final effectiveHost = _sshTunnelHandle?.localHost ?? host;
+      final effectivePort = _sshTunnelHandle?.localPort ?? port;
+
+      // The socket is opened here, with a timeout, for plain and TLS alike.
+      socket = secure
+          ? await SecureSocket.connect(
+              effectiveHost,
+              effectivePort,
+              context: buildSecurityContext(sslPaths),
+              timeout: limit,
+            )
+          : await Socket.connect(
+              effectiveHost,
+              effectivePort,
+              timeout: limit,
+            );
+      _socket = socket;
+      final activeSocket = socket;
+      // Watches the socket for a drop; the future itself is not awaited.
+      unawaited(activeSocket.done.then((_) {
+        if (identical(_socket, activeSocket)) {
+          _isConnected = false;
+        }
+      }, onError: (_) {
+        if (identical(_socket, activeSocket)) {
+          _isConnected = false;
+        }
+      }));
+      final command = await client.connectWithSocket(socket);
+      _command = command;
+      command.setParser(redis.RedisParserBulkBinary());
+      // A server that accepts the TCP connection and then says nothing must
+      // not hold the caller either.
+      final handshake = _authenticate(command, effectivePassword);
+      await (limit == null
+          ? handshake
+          : handshake.timeout(
+              limit,
+              onTimeout: () => throw TimeoutException(
+                'Redis did not answer within ${limit.inSeconds} s',
+              ),
+            ));
+      _isConnected = true;
+      if (_clientReadOnly) {
+        try {
+          await _command!.send_object(['READONLY']);
+        } catch (_) {
+          // Standalone / older servers: READONLY is cluster-replica only.
+        }
+      }
+      scrubCredentials();
+    } catch (e) {
+      _isConnected = false;
       _conn = null;
       _command = null;
-      throw RedisConnectionException('PING failed');
-    }
-    _isConnected = true;
-    if (_clientReadOnly) {
+      _socket = null;
+      // The attempt may have got as far as an open socket (a wrong password,
+      // a silent server): close it, or every failed try leaves one behind.
       try {
-        await _command!.send_object(['READONLY']);
-      } catch (_) {
-        // Standalone / older servers: READONLY is cluster-replica only.
+        socket?.destroy();
+      } catch (_) {}
+      try {
+        await _sshTunnelHandle?.release();
+      } catch (_) {}
+      _sshTunnelHandle = null;
+      rethrow;
+    }
+  }
+
+  /// `AUTH` when there is a password, then `PING`.
+  Future<void> _authenticate(redis.Command command, String? password) async {
+    if (password != null && password.isNotEmpty) {
+      final user = username?.trim();
+      if (user != null && user.isNotEmpty) {
+        await command.send_object(['AUTH', user, password]);
+      } else {
+        await command.send_object(['AUTH', password]);
       }
     }
-    scrubCredentials();
+    final result = await command.send_object(['PING']);
+    if (result == null || result.toString().toUpperCase() != 'PONG') {
+      throw RedisConnectionException('PING failed');
+    }
   }
 
   Future<void> disconnect() async {
     final wasConnected = _isConnected;
     _isConnected = false;
     _command = null;
+    final sock = _socket;
+    _socket = null;
+    try {
+      sock?.destroy();
+    } catch (_) {}
     final c = _conn;
     _conn = null;
     if (c != null && wasConnected) {
@@ -173,6 +330,10 @@ class RedisConnection {
         }
       }
     }
+    try {
+      await _sshTunnelHandle?.release();
+    } catch (_) {}
+    _sshTunnelHandle = null;
   }
 
   Future<void> forceClose() => disconnect();
@@ -185,13 +346,18 @@ class RedisConnection {
     return RedisBulkValue.fromReply(result).text ?? '';
   }
 
-  Future<bool> testConnection() async {
+  /// Connects and disconnects. [error] is the reason in the user's terms
+  /// (#1308).
+  Future<({bool ok, String? error})> testConnection() async {
     try {
       await connect();
-      return true;
+      return (ok: true, error: null);
     } catch (e) {
       debugPrint('RedisConnection.testConnection: $e');
-      return false;
+      return (
+        ok: false,
+        error: describeDatabaseError(e, driver: DatabaseDriver.redis),
+      );
     } finally {
       await disconnect();
     }
@@ -226,7 +392,18 @@ class RedisConnection {
     if (!isConnected || _command == null) {
       throw StateError('Not connected to Redis');
     }
-    return _command!.send_object(args);
+    try {
+      return await _command!.send_object(args);
+    } catch (e) {
+      final mapped = mapDatabaseError(e, driver: DatabaseDriver.redis);
+      if (mapped is ConnectionLostException ||
+          mapped is HostUnreachableException ||
+          e is SocketException) {
+        _isConnected = false;
+        unawaited(disconnect());
+      }
+      rethrow;
+    }
   }
 
   /// SELECT database index.
@@ -568,6 +745,21 @@ class RedisConnection {
     return redisReplyInt(result);
   }
 
+  /// DEL key [key ...]. Returns total number of keys removed.
+  Future<int> delMany(Iterable<Object> keys) async {
+    _assertWritable();
+    final list = keys.toList();
+    if (list.isEmpty) return 0;
+    var total = 0;
+    const chunkSize = 200;
+    for (var i = 0; i < list.length; i += chunkSize) {
+      final chunk = list.sublist(i, (i + chunkSize).clamp(0, list.length));
+      final result = await sendCommand(['DEL', ...chunk.map(redisCommandArg)]);
+      total += redisReplyInt(result);
+    }
+    return total;
+  }
+
   /// RENAME old new.
   Future<void> rename(Object oldKey, String newKey) async {
     _assertWritable();
@@ -843,6 +1035,16 @@ class RedisConnectionTestFake extends RedisConnection {
           }
         }
         return removed;
+      case 'DEL':
+        final allKeys = [...firstScanKeys, ...secondScanKeys];
+        var count = 0;
+        for (var i = 1; i < args.length; i++) {
+          final target = args[i].toString();
+          if (allKeys.contains(target)) {
+            count++;
+          }
+        }
+        return count;
       default:
         return null;
     }

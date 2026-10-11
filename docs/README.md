@@ -7,12 +7,15 @@ Index of Querya Desktop documentation, grouped by audience.
 - [Getting started](getting-started.md) — prerequisites, install, first run.
 - [User guide](user-guide.md) — connections, preferences, driver manager.
 - [Security / local data](security.md) — where metadata and secrets are stored.
+- [MCP server](mcp-server.md) — let Claude Desktop, Cursor, VS Code and other AI clients read shared connections (read-only).
+- [Testing extensions in CI](extension-testing.md) — `querya-ext-tester`, release binaries and the GitHub Action.
 
 ## For contributors
 
 - [Contributing](../CONTRIBUTING.md) — workflow, CI, pre-PR checklist.
 - [Architecture](architecture.md) — `lib/` layout and module responsibilities.
 - [Theme system](theme.md) — runtime theming and VS Code theme tokens.
+- [UI Kit](ui-kit.md) — shared widgets, design tokens and guard tests.
 - [Theme import](theme-import.md) — supported `colors` keys and merge behavior.
 - [Custom theme JSON](theme-custom-json.md) — `querya.theme.v1` schema and fallback rules.
 - [Performance baseline](perf-baseline.md) — per-milestone DevTools checklist.
@@ -21,6 +24,7 @@ Index of Querya Desktop documentation, grouped by audience.
 
 - [Tags and releases](tags-and-releases.md) — tag/release policy.
 - [Release checklist](release-checklist.md) — step-by-step release flow.
+- [Self-hosted CI runners](ci-runners.md) — where tests and analysis run, the fork rule, the `CI_RUNS_ON` switch.
 - [macOS signing](macos-signing.md) — signing and notarization track.
 
 ## Planning

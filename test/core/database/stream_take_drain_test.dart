@@ -110,7 +110,14 @@ void main() {
           database: Platform.environment['MYSQL_DATABASE'] ?? 'querya',
           useSSL: false,
         );
-        await conn.connect(connectTimeoutMs: 3000);
+        try {
+          await conn.connect(connectTimeoutMs: 3000);
+        } catch (e) {
+          markTestSkipped(
+            'MySQL on 127.0.0.1:$port failed to connect with test credentials: $e',
+          );
+          return;
+        }
         addTearDown(() => conn.disconnect());
 
         const cap = 2;

@@ -8,6 +8,7 @@ import 'package:querya_desktop/features/postgresql/postgres_sql_tx_guard.dart';
 import 'package:querya_desktop/features/postgresql/postgres_sql_workspace.dart';
 import 'package:querya_desktop/features/postgresql/postgres_stats_view.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// When a PostgreSQL connection is selected but no tree object: Server stats or SQL editor.
 class PostgresWorkspaceHome extends material.StatefulWidget {
@@ -124,14 +125,11 @@ class _PostgresWorkspaceHomeState
               if (widget.lastSelectedPostgresObject != null &&
                   widget.onRestoreLastSelectedObject != null) ...[
                 const Gap(12),
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Return to ${widget.lastSelectedPostgresObject!.name}',
+                  icon: material.Icons.table_chart_outlined,
                   onPressed: widget.onRestoreLastSelectedObject,
-                  leading: const material.Icon(
-                    material.Icons.table_chart_outlined,
-                    size: 14,
-                  ),
-                  child: Text('Return to ${widget.lastSelectedPostgresObject!.name}'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
               material.Expanded(
@@ -147,7 +145,7 @@ class _PostgresWorkspaceHomeState
             ],
           ),
         ),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         Expanded(
           child: QueryaCrossFadeStack(
             index: _tab,

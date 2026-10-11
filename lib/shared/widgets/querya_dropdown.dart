@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' as material;
+import 'package:flutter/services.dart';
 import 'package:querya_desktop/core/layout/ui_scale.dart';
 import 'package:querya_desktop/core/motion/querya_motion.dart';
 import 'package:querya_desktop/core/motion/querya_motion_context.dart';
+import 'package:querya_desktop/core/theme/querya_theme.dart';
+import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/widgets/querya_dropdown_tokens.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 export 'querya_dropdown_tokens.dart';
 
@@ -27,7 +30,7 @@ class QueryaDropdownItem<T> {
 
 /// Stable dropdown built on [material.MenuAnchor] (no Overlay portal).
 ///
-/// Visual metrics: [QueryaDropdownTokens]. Colors from shadcn [ColorScheme].
+/// Visual metrics: [QueryaDropdownTokens]. Colors from shadcn [QueryaThemeColorScheme].
 ///
 /// **Exit motion:** item pick and trigger-toggle delay [MenuController.close]
 /// so fade-slide can run. Outside-tap / focus-loss closes via [MenuAnchor]
@@ -45,6 +48,8 @@ class QueryaDropdown<T> extends material.StatefulWidget {
     this.alignmentOffset = QueryaDropdownTokens.menuAlignmentOffset,
     this.menuMaxHeight = QueryaDropdownTokens.menuMaxHeight,
     this.hint,
+    this.compact = false,
+    this.size,
   });
 
   final T value;
@@ -58,6 +63,15 @@ class QueryaDropdown<T> extends material.StatefulWidget {
   final double menuMaxHeight;
   final String? hint;
 
+  /// Smaller trigger and rows for toolbars / panel headers (same as
+  /// [QueryaControlSize.sm]).
+  final bool compact;
+
+  /// Control size of the trigger. Without one: [QueryaControlSize.sm] when
+  /// [compact], else the nearest [QueryaControlScope], else
+  /// [QueryaControlSize.lg].
+  final QueryaControlSize? size;
+
   @override
   material.State<QueryaDropdown<T>> createState() => _QueryaDropdownState<T>();
 }
@@ -65,12 +79,18 @@ class QueryaDropdown<T> extends material.StatefulWidget {
 class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
   late material.MenuController _controller;
   bool _triggerHovered = false;
+  bool _triggerFocused = false;
   final material.ValueNotifier<bool> _menuOpen = material.ValueNotifier(false);
   List<material.Widget>? _cachedMenuChildren;
   List<QueryaDropdownItem<T>>? _cachedMenuItems;
   T? _cachedMenuValue;
+  QueryaControlSize? _cachedMenuSize;
   var _closingWithExit = false;
   var _exitGeneration = 0;
+
+  /// Keys the trigger so the open menu can be at least as wide as it (#1444).
+  final material.GlobalKey _triggerKey = material.GlobalKey();
+  double _menuMinWidth = 0;
 
   @override
   void initState() {
@@ -116,21 +136,35 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
       _controller = widget.controller ?? material.MenuController();
     }
     if (!listEquals(oldWidget.items, widget.items) ||
-        oldWidget.value != widget.value) {
+        oldWidget.value != widget.value ||
+        oldWidget.size != widget.size ||
+        oldWidget.compact != widget.compact) {
       _cachedMenuChildren = null;
     }
   }
 
-  List<material.Widget> _menuChildren(ColorScheme cs) {
+  /// The size this dropdown draws at: its own [QueryaDropdown.size], else
+  /// [QueryaControlSize.sm] when compact, else the nearest control scope, else
+  /// [QueryaControlSize.lg].
+  QueryaControlSize _controlSize(material.BuildContext context) {
+    final explicit = widget.size;
+    if (explicit != null) return explicit;
+    if (widget.compact) return QueryaControlSize.sm;
+    return QueryaControlScope.maybeOf(context) ?? QueryaControlSize.lg;
+  }
+
+  List<material.Widget> _menuChildren(QueryaThemeColorScheme cs, QueryaControlSize size) {
     if (_cachedMenuChildren != null &&
         listEquals(_cachedMenuItems, widget.items) &&
-        _cachedMenuValue == widget.value) {
+        _cachedMenuValue == widget.value &&
+        _cachedMenuSize == size) {
       return _cachedMenuChildren!;
     }
     _cachedMenuItems = List<QueryaDropdownItem<T>>.from(widget.items);
     _cachedMenuValue = widget.value;
+    _cachedMenuSize = size;
     _cachedMenuChildren = [
-      for (final item in widget.items) _menuItem(item, cs),
+      for (final item in widget.items) _menuItem(item, cs, size),
     ];
     return _cachedMenuChildren!;
   }
@@ -138,8 +172,9 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
   material.Widget _triggerLabelText({
     required material.BuildContext context,
     required String label,
-    required ColorScheme cs,
+    required QueryaThemeColorScheme cs,
     required bool expand,
+    required QueryaControlSize size,
   }) {
     final textColor =
         widget.enabled ? cs.popoverForeground : cs.mutedForeground;
@@ -147,7 +182,12 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
       label,
       maxLines: 1,
       overflow: material.TextOverflow.ellipsis,
-      style: QueryaDropdownTokens.triggerTextStyle(context, textColor),
+      style: QueryaDropdownTokens.triggerTextStyle(
+        context,
+        textColor,
+        compact: widget.compact,
+        size: size,
+      ),
     );
     if (expand) {
       return material.Expanded(child: text);
@@ -162,12 +202,18 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
     return widget.hint ?? '';
   }
 
-  material.Widget _menuItem(QueryaDropdownItem<T> item, ColorScheme cs) {
+  material.Widget _menuItem(
+    QueryaDropdownItem<T> item,
+    QueryaThemeColorScheme cs,
+    QueryaControlSize size,
+  ) {
     return _QueryaDropdownMenuItem<T>(
       item: item,
       selected: item.value == widget.value,
       enabled: widget.enabled && item.enabled,
       colorScheme: cs,
+      compact: widget.compact,
+      size: size,
       onPick: () {
         widget.onSelected(item.value);
         unawaited(_closeWithExit());
@@ -178,14 +224,19 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
   material.Widget _buildTrigger({
     required material.BuildContext context,
     required material.MenuController controller,
-    required ColorScheme cs,
+    required QueryaThemeColorScheme cs,
     required String label,
     required double? fieldWidth,
   }) {
     final borderColor = widget.enabled
-        ? (_triggerHovered ? cs.ring : cs.border)
+        ? (_triggerHovered || _triggerFocused ? cs.ring : cs.border)
         : cs.border.withValues(alpha: 0.4);
-    final triggerHeight = QueryaDropdownTokens.scaledTriggerHeight(context);
+    final size = _controlSize(context);
+    final triggerHeight = QueryaDropdownTokens.scaledTriggerHeight(
+      context,
+      compact: widget.compact,
+      size: size,
+    );
     final chevronGap = context.scaled(QueryaDropdownTokens.triggerChevronGap);
     final chevronSize = context.scaled(QueryaDropdownTokens.triggerChevronSize);
     final radius = context.scaled(QueryaDropdownTokens.menuBorderRadius);
@@ -203,7 +254,11 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
         duration: context.motionDuration(QueryaMotion.fast),
         curve: context.motionCurve(QueryaMotion.enter),
         height: triggerHeight,
-        padding: QueryaDropdownTokens.scaledTriggerPadding(context),
+        padding: QueryaDropdownTokens.scaledTriggerPadding(
+          context,
+          compact: widget.compact,
+          size: size,
+        ),
         decoration: material.BoxDecoration(
           color: _triggerHovered
               ? cs.muted.withValues(alpha: 0.28)
@@ -222,6 +277,7 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
               label: label,
               cs: cs,
               expand: widget.expandToParent || fieldWidth != null,
+              size: size,
             ),
             material.SizedBox(width: chevronGap),
             material.Icon(
@@ -236,36 +292,64 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
       ),
     );
 
-    return material.Material(
-      type: material.MaterialType.transparency,
-      child: material.InkWell(
-        onTap: widget.enabled
-            ? () {
-                if (_closingWithExit) {
-                  _cancelExit();
-                } else if (controller.isOpen) {
-                  unawaited(_closeWithExit());
-                } else {
-                  controller.open();
-                }
-              }
-            : null,
-        borderRadius: material.BorderRadius.circular(radius),
+    void toggle() {
+      if (_closingWithExit) {
+        _cancelExit();
+      } else if (controller.isOpen) {
+        unawaited(_closeWithExit());
+      } else {
+        controller.open();
+      }
+    }
+
+    // No ink/ripple: hover tint + focus ring only (desktop behaviour).
+    final trigger = material.Focus(
+      canRequestFocus: widget.enabled,
+      onFocusChange: (f) => setState(() => _triggerFocused = f),
+      onKeyEvent: (node, event) {
+        if (!widget.enabled || event is! KeyDownEvent) {
+          return material.KeyEventResult.ignored;
+        }
+        final k = event.logicalKey;
+        if (k == LogicalKeyboardKey.enter ||
+            k == LogicalKeyboardKey.space ||
+            k == LogicalKeyboardKey.arrowDown) {
+          if (!controller.isOpen) {
+            controller.open();
+            return material.KeyEventResult.handled;
+          }
+        }
+        return material.KeyEventResult.ignored;
+      },
+      child: material.GestureDetector(
+        behavior: material.HitTestBehavior.opaque,
+        onTap: widget.enabled ? toggle : null,
         child: fieldWidth != null
             ? material.SizedBox(width: fieldWidth, child: triggerBody)
             : triggerBody,
       ),
     );
+
+    // A screen reader hears a button with the current value that says whether
+    // its menu is open (#1371).
+    return material.Semantics(
+      button: true,
+      enabled: widget.enabled,
+      expanded: controller.isOpen,
+      value: label,
+      hint: widget.hint,
+      child: trigger,
+    );
   }
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.colors;
     final label = _labelFor(widget.value);
     final fieldWidth = widget.expandToParent
         ? null
         : (widget.width != null ? context.scaled(widget.width!) : null);
-    final menuChildren = _menuChildren(cs);
+    final menuChildren = _menuChildren(cs, _controlSize(context));
     final scaledMaxHeight = context.scaled(widget.menuMaxHeight);
     final effectiveMaxHeight =
         widget.items.length > QueryaDropdownTokens.menuScrollItemThreshold
@@ -279,6 +363,8 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
         _exitGeneration++;
         _closingWithExit = false;
         _menuOpen.value = true;
+        final width = _triggerKey.currentContext?.size?.width ?? 0;
+        if (width != _menuMinWidth) setState(() => _menuMinWidth = width);
       },
       onClose: () {
         // Outside-tap / focus loss: overlay already gone — snap state only.
@@ -300,6 +386,9 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
         ),
         shadowColor: const material.WidgetStatePropertyAll(
           QueryaDropdownTokens.menuShadowColor,
+        ),
+        minimumSize: material.WidgetStatePropertyAll(
+          material.Size(_menuMinWidth, 0),
         ),
         maximumSize: material.WidgetStatePropertyAll(
           material.Size(double.infinity, effectiveMaxHeight),
@@ -332,10 +421,11 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
           label: label,
           fieldWidth: fieldWidth,
         );
+        final keyed = material.KeyedSubtree(key: _triggerKey, child: trigger);
         if (widget.expandToParent) {
-          return material.SizedBox(width: double.infinity, child: trigger);
+          return material.SizedBox(width: double.infinity, child: keyed);
         }
-        return trigger;
+        return keyed;
       },
     );
 
@@ -414,13 +504,17 @@ class _QueryaDropdownMenuItem<T> extends material.StatefulWidget {
     required this.selected,
     required this.enabled,
     required this.colorScheme,
+    required this.compact,
+    required this.size,
     required this.onPick,
   });
 
   final QueryaDropdownItem<T> item;
   final bool selected;
   final bool enabled;
-  final ColorScheme colorScheme;
+  final QueryaThemeColorScheme colorScheme;
+  final bool compact;
+  final QueryaControlSize size;
   final material.VoidCallback onPick;
 
   @override
@@ -431,8 +525,9 @@ class _QueryaDropdownMenuItem<T> extends material.StatefulWidget {
 class _QueryaDropdownMenuItemState<T>
     extends material.State<_QueryaDropdownMenuItem<T>> {
   bool _hovered = false;
+  bool _focused = false;
 
-  material.Widget _leading(material.BuildContext context, ColorScheme cs) {
+  material.Widget _leading(material.BuildContext context, QueryaThemeColorScheme cs) {
     final slot = context.scaled(QueryaDropdownTokens.selectedCheckSlotWidth);
     final checkSize = context.scaled(QueryaDropdownTokens.selectedCheckSize);
     if (widget.selected) {
@@ -451,66 +546,78 @@ class _QueryaDropdownMenuItemState<T>
   @override
   material.Widget build(material.BuildContext context) {
     final cs = widget.colorScheme;
-    final bg = _hovered
+    final bg = (_hovered || _focused)
         ? cs.accent.withValues(alpha: 0.14)
         : widget.selected
             ? cs.muted.withValues(alpha: 0.32)
             : material.Colors.transparent;
-    final itemHeight = QueryaDropdownTokens.scaledMenuItemHeight(context);
+    final itemHeight = QueryaDropdownTokens.scaledMenuItemHeight(
+      context,
+      compact: widget.compact,
+      size: widget.size,
+    );
     final radius = context.scaled(QueryaDropdownTokens.menuBorderRadius);
     final slot = context.scaled(QueryaDropdownTokens.selectedCheckSlotWidth);
 
-    return material.MouseRegion(
-      cursor: widget.enabled
-          ? material.SystemMouseCursors.click
-          : material.SystemMouseCursors.basic,
-      onEnter: widget.enabled ? (_) => setState(() => _hovered = true) : null,
-      onExit: widget.enabled ? (_) => setState(() => _hovered = false) : null,
-      child: material.MenuItemButton(
-        // Keep overlay mounted so parent can play exit fade-slide before close.
-        closeOnActivate: false,
-        style: material.MenuItemButton.styleFrom(
-          minimumSize: material.Size(double.infinity, itemHeight),
-          padding: material.EdgeInsets.zero,
-          foregroundColor: cs.popoverForeground,
-          disabledForegroundColor: cs.mutedForeground.withValues(alpha: 0.5),
-          overlayColor: material.Colors.transparent,
-          shape: material.RoundedRectangleBorder(
-            borderRadius: material.BorderRadius.circular(radius),
+    return material.Semantics(
+      button: true,
+      enabled: widget.enabled,
+      selected: widget.selected,
+      child: material.MouseRegion(
+        cursor: widget.enabled
+            ? material.SystemMouseCursors.click
+            : material.SystemMouseCursors.basic,
+        onEnter: widget.enabled ? (_) => setState(() => _hovered = true) : null,
+        onExit: widget.enabled ? (_) => setState(() => _hovered = false) : null,
+        child: material.MenuItemButton(
+          // Keep overlay mounted so parent can play exit fade-slide before close.
+          closeOnActivate: false,
+          onFocusChange: (f) => setState(() => _focused = f),
+          style: material.MenuItemButton.styleFrom(
+            minimumSize: material.Size(double.infinity, itemHeight),
+            padding: material.EdgeInsets.zero,
+            foregroundColor: cs.popoverForeground,
+            disabledForegroundColor: cs.mutedForeground.withValues(alpha: 0.5),
+            overlayColor: material.Colors.transparent,
+            shape: material.RoundedRectangleBorder(
+              borderRadius: material.BorderRadius.circular(radius),
+            ),
           ),
-        ),
-        onPressed: widget.enabled ? widget.onPick : null,
-        child: material.AnimatedContainer(
-          duration: context.motionDuration(QueryaMotion.fast),
-          curve: context.motionCurve(QueryaMotion.enter),
-          constraints: material.BoxConstraints(minHeight: itemHeight),
-          padding: material.EdgeInsets.symmetric(
-            horizontal:
-                context.scaled(QueryaDropdownTokens.menuItemPadding.horizontal),
-            vertical:
-                context.scaled(QueryaDropdownTokens.menuItemPadding.vertical),
-          ),
-          decoration: material.BoxDecoration(
-            color: bg,
-            borderRadius: material.BorderRadius.circular(radius),
-          ),
-          child: material.Row(
-            children: [
-              material.SizedBox(width: slot, child: _leading(context, cs)),
-              material.SizedBox(width: context.scaled(6)),
-              material.Expanded(
-                child: material.Text(
-                  widget.item.label,
-                  maxLines: 1,
-                  overflow: material.TextOverflow.ellipsis,
-                  style: QueryaDropdownTokens.menuItemTextStyle(
-                    context,
-                    cs.popoverForeground,
-                    selected: widget.selected,
+          onPressed: widget.enabled ? widget.onPick : null,
+          child: material.AnimatedContainer(
+            duration: context.motionDuration(QueryaMotion.fast),
+            curve: context.motionCurve(QueryaMotion.enter),
+            constraints: material.BoxConstraints(minHeight: itemHeight),
+            padding: material.EdgeInsets.symmetric(
+              horizontal:
+                  context.scaled(QueryaDropdownTokens.menuItemPadding.horizontal),
+              vertical:
+                  context.scaled(QueryaDropdownTokens.menuItemPadding.vertical),
+            ),
+            decoration: material.BoxDecoration(
+              color: bg,
+              borderRadius: material.BorderRadius.circular(radius),
+            ),
+            child: material.Row(
+              children: [
+                material.SizedBox(width: slot, child: _leading(context, cs)),
+                material.SizedBox(width: context.scaled(6)),
+                material.Expanded(
+                  child: material.Text(
+                    widget.item.label,
+                    maxLines: 1,
+                    overflow: material.TextOverflow.ellipsis,
+                    style: QueryaDropdownTokens.menuItemTextStyle(
+                      context,
+                      cs.popoverForeground,
+                      selected: widget.selected,
+                      compact: widget.compact,
+                      size: widget.size,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

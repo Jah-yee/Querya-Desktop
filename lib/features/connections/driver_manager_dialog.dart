@@ -6,6 +6,7 @@ import 'package:querya_desktop/features/connections/connection_type_choice.dart'
 import 'package:querya_desktop/features/connections/driver_icon.dart';
 import 'package:querya_desktop/features/connections/new_connection_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// One row in the driver list.
 typedef _DriverInfo = ({
@@ -115,7 +116,7 @@ class _DriverManagerDialogContent extends material.StatelessWidget {
                 shrinkWrap: true,
                 padding: const material.EdgeInsets.symmetric(vertical: 8),
                 itemCount: drivers.length,
-                separatorBuilder: (_, __) => material.Divider(
+                separatorBuilder: (_, __) => QueryaDivider(
                   height: 1,
                   color: theme.border.withValues(alpha: 0.3),
                 ),
@@ -126,23 +127,11 @@ class _DriverManagerDialogContent extends material.StatelessWidget {
               ),
             ),
           ),
-          material.Container(
-            padding: const material.EdgeInsets.symmetric(
-                horizontal: 24, vertical: 16),
-            decoration: material.BoxDecoration(
-              border: material.Border(
-                top: material.BorderSide(
-                    color: theme.border.withValues(alpha: 0.3)),
-              ),
-            ),
-            child: material.Row(
-              mainAxisAlignment: material.MainAxisAlignment.end,
-              children: [
-                PrimaryButton(
-                  onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-              ],
+          QueryaDialogActions(
+            cancel: QueryaButton.ghost(
+              label: 'Close',
+              onPressed: () => material.Navigator.of(context).pop(),
+              size: QueryaControlSize.lg,
             ),
           ),
         ],

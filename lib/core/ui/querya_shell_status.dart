@@ -15,6 +15,10 @@ class QueryaShellStatus extends ChangeNotifier {
   int? _columnCount;
   Duration? _lastQueryDuration;
 
+  /// Whether [_statusMessage] only describes the running work ("Running
+  /// query…"): such a message goes away with the busy state.
+  bool _messageIsBusy = false;
+
   bool get isBusy => _isBusy;
   String? get statusMessage => _statusMessage;
   int? get rowCount => _rowCount;
@@ -24,13 +28,22 @@ class QueryaShellStatus extends ChangeNotifier {
   /// Marks the shell busy (spinner + optional message).
   void beginBusy({String? message}) {
     _isBusy = true;
-    if (message != null) _statusMessage = message;
+    if (message != null) {
+      _statusMessage = message;
+      _messageIsBusy = true;
+    }
     notifyListeners();
   }
 
   /// Clears busy; keeps last query metrics unless [clearMetrics] is true.
+  ///
+  /// A message set by [beginBusy] is dropped: it described work that is over.
   void endBusy({bool clearMetrics = false}) {
     _isBusy = false;
+    if (_messageIsBusy) {
+      _statusMessage = null;
+      _messageIsBusy = false;
+    }
     if (clearMetrics) {
       _statusMessage = null;
       _rowCount = null;
@@ -52,6 +65,42 @@ class QueryaShellStatus extends ChangeNotifier {
     if (rowCount != null) _rowCount = rowCount;
     if (columnCount != null) _columnCount = columnCount;
     if (message != null) _statusMessage = message;
+    _messageIsBusy = false;
+    notifyListeners();
+  }
+
+  /// Publishes a query (or command) that failed and clears busy. The row and
+  /// column counts of an earlier result are dropped so they are not read as
+  /// this run's.
+  void reportQueryFailure({
+    Duration? duration,
+    String message = 'Query failed',
+  }) {
+    _isBusy = false;
+    _statusMessage = message;
+    _messageIsBusy = false;
+    _rowCount = null;
+    _columnCount = null;
+    if (duration != null) _lastQueryDuration = duration;
+    notifyListeners();
+  }
+
+  /// Replaces the shown message and query metrics, for example with those of
+  /// the tab that has just been selected, or with a notice such as `Nothing to
+  /// run`. Nulls clear the field. While a query is running the busy message
+  /// owns the bar and this does nothing.
+  void setQueryMetrics({
+    String? message,
+    int? rowCount,
+    int? columnCount,
+    Duration? duration,
+  }) {
+    if (_isBusy) return;
+    _statusMessage = message;
+    _messageIsBusy = false;
+    _rowCount = rowCount;
+    _columnCount = columnCount;
+    _lastQueryDuration = duration;
     notifyListeners();
   }
 
@@ -59,6 +108,7 @@ class QueryaShellStatus extends ChangeNotifier {
   void clear() {
     _isBusy = false;
     _statusMessage = null;
+    _messageIsBusy = false;
     _rowCount = null;
     _columnCount = null;
     _lastQueryDuration = null;

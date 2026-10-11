@@ -7,13 +7,18 @@ import 'package:querya_desktop/core/motion/querya_switching_body.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/unsaved_work_guard.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
 
+import 'mongo_aggregation_workspace.dart';
 import 'mongo_collections_view.dart';
 import 'mongo_databases_view.dart';
 import 'mongo_documents_view.dart';
 import 'mongo_document_editor.dart';
+import 'mongo_indexes_view.dart';
+import 'mongo_query_workspace.dart';
 import 'mongo_stats_view.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 // ─── Navigation path model ──────────────────────────────────────────────────
 
@@ -24,7 +29,16 @@ class _Crumb {
   final _Level level;
 }
 
-enum _Level { databases, collections, documents, document, stats }
+enum _Level {
+  databases,
+  collections,
+  documents,
+  document,
+  stats,
+  aggregation,
+  indexes,
+  queryConsole,
+}
 
 // ─── Main explorer widget ───────────────────────────────────────────────────
 
@@ -52,6 +66,9 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
 
   // View mode
   bool _showStats = false;
+  bool _showAggregation = false;
+  bool _showIndexes = false;
+  bool _showQueryConsole = false;
 
   /// Bumped when the user taps Refresh in the breadcrumb bar (reload active view).
   int _refreshToken = 0;
@@ -64,6 +81,7 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
   // Navigation state
   String? _selectedDatabase;
   String? _selectedCollection;
+  String? _lastSelectedCollection;
   Map<String, dynamic>? _selectedDocument;
 
   @override
@@ -75,6 +93,7 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
     }
     if (widget.initialCollection != null) {
       _selectedCollection = widget.initialCollection;
+      _lastSelectedCollection = widget.initialCollection;
     }
   }
 
@@ -84,6 +103,18 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
     if (oldWidget.connectionRow.id != widget.connectionRow.id) {
       _clearLocalConnectionRef();
       _connect();
+    } else {
+      if (oldWidget.database != widget.database && widget.database != null) {
+        _selectedDatabase = widget.database;
+      }
+      if (widget.initialCollection != null &&
+          widget.initialCollection != _selectedCollection) {
+        _navigateToCollection(widget.initialCollection!);
+      } else if (widget.initialCollection == null &&
+          oldWidget.initialCollection != null &&
+          _selectedCollection != null) {
+        _navigateToCollections();
+      }
     }
   }
 
@@ -141,19 +172,29 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
       _selectedDatabase = dbName;
       _selectedCollection = null;
       _selectedDocument = null;
+      _showAggregation = false;
+      _showIndexes = false;
+      _showQueryConsole = false;
     });
   }
 
   void _navigateToCollection(String collName) {
     setState(() {
       _selectedCollection = collName;
+      _lastSelectedCollection = collName;
       _selectedDocument = null;
+      _showAggregation = false;
+      _showIndexes = false;
+      _showQueryConsole = false;
     });
   }
 
   void _navigateToDocument(Map<String, dynamic> doc) {
     setState(() {
       _selectedDocument = doc;
+      _showAggregation = false;
+      _showIndexes = false;
+      _showQueryConsole = false;
     });
   }
 
@@ -162,6 +203,9 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
       _selectedDatabase = null;
       _selectedCollection = null;
       _selectedDocument = null;
+      _showAggregation = false;
+      _showIndexes = false;
+      _showQueryConsole = false;
     });
   }
 
@@ -169,12 +213,18 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
     setState(() {
       _selectedCollection = null;
       _selectedDocument = null;
+      _showAggregation = false;
+      _showIndexes = false;
+      _showQueryConsole = false;
     });
   }
 
   void _navigateToDocuments() {
     setState(() {
       _selectedDocument = null;
+      _showAggregation = false;
+      _showIndexes = false;
+      _showQueryConsole = false;
     });
   }
 
@@ -194,7 +244,13 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
       final id = _selectedDocument!['_id']?.toString() ?? 'Document';
       list.add(_Crumb(id, _Level.document));
     }
-    if (_showStats) {
+    if (_showQueryConsole) {
+      list.add(const _Crumb('MQL Console', _Level.queryConsole));
+    } else if (_showIndexes) {
+      list.add(const _Crumb('Indexes', _Level.indexes));
+    } else if (_showAggregation) {
+      list.add(const _Crumb('Aggregation', _Level.aggregation));
+    } else if (_showStats) {
       list.add(const _Crumb('Statistics', _Level.stats));
     }
     return list;
@@ -203,13 +259,25 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
   Future<void> _onCrumbTap(_Crumb crumb) async {
     final leavesDocument = _selectedDocument != null &&
         crumb.level != _Level.document &&
-        crumb.level != _Level.stats;
+        crumb.level != _Level.stats &&
+        crumb.level != _Level.aggregation &&
+        crumb.level != _Level.indexes &&
+        crumb.level != _Level.queryConsole;
     if (leavesDocument) {
       if (!await confirmDiscardUnsavedWorkIfNeeded(context)) return;
       if (!mounted) return;
     }
     if (_showStats && crumb.level != _Level.stats) {
       setState(() => _showStats = false);
+    }
+    if (_showAggregation && crumb.level != _Level.aggregation) {
+      setState(() => _showAggregation = false);
+    }
+    if (_showIndexes && crumb.level != _Level.indexes) {
+      setState(() => _showIndexes = false);
+    }
+    if (_showQueryConsole && crumb.level != _Level.queryConsole) {
+      setState(() => _showQueryConsole = false);
     }
     switch (crumb.level) {
       case _Level.databases:
@@ -222,6 +290,12 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
         break; // Already on the document
       case _Level.stats:
         break;
+      case _Level.aggregation:
+        break;
+      case _Level.indexes:
+        break;
+      case _Level.queryConsole:
+        break;
     }
   }
 
@@ -233,18 +307,10 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
 
     // Loading state
     if (_connecting) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Connecting...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Connecting...',
         ),
       );
     }
@@ -267,11 +333,11 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
                   style: material.TextStyle(
                       color: cs.mutedForeground, fontSize: 13)),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _connect,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -294,7 +360,7 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
             onRefresh: () => setState(() => _refreshToken++),
             onStats: () => setState(() => _showStats = !_showStats),
           ),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           // Content with fluid cross-fade morph between explorer and stats
           material.Expanded(
             child: QueryaSwitchingBody(
@@ -306,6 +372,24 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
                   key: ValueKey('stats_${widget.connectionRow.id}'),
                   connectionRow: widget.connectionRow,
                   connection: conn,
+                  lastSelectedMongoDb: _selectedDatabase,
+                  lastSelectedMongoCollection:
+                      _selectedCollection ?? _lastSelectedCollection,
+                  onRestoreLastSelectedObject:
+                      (_selectedCollection ?? _lastSelectedCollection) != null
+                          ? () {
+                              setState(() {
+                                _showStats = false;
+                                if (_selectedCollection == null &&
+                                    _lastSelectedCollection != null) {
+                                  _navigateToCollection(
+                                      _lastSelectedCollection!);
+                                }
+                              });
+                            }
+                          : (_selectedDatabase != null
+                              ? () => setState(() => _showStats = false)
+                              : null),
                   onBack: () => setState(() => _showStats = false),
                 ),
               ],
@@ -317,6 +401,19 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
   }
 
   material.Widget _buildContent(MongoConnection conn) {
+    // Aggregation workspace
+    if (_showAggregation &&
+        _selectedDatabase != null &&
+        _selectedCollection != null) {
+      return MongoAggregationWorkspace(
+        key: ValueKey('agg_${_selectedDatabase}_$_selectedCollection'),
+        connection: conn,
+        database: _selectedDatabase!,
+        collection: _selectedCollection!,
+        onBack: () => setState(() => _showAggregation = false),
+      );
+    }
+
     // Document editor
     if (_selectedDocument != null &&
         _selectedDatabase != null &&
@@ -336,6 +433,31 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
       );
     }
 
+    // Indexes view
+    if (_showIndexes &&
+        _selectedDatabase != null &&
+        _selectedCollection != null) {
+      return MongoIndexesView(
+        key: ValueKey('idx_${_selectedDatabase}_$_selectedCollection'),
+        connection: conn,
+        database: _selectedDatabase!,
+        collection: _selectedCollection!,
+        refreshToken: _refreshToken,
+        onBack: () => setState(() => _showIndexes = false),
+      );
+    }
+
+    // Query Console workspace
+    if (_showQueryConsole && _selectedDatabase != null) {
+      return MongoQueryWorkspace(
+        key: ValueKey('mql_${_selectedDatabase}_$_selectedCollection'),
+        connection: conn,
+        database: _selectedDatabase!,
+        initialCollection: _selectedCollection,
+        onBack: () => setState(() => _showQueryConsole = false),
+      );
+    }
+
     // Documents list
     if (_selectedCollection != null && _selectedDatabase != null) {
       return MongoDocumentsView(
@@ -345,6 +467,9 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
         collection: _selectedCollection!,
         refreshToken: _refreshToken + _documentsListInvalidation,
         onDocumentTap: _navigateToDocument,
+        onOpenAggregation: () => setState(() => _showAggregation = true),
+        onOpenIndexes: () => setState(() => _showIndexes = true),
+        onOpenQueryConsole: () => setState(() => _showQueryConsole = true),
       );
     }
 
@@ -356,6 +481,7 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
         database: _selectedDatabase!,
         refreshToken: _refreshToken,
         onCollectionTap: _navigateToCollection,
+        onOpenQueryConsole: () => setState(() => _showQueryConsole = true),
       );
     }
 

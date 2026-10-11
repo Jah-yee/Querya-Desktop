@@ -8,7 +8,9 @@ import 'package:querya_desktop/core/motion/ticker_gated_polling.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/util/deep_collection_equals.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _pollInterval = Duration(seconds: 5);
 const _summaryChipHeight = 88.0;
@@ -127,18 +129,10 @@ class _ExtensionStatsViewState extends material.State<ExtensionStatsView> {
     final cs = Theme.of(context).colorScheme;
 
     if (_loading) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Loading server statistics...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Loading server statistics...',
         ),
       );
     }
@@ -159,11 +153,11 @@ class _ExtensionStatsViewState extends material.State<ExtensionStatsView> {
                   style: material.TextStyle(
                       color: cs.mutedForeground, fontSize: 13)),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _load,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -251,11 +245,11 @@ class _ExtensionStatsViewState extends material.State<ExtensionStatsView> {
                     ),
                   ],
                 ),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Refresh',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _load,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 18),
-                  child: const Text('Refresh'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),

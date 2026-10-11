@@ -2,10 +2,12 @@ import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:querya_desktop/core/database/table_mutation_engine.dart';
 import 'package:querya_desktop/core/database/table_schema_meta.dart';
+import 'package:querya_desktop/core/ui/querya_tooltip.dart';
 import 'package:querya_desktop/features/workspace/data_grid_staging_buffer.dart';
 import 'package:querya_desktop/features/workspace/dml_preview_dialog.dart';
 import 'package:querya_desktop/features/workspace/save_error_description.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Outcome of [loadTableViewSchema] (success vs swallowed getTableSchema error).
 class TableViewSchemaLoad {
@@ -151,13 +153,15 @@ Future<bool?> showDiscardTableEditsDialog({
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    OutlineButton(
+                    QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(ctx).pop(false),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.md,
                     ),
-                    DestructiveButton(
+                    QueryaButton.destructive(
+                      label: 'Discard',
                       onPressed: () => material.Navigator.of(ctx).pop(true),
-                      child: const Text('Discard'),
+                      size: QueryaControlSize.md,
                     ),
                   ],
                 ),
@@ -220,12 +224,12 @@ class TableEditModeButton extends material.StatelessWidget {
     if (editMode) {
       return material.Tooltip(
         message: 'Stop editing (Ctrl+E)',
-        waitDuration: const Duration(milliseconds: 400),
-        child: PrimaryButton(
-          size: ButtonSize.small,
+        waitDuration: kQueryaTooltipWait,
+        child: QueryaButton.primary(
+          label: 'Done',
+          icon: material.Icons.check_rounded,
           onPressed: busy ? null : onDone,
-          leading: const material.Icon(material.Icons.check_rounded, size: 15),
-          child: const Text('Done'),
+          size: QueryaControlSize.sm,
         ),
       );
     }
@@ -234,12 +238,12 @@ class TableEditModeButton extends material.StatelessWidget {
       message: canEdit
           ? 'Edit rows (Ctrl+E)'
           : (disabledReason ?? 'This table cannot be edited'),
-      waitDuration: const Duration(milliseconds: 400),
-      child: OutlineButton(
-        size: ButtonSize.small,
+      waitDuration: kQueryaTooltipWait,
+      child: QueryaButton.secondary(
+        label: 'Edit',
+        icon: material.Icons.edit_rounded,
         onPressed: enabled ? onEdit : null,
-        leading: const material.Icon(material.Icons.edit_rounded, size: 14),
-        child: const Text('Edit'),
+        size: QueryaControlSize.sm,
       ),
     );
   }
@@ -360,20 +364,19 @@ class _SaveFailedDialogState extends material.State<_SaveFailedDialog> {
             material.Row(
               mainAxisAlignment: material.MainAxisAlignment.end,
               children: [
-                OutlineButton(
-                  onPressed: _copy,
-                  leading: material.Icon(
-                    _copied
+                QueryaButton.secondary(
+                  label: _copied ? 'Copied' : 'Copy details',
+                  icon: _copied
                         ? material.Icons.check_rounded
                         : material.Icons.copy_rounded,
-                    size: 14,
-                  ),
-                  child: Text(_copied ? 'Copied' : 'Copy details'),
+                  onPressed: _copy,
+                  size: QueryaControlSize.md,
                 ),
                 const Gap(8),
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'OK',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('OK'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),

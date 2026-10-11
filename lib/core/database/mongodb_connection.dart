@@ -2,8 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:mongo_dart/mongo_dart.dart';
+import 'package:querya_desktop/core/database/database_error_mapper.dart';
+import 'package:querya_desktop/core/database/mongodb_uri.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_manager.dart';
 import 'package:querya_desktop/core/security/ssl_certificate_support.dart';
 import 'package:querya_desktop/core/storage/connection_secrets_store.dart';
+import 'package:querya_desktop/core/storage/local_db.dart';
 
 /// MongoDB connection configuration and state.
 class MongoConnection {
@@ -19,8 +24,29 @@ class MongoConnection {
     this.useSSL = false,
     this.replicaSet,
     String? connectionString,
+    this.sshConfig,
+    this.sshSecrets,
   })  : _password = password,
         _connectionString = connectionString;
+
+  factory MongoConnection.fromConnectionRow(
+    ConnectionRow row, {
+    String? database,
+  }) {
+    return MongoConnection(
+      id: row.id ?? 0,
+      name: row.name,
+      host: row.host ?? 'localhost',
+      port: row.port ?? 27017,
+      username: row.username,
+      password: row.password,
+      database: database ?? row.databaseName,
+      authSource: row.authSource,
+      useSSL: row.useSSL,
+      connectionString: row.connectionString,
+      sshConfig: row.sshTunnelConfig,
+    );
+  }
 
   final int id;
   final String name;
@@ -33,6 +59,12 @@ class MongoConnection {
   final bool useSSL;
   final String? replicaSet;
   String? _connectionString;
+
+  final SshTunnelConfig? sshConfig;
+  final SshTunnelSecrets? sshSecrets;
+  SshTunnelHandle? _sshTunnelHandle;
+
+  SshTunnelHandle? get sshTunnelHandle => _sshTunnelHandle;
 
   /// Handshake URI for this live session (includes auth). Not persisted; not
   /// exposed via [password] / [connectionString] after [scrubCredentials].
@@ -57,13 +89,8 @@ class MongoConnection {
     }
     final rawUri = _sessionUri ?? _connectionString;
     if (rawUri != null && rawUri.isNotEmpty) {
-      try {
-        final parsed = Uri.parse(rawUri);
-        final path = parsed.path.replaceFirst('/', '').trim();
-        if (path.isNotEmpty) {
-          return path;
-        }
-      } catch (_) {}
+      final name = MongoUri.tryParse(rawUri)?.databaseName?.trim();
+      if (name != null && name.isNotEmpty) return name;
     }
     return null;
   }
@@ -79,12 +106,28 @@ class MongoConnection {
   }
 
   /// Builds MongoDB connection URI from configuration.
-  String buildConnectionUri({String? pass, String? connStr}) {
+  String buildConnectionUri({
+    String? pass,
+    String? connStr,
+    String? hostOverride,
+    int? portOverride,
+  }) {
     final effectiveConnStr = connStr ?? _connectionString;
     if (effectiveConnStr != null && effectiveConnStr.isNotEmpty) {
+      if (hostOverride != null) {
+        // Through an SSH tunnel: the one local endpoint, whatever seeds the
+        // string lists (#1309).
+        final parsed = MongoUri.tryParse(effectiveConnStr);
+        if (parsed == null) {
+          throw FormatException(
+              'Not a mongodb:// connection string', effectiveConnStr);
+        }
+        return parsed.forTunnel(hostOverride, portOverride ?? 27017).toString();
+      }
       return effectiveConnStr;
     }
     if (pass == null &&
+        hostOverride == null &&
         _sessionUri != null &&
         _sessionUri!.isNotEmpty &&
         (_password == null || _password!.isEmpty)) {
@@ -104,9 +147,14 @@ class MongoConnection {
     }
 
     // Add host and port
-    buffer.write(host);
-    if (port != 27017) {
-      buffer.write(':$port');
+    // An IPv6 literal is bracketed in a URI.
+    final writtenHost = hostOverride ?? host;
+    buffer.write(writtenHost.contains(':') && !writtenHost.startsWith('[')
+        ? '[$writtenHost]'
+        : writtenHost);
+    final effectivePort = portOverride ?? port;
+    if (effectivePort != 27017 || hostOverride != null) {
+      buffer.write(':$effectivePort');
     }
 
     // Add database
@@ -141,30 +189,28 @@ class MongoConnection {
   /// one the user was created in.
   String buildUriForDatabase(String databaseName, {String? pass, String? connStr}) {
     final baseUri = buildConnectionUri(pass: pass, connStr: connStr);
-    final uri = Uri.parse(baseUri);
+    final uri = MongoUri.tryParse(baseUri);
+    if (uri == null) {
+      throw FormatException('Not a mongodb:// connection string', baseUri);
+    }
 
     // Determine the authSource that should be used.
     // 1) Already present in the query → keep it.
     // 2) Not present but credentials exist → use the original path db, or
     //    fall back to "admin" (Mongo's default authSource).
-    final existingAuthSource = uri.queryParameters['authSource'];
-    final hasCredentials =
-        uri.userInfo.isNotEmpty || (username != null && username!.isNotEmpty);
-
-    Map<String, String>? newQueryParams;
-    if (existingAuthSource == null && hasCredentials) {
-      // Original db from the URI path (strip leading '/')
-      final origDb = uri.path.replaceFirst('/', '');
-      final source = (origDb.isNotEmpty) ? origDb : 'admin';
-      newQueryParams = Map<String, String>.from(uri.queryParameters)
-        ..['authSource'] = source;
+    final hasCredentials = uri.userInfo != null ||
+        (username != null && username!.isNotEmpty);
+    final params = Map<String, String>.of(uri.params);
+    if (!params.containsKey('authSource') && hasCredentials) {
+      params['authSource'] = uri.databaseName ?? 'admin';
     }
 
-    final newUri = uri.replace(
-      path: '/$databaseName',
-      queryParameters: newQueryParams ?? uri.queryParameters,
-    );
-    return newUri.toString();
+    return uri
+        .copyWith(
+          path: '/${Uri.encodeComponent(databaseName)}',
+          params: params,
+        )
+        .toString();
   }
 
   /// Connects to MongoDB server.
@@ -179,17 +225,52 @@ class MongoConnection {
     if ((effectivePassword == null || effectivePassword.isEmpty) &&
         (effectiveConnectionString == null || effectiveConnectionString.isEmpty) &&
         id > 0) {
-      try {
-        final secrets = await ConnectionSecretsStore.readForConnection(id);
-        effectivePassword = secrets.password;
-        effectiveConnectionString = secrets.connectionString;
-      } catch (_) {}
+      // A store that cannot be read throws (#1303): connecting with no password
+      // would be reported as a wrong one.
+      final secrets = await ConnectionSecretsStore.readForConnection(id);
+      effectivePassword = secrets.password;
+      effectiveConnectionString = secrets.connectionString;
     }
 
     try {
+      if (sshConfig != null && sshConfig!.enabled) {
+        var sec = sshSecrets;
+        if (sec == null && id > 0) {
+          final stored =
+              await ConnectionSecretsStore.readSshSecretsForConnection(id);
+          sec = SshTunnelSecrets(
+            password: stored.password,
+            privateKey: stored.privateKey,
+            passphrase: stored.passphrase,
+            jumpPassword: stored.jumpPassword,
+          );
+        }
+        String targetHost = host;
+        int targetPort = port;
+        if (effectiveConnectionString != null &&
+            effectiveConnectionString.trim().isNotEmpty) {
+          // The first seed; an SRV string has none a tunnel could reach and
+          // is refused when the URI is built.
+          final uri = MongoUri.tryParse(effectiveConnectionString.trim());
+          if (uri != null) {
+            final seed = uri.firstHost;
+            targetHost = seed.host;
+            targetPort = seed.port ?? 27017;
+          }
+        }
+        _sshTunnelHandle = await SshTunnelManager.instance.openTunnel(
+          config: sshConfig!,
+          secrets: sec ?? SshTunnelSecrets(),
+          remoteHost: targetHost,
+          remotePort: targetPort,
+        );
+      }
+
       final uri = await _effectiveMongoUri(
         pass: effectivePassword,
         connStr: effectiveConnectionString,
+        hostOverride: _sshTunnelHandle?.localHost,
+        portOverride: _sshTunnelHandle?.localPort,
       );
       _db = await Db.create(uri);
       await _db!.open();
@@ -200,19 +281,40 @@ class MongoConnection {
         _openedDbs[defaultName] = _db!;
       }
       scrubCredentials();
-    } catch (e) {
+    } catch (e, st) {
       _isConnected = false;
       _db = null;
       await _cleanupTempTlsKey();
-      rethrow;
+      try {
+        await _sshTunnelHandle?.release();
+      } catch (_) {}
+      _sshTunnelHandle = null;
+      rethrowMappedDatabaseError(e, st, driver: DatabaseDriver.mongodb);
     }
   }
 
-  Future<String> _effectiveMongoUri({String? pass, String? connStr}) async {
-    final base = buildConnectionUri(pass: pass, connStr: connStr);
-    final parsed = Uri.parse(base);
-    final paths = extractSslCertificatePaths(parsed);
-    final params = Map<String, String>.from(parsed.queryParameters);
+  Future<String> _effectiveMongoUri({
+    String? pass,
+    String? connStr,
+    String? hostOverride,
+    int? portOverride,
+  }) async {
+    final base = buildConnectionUri(
+      pass: pass,
+      connStr: connStr,
+      hostOverride: hostOverride,
+      portOverride: portOverride,
+    );
+    final parsed = MongoUri.tryParse(base);
+    if (parsed == null) {
+      throw FormatException('Not a mongodb:// connection string', base);
+    }
+    final paths = SslCertificatePaths(
+      rootCert: parsed.params[kSslRootCertParam],
+      clientCert: parsed.params[kSslCertParam],
+      clientKey: parsed.params[kSslKeyParam],
+    );
+    final params = Map<String, String>.from(parsed.params);
     params.remove(kSslRootCertParam);
     params.remove(kSslCertParam);
     params.remove(kSslKeyParam);
@@ -237,9 +339,7 @@ class MongoConnection {
       params['ssl'] = 'true';
     }
 
-    return parsed
-        .replace(queryParameters: params.isEmpty ? null : params)
-        .toString();
+    return parsed.copyWith(params: params).toString();
   }
 
   /// Disconnects from MongoDB server.
@@ -261,6 +361,12 @@ class MongoConnection {
       }
     }
     await _cleanupTempTlsKey();
+    try {
+      await _sshTunnelHandle?.release();
+    } catch (e) {
+      debugPrint('MongoConnection.sshRelease: $e');
+    }
+    _sshTunnelHandle = null;
   }
 
   Future<void> _cleanupTempTlsKey() async {
@@ -303,15 +409,13 @@ class MongoConnection {
         _openedDbs[databaseName] = db;
         return db;
       } finally {
-        _openingDbs.remove(databaseName);
+        unawaited(_openingDbs.remove(databaseName));
       }
     });
   }
 
   static String? _databaseNameFromUri(String uri) {
-    final path = Uri.tryParse(uri)?.path.replaceFirst(RegExp(r'^/'), '') ?? '';
-    if (path.isEmpty) return null;
-    return path.split('/').first;
+    return MongoUri.tryParse(uri)?.databaseName;
   }
 
   /// Checks if connection is active.
@@ -362,17 +466,20 @@ class MongoConnection {
     }
   }
 
-  /// Tests the connection.
-  Future<bool> testConnection() async {
+  /// Tests the connection. [error] is the reason in the user's terms (#1308).
+  Future<({bool ok, String? error})> testConnection() async {
     try {
       await connect();
       if (_db != null) {
         await _db!.runCommand({'ping': 1});
-        return true;
+        return (ok: true, error: null);
       }
-      return false;
+      return (ok: false, error: 'Connection could not be established.');
     } catch (e) {
-      return false;
+      return (
+        ok: false,
+        error: describeDatabaseError(e, driver: DatabaseDriver.mongodb),
+      );
     }
   }
 

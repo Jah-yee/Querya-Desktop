@@ -11,6 +11,7 @@ import 'package:querya_desktop/core/updater/update_manifest.dart';
 import 'package:querya_desktop/features/updater/update_changelog_view.dart';
 import 'package:querya_desktop/features/updater/update_controller.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 enum UpdateDialogPhase {
   checking,
@@ -64,13 +65,15 @@ Future<bool?> showUnsavedUpdateRestartDialog(material.BuildContext context) {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    OutlineButton(
+                    QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(ctx).pop(false),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.lg,
                     ),
-                    DestructiveButton(
+                    QueryaButton.destructive(
+                      label: 'Restart anyway',
                       onPressed: () => material.Navigator.of(ctx).pop(true),
-                      child: const Text('Restart anyway'),
+                      size: QueryaControlSize.lg,
                     ),
                   ],
                 ),
@@ -447,7 +450,7 @@ class UpdateDialogContentState extends material.State<UpdateDialogContent> {
       UpdateDialogPhase.checking => const material.Center(
           child: material.Padding(
             padding: material.EdgeInsets.all(32),
-            child: material.CircularProgressIndicator(),
+            child: QueryaSpinner(size: QueryaSpinnerSize.lg),
           ),
         ),
       UpdateDialogPhase.upToDate => material.Padding(
@@ -526,62 +529,72 @@ class UpdateDialogContentState extends material.State<UpdateDialogContent> {
       children: [
         ...switch (_phase) {
           UpdateDialogPhase.checking => [
-              GhostButton(
+              QueryaButton.ghost(
+                label: 'Close',
                 onPressed: () => material.Navigator.of(context).pop(),
-                child: const Text('Close'),
+                size: QueryaControlSize.lg,
               ),
             ],
           UpdateDialogPhase.upToDate => [
-              PrimaryButton(
+              QueryaButton.ghost(
+                label: 'Close',
                 onPressed: () => material.Navigator.of(context).pop(),
-                child: const Text('Close'),
+                size: QueryaControlSize.lg,
               ),
             ],
           UpdateDialogPhase.available => [
-              GhostButton(
+              QueryaButton.ghost(
+                label: 'Remind me later',
                 onPressed: () => unawaited(_remindLater()),
-                child: const Text('Remind me later'),
+                size: QueryaControlSize.lg,
               ),
               const material.SizedBox(width: 8),
               if (_installBlocked)
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Copy update command',
                   onPressed: () => unawaited(_copyPackageCommand()),
-                  child: const Text('Copy update command'),
+                  size: QueryaControlSize.lg,
                 )
               else
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Download',
                   onPressed: () => unawaited(_startDownload()),
-                  child: const Text('Download'),
+                  size: QueryaControlSize.lg,
                 ),
             ],
           UpdateDialogPhase.downloading => [
-              GhostButton(
+              QueryaButton.ghost(
+                label: 'Cancel',
                 onPressed: () {
                   setState(() => _downloadCancelled = true);
                 },
-                child: const Text('Cancel'),
+                size: QueryaControlSize.lg,
               ),
             ],
           UpdateDialogPhase.readyToInstall => [
-              GhostButton(
+              QueryaButton.ghost(
+                label: 'Close',
                 onPressed: () => material.Navigator.of(context).pop(),
-                child: const Text('Close'),
+                size: QueryaControlSize.lg,
               ),
               const material.SizedBox(width: 8),
-              PrimaryButton(
+              QueryaButton.primary(
+                label: 'Restart & Update Now',
                 onPressed: () => unawaited(_install()),
-                child: const Text('Restart & Update Now'),
+                size: QueryaControlSize.lg,
               ),
             ],
           UpdateDialogPhase.error => [
-              GhostButton(
+              QueryaButton.ghost(
+                label: 'Close',
                 onPressed: () => material.Navigator.of(context).pop(),
-                child: const Text('Close'),
+                size: QueryaControlSize.lg,
               ),
               const material.SizedBox(width: 8),
-              PrimaryButton(
+              QueryaButton.primary(
+                label: 'Retry',
                 onPressed: () => unawaited(_runCheck()),
-                child: const Text('Retry'),
+                size: QueryaControlSize.lg,
               ),
             ],
         },

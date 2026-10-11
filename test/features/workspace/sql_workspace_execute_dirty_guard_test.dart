@@ -7,7 +7,8 @@ import 'package:querya_desktop/core/actions/sql_editor_command_bridge.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/sqlite/sqlite_sql_workspace.dart';
 import 'package:querya_desktop/features/workspace/workspace.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../support/querya_theme_test_shell.dart';
@@ -111,7 +112,7 @@ void main() {
     expect(buffer.isDirty, isTrue);
 
     // 1. Press Execute while buffer is dirty
-    final executeBtn = find.widgetWithText(OutlineButton, 'Execute (F5)');
+    final executeBtn = find.widgetWithText(QueryaButton, 'Execute (F5)');
     expect(executeBtn, findsOneWidget);
 
     // 3. Press Execute again while buffer is dirty

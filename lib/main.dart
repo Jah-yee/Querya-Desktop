@@ -5,19 +5,25 @@ import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:flutter/material.dart';
 
 import 'app/app.dart';
+import 'app/app_wiring.dart';
+import 'core/actions/querya_command_registry.dart';
 import 'core/editor/syntax_highlight_service.dart';
+import 'core/extensions/local_extension_registry.dart';
 import 'core/layout/ui_scale_controller.dart';
+import 'core/mcp/mcp_server_controller.dart';
 import 'core/motion/display_refresh_service.dart';
 import 'core/motion/querya_motion_controller.dart';
 import 'core/platform/file_launch_service.dart';
 import 'core/security/ssl_certificate_support.dart';
 import 'core/storage/local_db.dart';
 import 'core/theme/theme_controller.dart';
+import 'features/recovery/querya_startup_recovery_app.dart';
 import 'features/updater/update_controller.dart';
 
 void main([List<String> args = const []]) async {
-  runZonedGuarded(() async {
+  unawaited(runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    installAppWiring();
     FileLaunchService.instance.processLaunchArguments(args);
 
     FlutterError.onError = (details) {
@@ -27,13 +33,29 @@ void main([List<String> args = const []]) async {
 
     DisplayRefreshService.initialize();
     await LocalDb.initFfi();
-    await SyntaxHighlightService.ensureInitialized();
-    await ThemeController.instance.load();
-    await UiScaleController.instance.load();
-    await QueryaMotionController.instance.load();
-    unawaited(UpdateController.instance.initialize());
-    unawaited(cleanupStaleMongoTlsTempFiles());
-    runApp(const QueryaApp());
+
+    try {
+      await LocalDb.instance.open();
+      await SyntaxHighlightService.ensureInitialized();
+      await ThemeController.instance.load();
+      await UiScaleController.instance.load();
+      await QueryaMotionController.instance.load();
+      QueryaCommandRegistry.instance.ensureCoreDefaults();
+      unawaited(LocalExtensionRegistry.instance.load());
+      unawaited(UpdateController.instance.initialize());
+      unawaited(cleanupStaleMongoTlsTempFiles());
+      unawaited(McpServerController.instance.startIfEnabled());
+      runApp(const QueryaApp());
+    } catch (error, stack) {
+      debugPrint('Startup database initialization failed: $error\n$stack');
+      runApp(
+        QueryaStartupRecoveryApp(
+          error: error,
+          stackTrace: stack,
+        ),
+      );
+    }
+
     doWhenWindowReady(() {
       final win = appWindow;
       win.minSize = const Size(900, 600);
@@ -44,5 +66,5 @@ void main([List<String> args = const []]) async {
     });
   }, (error, stack) {
     debugPrint('Unhandled async error: $error\n$stack');
-  });
+  }));
 }

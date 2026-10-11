@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/features/workspace/sql_query_tab_session.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Lightweight query tab strip rendered above the SQL editor workspace.
 class SqlQueryTabBar extends material.StatelessWidget {
@@ -11,6 +12,7 @@ class SqlQueryTabBar extends material.StatelessWidget {
     required this.onSelect,
     required this.onAdd,
     this.onClose,
+    this.trailing,
   });
 
   final List<SqlQueryTabSession> sessions;
@@ -18,6 +20,9 @@ class SqlQueryTabBar extends material.StatelessWidget {
   final material.ValueChanged<int> onSelect;
   final material.VoidCallback onAdd;
   final material.ValueChanged<int>? onClose;
+
+  /// Shown at the right end of the strip (the schema diagram button).
+  final material.Widget? trailing;
 
   @override
   material.Widget build(material.BuildContext context) {
@@ -45,6 +50,10 @@ class SqlQueryTabBar extends material.StatelessWidget {
               canClose: sessions.length > 1 ? (_) => true : (_) => false,
             ),
           ),
+          if (trailing != null) ...[
+            const material.SizedBox(width: 8),
+            trailing!,
+          ],
         ],
       ),
     );
@@ -83,13 +92,15 @@ Future<bool?> showUnsavedTabChangesDialog({
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    OutlineButton(
+                    QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(ctx).pop(false),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.md,
                     ),
-                    DestructiveButton(
+                    QueryaButton.destructive(
+                      label: 'Discard & Close',
                       onPressed: () => material.Navigator.of(ctx).pop(true),
-                      child: const Text('Discard & Close'),
+                      size: QueryaControlSize.md,
                     ),
                   ],
                 ),

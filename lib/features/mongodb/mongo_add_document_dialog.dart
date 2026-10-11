@@ -4,6 +4,7 @@ import 'package:querya_desktop/core/editor/querya_code_language.dart';
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/features/mongodb/mongo_ejson.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const kDefaultDraftMongoDocument = '{\n  \n}';
 
@@ -119,7 +120,7 @@ class _MongoAddDocumentDialogState extends material.State<MongoAddDocumentDialog
               ],
             ),
           ),
-          const material.Divider(height: 1),
+          const QueryaDivider(height: 1),
           if (_error != null) ...[
             material.Container(
               padding: const material.EdgeInsets.symmetric(
@@ -140,7 +141,7 @@ class _MongoAddDocumentDialogState extends material.State<MongoAddDocumentDialog
                 ],
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
           ],
           material.Padding(
             padding: const material.EdgeInsets.all(24),
@@ -171,23 +172,24 @@ class _MongoAddDocumentDialogState extends material.State<MongoAddDocumentDialog
               ],
             ),
           ),
-          const material.Divider(height: 1),
+          const QueryaDivider(height: 1),
           material.Container(
             padding: const material.EdgeInsets.symmetric(
                 horizontal: 24, vertical: 16),
             child: material.Row(
               mainAxisAlignment: material.MainAxisAlignment.end,
               children: [
-                GhostButton(
+                QueryaButton.ghost(
+                  label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  size: QueryaControlSize.lg,
                 ),
                 const Gap(12),
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Insert Document',
+                  icon: material.Icons.add_rounded,
                   onPressed: _submit,
-                  leading:
-                      const material.Icon(material.Icons.add_rounded, size: 16),
-                  child: const Text('Insert Document'),
+                  size: QueryaControlSize.lg,
                 ),
               ],
             ),

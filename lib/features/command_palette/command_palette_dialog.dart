@@ -5,6 +5,7 @@ import 'package:querya_desktop/core/actions/querya_command_host.dart';
 import 'package:querya_desktop/core/actions/querya_command_registry.dart';
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/features/command_palette/command_match_highlight.dart';
+import 'package:querya_desktop/features/command_palette/list_reveal.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 
 /// Opens the Command Palette (`Ctrl/Cmd+P`). Motion Off snaps via [showAppDialog].
@@ -36,19 +37,46 @@ class CommandPaletteDialog extends StatefulWidget {
 class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  final _scroll = material.ScrollController();
   var _selected = 0;
+  List<QueryaCommand> _cachedHits = const [];
+  String _cachedQuery = '';
+
+  /// Set by keyboard navigation: the list moves under a still pointer, and the
+  /// hover that causes must not take the selection back. Cleared as soon as
+  /// the mouse really moves.
+  var _ignoreHover = false;
+
+  static const _itemExtent = 36.0;
+  static const _listPadding = EdgeInsets.fromLTRB(8, 4, 8, 8);
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() => setState(() => _selected = 0));
+    _updateHits();
+    _controller.addListener(_onQueryChanged);
+    QueryaCommandRegistry.instance.addListener(_onRegistryChanged);
   }
 
   @override
   void dispose() {
+    QueryaCommandRegistry.instance.removeListener(_onRegistryChanged);
+    _controller.removeListener(_onQueryChanged);
+    _scroll.dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    _updateHits();
+    setState(() => _selected = 0);
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  void _onRegistryChanged() {
+    if (!mounted) return;
+    setState(_updateHits);
   }
 
   bool get _objectPrefix {
@@ -59,10 +87,23 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   String get _objectQuery =>
       _objectPrefix ? _controller.text.substring(1) : '';
 
-  List<QueryaCommand> get _hits {
-    if (_objectPrefix) return const [];
+  void _updateHits() {
+    if (_objectPrefix) {
+      _cachedHits = const [];
+      _cachedQuery = _controller.text;
+      return;
+    }
+    final q = _controller.text;
     final ctx = widget.hostContext.mounted ? widget.hostContext : context;
-    return QueryaCommandRegistry.instance.search(_controller.text, context: ctx);
+    _cachedHits = QueryaCommandRegistry.instance.search(q, context: ctx);
+    _cachedQuery = q;
+  }
+
+  List<QueryaCommand> get _hits {
+    if (_cachedQuery != _controller.text) {
+      _updateHits();
+    }
+    return _cachedHits;
   }
 
   void _openQuickSwitcher() {
@@ -87,7 +128,30 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
     setState(() {
       _selected = (_selected + delta) % hits.length;
       if (_selected < 0) _selected += hits.length;
+      _ignoreHover = true;
     });
+    material.WidgetsBinding.instance.addPostFrameCallback((_) => _reveal());
+  }
+
+  /// Scrolls the list so the selected row is visible (#1369).
+  void _reveal() {
+    if (!mounted || !_scroll.hasClients) return;
+    final hits = _hits;
+    if (hits.isEmpty) return;
+    final index = _selected.clamp(0, hits.length - 1);
+    final position = _scroll.position;
+    final target = revealOffsetForItem(
+      index: index,
+      itemExtent: _itemExtent,
+      offset: position.pixels,
+      viewportExtent: position.viewportDimension,
+      leadingPadding: _listPadding.top,
+      trailingPadding: _listPadding.bottom,
+    );
+    if (target == null) return;
+    _scroll.jumpTo(
+      target.clamp(position.minScrollExtent, position.maxScrollExtent),
+    );
   }
 
   @override
@@ -137,7 +201,7 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
                   },
                 ),
               ),
-              const Divider(),
+              const QueryaDivider(),
               Expanded(
                 child: _objectPrefix
                     ? _PrefixHint(query: _objectQuery, onOpen: _openQuickSwitcher)
@@ -148,17 +212,28 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
                           child: Text('No matching commands'),
                         ),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                    : material.Listener(
+                        onPointerHover: (_) => _ignoreHover = false,
+                        child: ListView.builder(
+                        controller: _scroll,
+                        padding: _listPadding,
                         itemCount: hits.length,
-                        itemExtent: 36,
+                        itemExtent: _itemExtent,
                         itemBuilder: (context, index) {
                           final command = hits[index];
                           final active = index == selectedIndex;
-                          return material.InkWell(
+                          return material.Semantics(
+                            button: true,
+                            selected: active,
+                            child: material.InkWell(
                             key: ValueKey(command.id),
                             onTap: () => _run(command),
-                            onHover: (_) => setState(() => _selected = index),
+                            onHover: (hovered) {
+                              if (_ignoreHover) return;
+                              if (hovered && _selected != index) {
+                                setState(() => _selected = index);
+                              }
+                            },
                             borderRadius: BorderRadius.circular(6),
                             child: DecoratedBox(
                               decoration: BoxDecoration(
@@ -191,8 +266,10 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
                                 ),
                               ),
                             ),
+                            ),
                           );
                         },
+                      ),
                       ),
               ),
             ],

@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:querya_desktop/core/database/redis_bulk.dart';
 import 'package:querya_desktop/core/database/redis_connection.dart';
 import 'package:querya_desktop/features/redis/redis_key_editor.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
 
 import '../../support/querya_theme_test_shell.dart';
 
@@ -416,7 +418,7 @@ void main() {
 
     expect(find.text('Edit Item [0]'), findsOneWidget);
     final field = find.descendant(
-      of: find.byType(shadcn.AlertDialog),
+      of: find.byType(QueryaModalDialog),
       matching: find.byType(shadcn.TextField),
     );
     await tester.enterText(field, 'task1_updated');
@@ -500,7 +502,7 @@ void main() {
     fake.listItems[0] = 'task1_concurrent_edit';
 
     final field = find.descendant(
-      of: find.byType(shadcn.AlertDialog),
+      of: find.byType(QueryaModalDialog),
       matching: find.byType(shadcn.TextField),
     );
     await tester.enterText(field, 'task1_my_edit');

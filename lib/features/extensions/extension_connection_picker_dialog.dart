@@ -4,6 +4,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/ui/querya_icons.dart';
 import 'package:querya_desktop/features/connections/driver_icon.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Prompts the user to pick which of several equally-live connections an
 /// ambiguous extension command should target (#892), instead of silently
@@ -101,9 +102,10 @@ class _ExtensionConnectionPickerDialog extends material.StatelessWidget {
             const Gap(12),
             material.Align(
               alignment: material.Alignment.centerRight,
-              child: OutlineButton(
+              child: QueryaButton.ghost(
+                label: 'Cancel',
                 onPressed: () => material.Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                size: QueryaControlSize.lg,
               ),
             ),
           ],

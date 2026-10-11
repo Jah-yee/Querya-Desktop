@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/extensions/sandbox/sandbox_os_isolation.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 Future<bool> showUnsandboxedDriverConsentDialog(
   material.BuildContext context,
@@ -8,7 +9,7 @@ Future<bool> showUnsandboxedDriverConsentDialog(
 ) async {
   final approved = await showAppDialog<bool>(
     context: context,
-    builder: (dialogContext) => material.AlertDialog(
+    builder: (dialogContext) => QueryaModalDialog(
       title: const material.Text('Run driver without OS sandbox?'),
       content: material.SizedBox(
         width: 440,
@@ -37,13 +38,15 @@ Future<bool> showUnsandboxedDriverConsentDialog(
         ),
       ),
       actions: [
-        OutlineButton(
+        QueryaButton.ghost(
+          label: 'Cancel',
           onPressed: () => material.Navigator.pop(dialogContext, false),
-          child: const material.Text('Cancel'),
+          size: QueryaControlSize.lg,
         ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Run without OS sandbox',
           onPressed: () => material.Navigator.pop(dialogContext, true),
-          child: const material.Text('Run without OS sandbox'),
+          size: QueryaControlSize.lg,
         ),
       ],
     ),

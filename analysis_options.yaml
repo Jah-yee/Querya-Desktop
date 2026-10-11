@@ -3,6 +3,8 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   exclude:
     - "third_party/**"
+    # Own package with its own analysis_options (no Flutter lints).
+    - "packages/**"
     - "build/**"
     - android/**
     - ios/**
@@ -20,4 +22,8 @@ linter:
   rules:
     - prefer_const_constructors
     - prefer_const_declarations
+    - unawaited_futures
+    - cancel_subscriptions
+    - close_sinks
+    - avoid_void_async
 

@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/database/postgres_connection.dart';
 import 'package:querya_desktop/core/database/postgres_service.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows [pg_sequences] metadata, current value, and generated DDL.
 class PostgresSequenceView extends material.StatefulWidget {
@@ -53,18 +54,13 @@ class _PostgresSequenceViewState extends material.State<PostgresSequenceView> {
   @override
   void dispose() {
     _scrollController.dispose();
-    _disconnectCurrent(interruptIfBusy: true);
+    _disconnectCurrent();
     super.dispose();
   }
 
-  void _disconnectCurrent({bool interruptIfBusy = false}) {
-    if (interruptIfBusy && _loading) {
-      PostgresService.instance.interrupt(
-        widget.connectionRow,
-        database: widget.database,
-        mode: PgSessionMode.readOnly,
-      );
-    }
+  /// Releases the lease. The session is shared with the tree, the table tabs
+  /// and MCP, so closing this view never interrupts it.
+  void _disconnectCurrent() {
     _lease?.release();
     _lease = null;
   }
@@ -120,18 +116,10 @@ class _PostgresSequenceViewState extends material.State<PostgresSequenceView> {
     if (_loading) {
       return material.Container(
         color: cs.background,
-        child: material.Center(
-          child: material.Column(
-            mainAxisSize: material.MainAxisSize.min,
-            children: [
-              const material.SizedBox(
-                width: 28,
-                height: 28,
-                child: material.CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const Gap(12),
-              const Text('Loading sequence…').muted().small(),
-            ],
+        child: const material.Center(
+          child: QueryaSpinner(
+            size: QueryaSpinnerSize.md,
+            label: 'Loading sequence…',
           ),
         ),
       );
@@ -157,11 +145,11 @@ class _PostgresSequenceViewState extends material.State<PostgresSequenceView> {
                       color: cs.mutedForeground, fontSize: 13),
                 ),
                 const Gap(24),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Retry',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _connectAndLoad,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 18),
-                  child: const Text('Retry'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),
@@ -202,12 +190,11 @@ class _PostgresSequenceViewState extends material.State<PostgresSequenceView> {
                     overflow: material.TextOverflow.ellipsis,
                   ),
                 ),
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Refresh',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _connectAndLoad,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 14),
-                  child: const Text('Refresh'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),

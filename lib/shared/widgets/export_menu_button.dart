@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart' as material;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/services/data_export_service.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/querya_action_menu.dart'
+    show QueryaActionMenuItem;
+import 'package:querya_desktop/shared/widgets/querya_menu_button.dart';
 
-class ExportMenuButton extends StatelessWidget {
+/// The Export / Copy menu of result and table toolbars: CSV, JSON, Markdown
+/// and SQL dump, saved to a file or copied ([isSave]).
+class ExportMenuButton extends material.StatelessWidget {
   const ExportMenuButton({
     super.key,
     required this.label,
@@ -17,86 +22,34 @@ class ExportMenuButton extends StatelessWidget {
   final bool isSave;
 
   @override
-  Widget build(BuildContext context) {
-    return material.PopupMenuButton<DataExportFormat>(
-      tooltip: label,
+  material.Widget build(material.BuildContext context) {
+    return QueryaMenuButton<DataExportFormat>(
+      label: label,
+      icon: icon,
+      size: QueryaControlSize.sm,
       onSelected: onSelected,
-      itemBuilder: (context) => [
-        material.PopupMenuItem(
+      items: [
+        QueryaActionMenuItem(
           value: DataExportFormat.csv,
-          child: material.Row(
-            children: [
-              const material.Icon(
-                material.Icons.table_chart_outlined,
-                size: 16,
-              ),
-              const material.SizedBox(width: 8),
-              material.Text(isSave ? 'CSV (.csv)' : 'Copy as CSV'),
-            ],
-          ),
+          icon: material.Icons.table_chart_outlined,
+          label: isSave ? 'CSV (.csv)' : 'Copy as CSV',
         ),
-        material.PopupMenuItem(
+        QueryaActionMenuItem(
           value: DataExportFormat.json,
-          child: material.Row(
-            children: [
-              const material.Icon(
-                material.Icons.data_object_rounded,
-                size: 16,
-              ),
-              const material.SizedBox(width: 8),
-              material.Text(isSave ? 'JSON (.json)' : 'Copy as JSON'),
-            ],
-          ),
+          icon: material.Icons.data_object_rounded,
+          label: isSave ? 'JSON (.json)' : 'Copy as JSON',
         ),
-        material.PopupMenuItem(
+        QueryaActionMenuItem(
           value: DataExportFormat.markdown,
-          child: material.Row(
-            children: [
-              const material.Icon(material.Icons.code_rounded, size: 16),
-              const material.SizedBox(width: 8),
-              material.Text(
-                isSave ? 'Markdown Table (.md)' : 'Copy as Markdown Table',
-              ),
-            ],
-          ),
+          icon: material.Icons.code_rounded,
+          label: isSave ? 'Markdown Table (.md)' : 'Copy as Markdown Table',
         ),
-        material.PopupMenuItem(
+        QueryaActionMenuItem(
           value: DataExportFormat.sqlDump,
-          child: material.Row(
-            children: [
-              const material.Icon(material.Icons.storage_rounded, size: 16),
-              const material.SizedBox(width: 8),
-              material.Text(
-                isSave ? 'SQL INSERT Dump (.sql)' : 'Copy as SQL Dump',
-              ),
-            ],
-          ),
+          icon: material.Icons.storage_rounded,
+          label: isSave ? 'SQL INSERT Dump (.sql)' : 'Copy as SQL Dump',
         ),
       ],
-      child: material.Container(
-        padding: const material.EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 6,
-        ),
-        decoration: material.BoxDecoration(
-          border: material.Border.all(
-            color: Theme.of(context).colorScheme.border,
-          ),
-          borderRadius: material.BorderRadius.circular(6),
-        ),
-        child: material.Row(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            material.Icon(
-              icon,
-              size: 14,
-              color: Theme.of(context).colorScheme.foreground,
-            ),
-            const material.SizedBox(width: 6),
-            Text(label).small(),
-          ],
-        ),
-      ),
     );
   }
 }

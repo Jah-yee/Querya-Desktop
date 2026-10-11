@@ -283,21 +283,27 @@ void main() {
 
       // 4. MongoDB
       final mongoState = MainScreenWorkspaceState.empty
-          .selectMongoDb(mongoConn, 'analytics')
+          .selectMongoCollection(mongoConn, 'analytics', 'events')
           .unselectActiveObject();
       expect(mongoState.activeMongoDB, isNull);
+      expect(mongoState.selectedMongoCollection, isNull);
       expect(mongoState.lastSelectedMongoDb, 'analytics');
+      expect(mongoState.lastSelectedMongoCollection, 'events');
       final restoredMongo = mongoState.restoreLastSelectedObject();
       expect(restoredMongo.activeMongoDB, 'analytics');
+      expect(restoredMongo.selectedMongoCollection, 'events');
 
       // 5. Redis
       final redisState = MainScreenWorkspaceState.empty
-          .selectRedisDb(redisConn, 7)
+          .selectRedisDb(redisConn, 7, key: 'token:abc')
           .selectConnection(redisConn);
       expect(redisState.activeRedisDb, isNull);
+      expect(redisState.selectedRedisKey, isNull);
       expect(redisState.lastSelectedRedisDb, 7);
+      expect(redisState.lastSelectedRedisKey, 'token:abc');
       final restoredRedis = redisState.restoreLastSelectedObject();
       expect(restoredRedis.activeRedisDb, 7);
+      expect(restoredRedis.selectedRedisKey, 'token:abc');
     });
 
     test('restoreLastSelectedObject ignores cached references from other drivers', () {
@@ -378,11 +384,56 @@ void main() {
       final stateMongo = stateExt.selectMongoDb(mongoConn, 'app');
       expect(stateMongo.lastSelectedExtensionObject, isNull);
       expect(stateMongo.lastSelectedMongoDb, 'app');
+      expect(stateMongo.lastSelectedMongoCollection, isNull);
       expect(stateMongo.lastSelectedRedisDb, isNull);
 
-      final stateRedis = stateMongo.selectRedisDb(redisConn, 2);
+      final stateMongoColl = stateExt.selectMongoCollection(mongoConn, 'app', 'users');
+      expect(stateMongoColl.lastSelectedExtensionObject, isNull);
+      expect(stateMongoColl.activeMongoDB, 'app');
+      expect(stateMongoColl.selectedMongoCollection, 'users');
+      expect(stateMongoColl.lastSelectedMongoDb, 'app');
+      expect(stateMongoColl.lastSelectedMongoCollection, 'users');
+
+      final stateRedis = stateMongoColl.selectRedisDb(redisConn, 2);
       expect(stateRedis.lastSelectedMongoDb, isNull);
+      expect(stateRedis.lastSelectedMongoCollection, isNull);
       expect(stateRedis.lastSelectedRedisDb, 2);
+    });
+
+    test('selectMongoCollection and restoreLastSelectedObject', () {
+      final state = MainScreenWorkspaceState.empty.selectMongoCollection(
+        mongoConn,
+        'analytics',
+        'events',
+      );
+      expect(state.activeMongoDB, 'analytics');
+      expect(state.selectedMongoCollection, 'events');
+      expect(state.lastSelectedMongoDb, 'analytics');
+      expect(state.lastSelectedMongoCollection, 'events');
+
+      final home = state.unselectActiveObject();
+      expect(home.activeMongoDB, isNull);
+      expect(home.selectedMongoCollection, isNull);
+      expect(home.lastSelectedMongoDb, 'analytics');
+      expect(home.lastSelectedMongoCollection, 'events');
+
+      final restored = home.restoreLastSelectedObject();
+      expect(restored.activeMongoDB, 'analytics');
+      expect(restored.selectedMongoCollection, 'events');
+      expect(restored.lastSelectedMongoDb, 'analytics');
+      expect(restored.lastSelectedMongoCollection, 'events');
+    });
+
+    test('selectMongoDb clears selectedMongoCollection', () {
+      final stateColl = MainScreenWorkspaceState.empty.selectMongoCollection(
+        mongoConn,
+        'analytics',
+        'events',
+      );
+      final stateDb = stateColl.selectMongoDb(mongoConn, 'analytics');
+      expect(stateDb.activeMongoDB, 'analytics');
+      expect(stateDb.selectedMongoCollection, isNull);
+      expect(stateDb.lastSelectedMongoCollection, isNull);
     });
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Banner displayed when an extension driver process crashes, deadlocks,
 /// or disconnects unexpectedly, allowing the user to restart the driver process
@@ -61,22 +62,12 @@ class ExtensionDriverRecoveryBanner extends material.StatelessWidget {
             ),
           ),
           const Gap(12),
-          OutlineButton(
-            size: ButtonSize.small,
+          QueryaButton.secondary(
+            label: isRestarting ? 'Restarting...' : 'Restart Driver',
+            icon: material.Icons.restart_alt_rounded,
+            loading: isRestarting,
             onPressed: isRestarting ? null : onRestart,
-            leading: isRestarting
-                ? const material.SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: material.CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const material.Icon(
-                    material.Icons.restart_alt_rounded,
-                    size: 16,
-                  ),
-            child: Text(isRestarting ? 'Restarting...' : 'Restart Driver'),
+            size: QueryaControlSize.sm,
           ),
         ],
       ),

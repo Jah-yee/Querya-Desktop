@@ -19,6 +19,7 @@ import 'package:querya_desktop/core/layout/querya_split_handle.dart';
 import 'package:querya_desktop/core/motion/querya_spring.dart';
 import 'package:querya_desktop/core/motion/querya_spring_controller.dart';
 import 'package:querya_desktop/core/platform/file_launch_service.dart';
+import 'package:querya_desktop/core/security/safe_mode.dart';
 import 'package:querya_desktop/core/storage/app_settings.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/extensions/sandbox/unsandboxed_launch_consent_gate.dart';
@@ -31,6 +32,7 @@ import 'package:querya_desktop/core/ui/querya_shell_status.dart';
 import 'package:querya_desktop/core/unsaved_work_guard.dart';
 import 'package:querya_desktop/features/main_screen/connections_panel_width_persist.dart';
 import 'package:querya_desktop/features/main_screen/querya_status_bar.dart';
+import 'package:querya_desktop/features/main_screen/safe_mode_unlock_dialog.dart';
 import 'package:querya_desktop/features/main_screen/querya_window_title_bar.dart';
 import 'package:querya_desktop/features/macos/querya_platform_menu_bar.dart';
 import 'package:querya_desktop/features/mysql/mysql_object_kind.dart';
@@ -92,9 +94,52 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
     UnsandboxedLaunchConsentGate.instance.handler = null;
+    _safeModeRelockTimer?.cancel();
     _workspace.dispose();
     _isSidebarVisible.dispose();
     super.dispose();
+  }
+
+  Timer? _safeModeRelockTimer;
+
+  /// Toggles the read-only lock. Turning it off for a Production connection
+  /// (Safe Mode) needs a typed confirmation and re-locks after
+  /// [kSafeModeUnlockDuration].
+  Future<void> _toggleReadOnly() async {
+    final ws = _workspace.value;
+    final connection = ws.activeConnection;
+    if (connection == null) return;
+
+    if (ws.isReadOnly &&
+        safeModeRequiresConfirmation(connection.environment)) {
+      final confirmed = await showSafeModeUnlockDialog(
+        context: context,
+        connectionName: connection.name,
+      );
+      if (!confirmed || !mounted) return;
+      final current = _workspace.value;
+      if (current.activeConnection?.id != connection.id || !current.isReadOnly) {
+        return;
+      }
+      _workspace.value = current.toggleReadOnly();
+      _safeModeRelockTimer?.cancel();
+      _safeModeRelockTimer = Timer(kSafeModeUnlockDuration, () {
+        if (!mounted) return;
+        final latest = _workspace.value;
+        if (latest.activeConnection?.id == connection.id &&
+            !latest.isReadOnly) {
+          _workspace.value = latest.toggleReadOnly();
+          showAppToast(
+            context: context,
+            message: '${connection.name} is read-only again',
+          );
+        }
+      });
+      return;
+    }
+
+    _safeModeRelockTimer?.cancel();
+    _workspace.value = ws.toggleReadOnly();
   }
 
   bool _handleGlobalKeyEvent(KeyEvent event) {
@@ -111,7 +156,9 @@ class _MainScreenState extends State<MainScreen> {
     final physical = event.physicalKey;
     final logical = event.logicalKey;
 
-    // 1. Execute SQL: F5, or (Ctrl/Cmd + Enter), or (Ctrl/Cmd + R)
+    // 1. Execute SQL, as in the editor: Ctrl/Cmd+Enter and Ctrl/Cmd+R run the
+    // selection or the statement at the cursor; F5 and Ctrl/Cmd+Shift+Enter
+    // run the whole script.
     final isEnter = physical == PhysicalKeyboardKey.enter ||
         physical == PhysicalKeyboardKey.numpadEnter ||
         logical == LogicalKeyboardKey.enter ||
@@ -122,13 +169,28 @@ class _MainScreenState extends State<MainScreen> {
         logical == LogicalKeyboardKey.keyR ||
         logical == const LogicalKeyboardKey(0x0000043a); // Russian 'к'
 
-    if ((isCmdOrCtrl && isEnter) ||
-        isF5 ||
-        (isCmdOrCtrl && !isShift && !isAlt && isKeyR)) {
-      if (SqlEditorCommandBridge.instance.canExecute) {
+    final runScript = isF5 || (isCmdOrCtrl && isShift && !isAlt && isEnter);
+    final runStatement = isCmdOrCtrl &&
+        !isShift &&
+        !isAlt &&
+        (isEnter || isKeyR);
+    if ((runScript || runStatement) &&
+        SqlEditorCommandBridge.instance.canExecute) {
+      if (runScript) {
         SqlEditorCommandBridge.instance.invokeExecute();
-        return true;
+      } else {
+        SqlEditorCommandBridge.instance.invokeExecuteStatement();
       }
+      return true;
+    }
+
+    // Preferences: Ctrl+, / Cmd+, (Physical comma, Logical comma, Russian 'б')
+    final isComma = physical == PhysicalKeyboardKey.comma ||
+        logical == LogicalKeyboardKey.comma ||
+        logical == const LogicalKeyboardKey(0x00000431); // Russian 'б'
+    if (isCmdOrCtrl && !isShift && !isAlt && isComma) {
+      showPreferencesDialog(context);
+      return true;
     }
 
     // 2. Toggle Left Sidebar: Ctrl+B / Cmd+B (Physical B, Logical B, Russian 'и')
@@ -411,12 +473,40 @@ class _MainScreenState extends State<MainScreen> {
   ) async {
     final ws = _workspace.value;
     if (ws.activeConnection?.id == connection.id &&
-        ws.activeMongoDB == database) {
+        ws.activeMongoDB == database &&
+        ws.selectedMongoCollection == null) {
       return;
     }
     if (!await _allowUnsavedNavigation()) return;
     if (!mounted) return;
+    setState(() => _pendingMongoCollection = null);
     _workspace.value = _workspace.value.selectMongoDb(connection, database);
+  }
+
+  void _onMongoCollectionSelected(
+    ConnectionRow connection,
+    String database,
+    String collection,
+  ) {
+    unawaited(_selectMongoCollection(connection, database, collection));
+  }
+
+  Future<void> _selectMongoCollection(
+    ConnectionRow connection,
+    String database,
+    String collection,
+  ) async {
+    final ws = _workspace.value;
+    if (ws.activeConnection?.id == connection.id &&
+        ws.activeMongoDB == database &&
+        ws.selectedMongoCollection == collection) {
+      return;
+    }
+    if (!await _allowUnsavedNavigation()) return;
+    if (!mounted) return;
+    setState(() => _pendingMongoCollection = collection);
+    _workspace.value =
+        _workspace.value.selectMongoCollection(connection, database, collection);
   }
 
   void _onPostgresOpenSqlWorkspace(
@@ -609,10 +699,10 @@ class _MainScreenState extends State<MainScreen> {
           );
         }
       case QueryaSchemaObjectKind.collection:
-        setState(() => _pendingMongoCollection = object.name);
-        _onMongoDBDatabaseSelected(
+        _onMongoCollectionSelected(
           conn,
           object.database ?? conn.databaseName ?? '',
+          object.name,
         );
     }
   }
@@ -787,6 +877,9 @@ class _MainScreenState extends State<MainScreen> {
         return QueryaCommandHost(
           onToggleSidebar: () => _splitKey.currentState?.toggleSidebar(),
           onNewConnection: () => unawaited(_onNewDatabaseConnectionFromMenu()),
+          onReloadConnections: () => unawaited(
+              _connectionsPanelKey.currentState?.reloadConnectionsFromDb() ??
+                  Future<void>.value()),
           onShowQuickSwitcher: _openQuickSwitcher,
           onOpenSchemaObject: _onOpenSchemaObject,
           onGoHome:
@@ -813,9 +906,7 @@ class _MainScreenState extends State<MainScreen> {
                   )
               : null,
           onToggleReadOnly: workspace.activeConnection != null
-              ? () {
-                  _workspace.value = _workspace.value.toggleReadOnly();
-                }
+              ? () => unawaited(_toggleReadOnly())
               : null,
           onOpenWelcomeTour: _onOpenWelcomeTour,
           selectedConnectionId: workspace.activeConnection?.id,
@@ -992,10 +1083,7 @@ class _MainScreenState extends State<MainScreen> {
                               _splitKey.currentState?.toggleSidebar(),
                           onOpenWelcomeTour: _onOpenWelcomeTour,
                           onGoHome: _onGoHome,
-                          onReadOnlyChanged: () {
-                            _workspace.value =
-                                _workspace.value.toggleReadOnly();
-                          },
+                          onReadOnlyChanged: () => unawaited(_toggleReadOnly()),
                           onConnect: () {
                             final active = workspace.activeConnection;
                             if (active != null && active.id != null) {
@@ -1030,7 +1118,7 @@ class _MainScreenState extends State<MainScreen> {
                         );
                       },
                     ),
-                    Divider(
+                    QueryaDivider(
                         height: 1,
                         color: wb.borderSubtle.withValues(alpha: 0.22)),
                     Expanded(
@@ -1047,6 +1135,7 @@ class _MainScreenState extends State<MainScreen> {
                         onExtensionObjectSelected: _onExtensionObjectSelected,
                         onRedisDatabaseSelected: _onRedisDatabaseSelected,
                         onMongoDBDatabaseSelected: _onMongoDBDatabaseSelected,
+                        onMongoCollectionSelected: _onMongoCollectionSelected,
                         onPostgresOpenSqlWorkspace: _onPostgresOpenSqlWorkspace,
                         onMysqlOpenSqlWorkspace: _onMysqlOpenSqlWorkspace,
                         onSqliteOpenSqlWorkspace: _onSqliteOpenSqlWorkspace,
@@ -1112,6 +1201,7 @@ class _MainContentSplit extends StatefulWidget {
     required this.onExtensionObjectSelected,
     required this.onRedisDatabaseSelected,
     required this.onMongoDBDatabaseSelected,
+    required this.onMongoCollectionSelected,
     required this.onPostgresOpenSqlWorkspace,
     required this.onMysqlOpenSqlWorkspace,
     required this.onSqliteOpenSqlWorkspace,
@@ -1154,6 +1244,7 @@ class _MainContentSplit extends StatefulWidget {
   ) onExtensionObjectSelected;
   final void Function(ConnectionRow, int) onRedisDatabaseSelected;
   final void Function(ConnectionRow, String) onMongoDBDatabaseSelected;
+  final void Function(ConnectionRow, String, String) onMongoCollectionSelected;
   final OnPostgresOpenSqlWorkspace onPostgresOpenSqlWorkspace;
   final void Function(ConnectionRow) onMysqlOpenSqlWorkspace;
   final void Function(ConnectionRow) onSqliteOpenSqlWorkspace;
@@ -1357,6 +1448,8 @@ class _MainContentSplitState extends State<_MainContentSplit>
                 widget.onRedisDatabaseSelected,
             onMongoDBDatabaseSelected:
                 widget.onMongoDBDatabaseSelected,
+            onMongoCollectionSelected:
+                widget.onMongoCollectionSelected,
             onPostgresObjectSelected:
                 widget.onPostgresObjectSelected,
             onPostgresOpenSqlWorkspace:
@@ -1529,7 +1622,11 @@ class _MainContentSplitState extends State<_MainContentSplit>
                           lastSelectedExtensionObject:
                               ws.lastSelectedExtensionObject,
                           lastSelectedMongoDb: ws.lastSelectedMongoDb,
+                          lastSelectedMongoCollection:
+                              ws.lastSelectedMongoCollection,
                           lastSelectedRedisDb: ws.lastSelectedRedisDb,
+                          selectedRedisKey: ws.selectedRedisKey,
+                          lastSelectedRedisKey: ws.lastSelectedRedisKey,
                           onNavigateHome: () {
                             widget.workspace.value =
                                 widget.workspace.value.unselectActiveObject();
@@ -1546,6 +1643,7 @@ class _MainContentSplitState extends State<_MainContentSplit>
                           onRequestOpenTour: widget.onRequestOpenTour,
                           onOpenConnection: widget.onOpenConnection,
                           initialMongoCollection: widget.initialMongoCollection,
+                          selectedMongoCollection: ws.selectedMongoCollection,
                         );
                       },
                     ),
@@ -1571,6 +1669,7 @@ class _ConnectionsPanelSlot extends StatefulWidget {
     required this.onSqliteObjectSelected,
     required this.onRedisDatabaseSelected,
     required this.onMongoDBDatabaseSelected,
+    required this.onMongoCollectionSelected,
     required this.onPostgresOpenSqlWorkspace,
     required this.onMysqlOpenSqlWorkspace,
     required this.onSqliteOpenSqlWorkspace,
@@ -1600,6 +1699,7 @@ class _ConnectionsPanelSlot extends StatefulWidget {
   ) onSqliteObjectSelected;
   final void Function(ConnectionRow, int) onRedisDatabaseSelected;
   final void Function(ConnectionRow, String) onMongoDBDatabaseSelected;
+  final void Function(ConnectionRow, String, String) onMongoCollectionSelected;
   final OnPostgresOpenSqlWorkspace onPostgresOpenSqlWorkspace;
   final void Function(ConnectionRow) onMysqlOpenSqlWorkspace;
   final void Function(ConnectionRow) onSqliteOpenSqlWorkspace;
@@ -1642,9 +1742,11 @@ class _ConnectionsPanelSlotState extends State<_ConnectionsPanelSlot> {
       selectedExtensionObject: ws.selectedExtensionObject,
       selectedRedisDb: ws.activeRedisDb,
       selectedMongoDb: ws.activeMongoDB,
+      selectedMongoCollection: ws.selectedMongoCollection,
       onConnectionSelected: widget.onConnectionSelected,
       onRedisDatabaseSelected: widget.onRedisDatabaseSelected,
       onMongoDBDatabaseSelected: widget.onMongoDBDatabaseSelected,
+      onMongoCollectionSelected: widget.onMongoCollectionSelected,
       onPostgresObjectSelected: widget.onPostgresObjectSelected,
       onPostgresOpenSqlWorkspace: widget.onPostgresOpenSqlWorkspace,
       onMysqlObjectSelected: widget.onMysqlObjectSelected,
@@ -1652,6 +1754,12 @@ class _ConnectionsPanelSlotState extends State<_ConnectionsPanelSlot> {
       onSqliteObjectSelected: widget.onSqliteObjectSelected,
       onSqliteOpenSqlWorkspace: widget.onSqliteOpenSqlWorkspace,
       onExtensionObjectSelected: widget.onExtensionObjectSelected,
+      onConnectionRemoved: (id) {
+        // The open workspace belonged to the removed connection: go home.
+        if (widget.workspace.value.activeConnection?.id != id) return;
+        widget.workspace.value = MainScreenWorkspaceState.empty;
+        QueryaShellStatus.instance.clear();
+      },
     );
   }
 }

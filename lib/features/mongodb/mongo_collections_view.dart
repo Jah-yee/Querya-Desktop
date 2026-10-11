@@ -8,7 +8,9 @@ import 'package:querya_desktop/core/database/mongodb_connection.dart';
 import 'package:querya_desktop/core/database/mongodb_service.dart';
 import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Displays the list of collections in a MongoDB database.
 class MongoCollectionsView extends material.StatefulWidget {
@@ -17,12 +19,14 @@ class MongoCollectionsView extends material.StatefulWidget {
     required this.connection,
     required this.database,
     this.onCollectionTap,
+    this.onOpenQueryConsole,
     this.refreshToken = 0,
   });
 
   final MongoConnection connection;
   final String database;
   final ValueChanged<String>? onCollectionTap;
+  final material.VoidCallback? onOpenQueryConsole;
 
   /// Incremented by the parent when the user requests a refresh (toolbar).
   final int refreshToken;
@@ -213,18 +217,10 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
     final cs = Theme.of(context).colorScheme;
 
     if (_loading) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Loading collections...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Loading collections...',
         ),
       );
     }
@@ -245,11 +241,11 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
                   style: material.TextStyle(
                       color: cs.mutedForeground, fontSize: 13)),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _load,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -310,6 +306,15 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
                     ],
                   ),
                 ),
+                if (widget.onOpenQueryConsole != null) ...[
+                  QueryaButton.secondary(
+                    label: 'MQL Console',
+                    icon: material.Icons.terminal_rounded,
+                    onPressed: widget.onOpenQueryConsole,
+                    size: QueryaControlSize.sm,
+                  ),
+                  const Gap(8),
+                ],
                 material.SizedBox(
                   width: 180,
                   child: TextField(
@@ -318,12 +323,11 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
                   ),
                 ),
                 const Gap(8),
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Create',
+                  icon: material.Icons.add_rounded,
                   onPressed: _createCollection,
-                  size: ButtonSize.small,
-                  leading:
-                      const material.Icon(material.Icons.add_rounded, size: 16),
-                  child: const Text('Create'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),
@@ -358,7 +362,7 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
                 : material.ListView.separated(
                     cacheExtent: 400,
                     itemCount: _collections.length,
-                    separatorBuilder: (_, __) => Divider(
+                    separatorBuilder: (_, __) => QueryaDivider(
                       height: 1,
                       color: cs.border.withValues(alpha: 0.15),
                     ),
@@ -407,11 +411,11 @@ class _CollectionRow extends StatelessWidget {
               const material.EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Row(
             children: [
-              _ActionButton(
+              QueryaButton.secondary(
                 label: 'View',
                 icon: material.Icons.visibility_rounded,
-                color: context.semanticPalette.success,
-                onTap: onView,
+                size: QueryaControlSize.sm,
+                onPressed: onView,
               ),
               const Gap(16),
               Expanded(
@@ -436,11 +440,12 @@ class _CollectionRow extends StatelessWidget {
                 width: 100,
                 child: Text(_formatSize(collection.size)).muted().small(),
               ),
-              _ActionButton(
+              QueryaButton.secondary(
                 label: 'Del',
                 icon: material.Icons.delete_rounded,
-                color: context.semanticPalette.destructive,
-                onTap: onDrop,
+                size: QueryaControlSize.sm,
+                tone: QueryaButtonTone.destructive,
+                onPressed: onDrop,
               ),
             ],
           ),
@@ -459,54 +464,6 @@ class _CollectionRow extends StatelessWidget {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String label;
-  final material.IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return material.Material(
-      color: Colors.transparent,
-      child: material.InkWell(
-        onTap: onTap,
-        borderRadius: material.BorderRadius.circular(6),
-        child: material.Container(
-          padding:
-              const material.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: material.BoxDecoration(
-            color: color.withValues(alpha: 0.14),
-            borderRadius: material.BorderRadius.circular(6),
-          ),
-          child: Row(
-            mainAxisSize: material.MainAxisSize.min,
-            children: [
-              material.Icon(icon, size: 14, color: color),
-              const Gap(5),
-              Text(
-                label,
-                style: material.TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: material.FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

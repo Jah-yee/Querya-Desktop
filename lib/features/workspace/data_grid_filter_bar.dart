@@ -1,7 +1,10 @@
 import 'dart:async' show Timer;
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+import 'package:querya_desktop/shared/widgets/querya_icon_button.dart';
+import 'package:querya_desktop/shared/widgets/querya_text.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 /// Kind of filter autocomplete suggestion.
 enum FilterSuggestionKind {
@@ -221,7 +224,9 @@ class _DataGridFilterBarState extends material.State<DataGridFilterBar> {
             showWhenUnlinked: false,
             offset: const material.Offset(24, 32),
             child: material.Material(
-              elevation: 4,
+              elevation: 2,
+              shadowColor: const material.Color(0x1F000000),
+              surfaceTintColor: material.Colors.transparent,
               borderRadius: material.BorderRadius.circular(6),
               color: cs.popover,
               child: material.Container(
@@ -239,7 +244,8 @@ class _DataGridFilterBarState extends material.State<DataGridFilterBar> {
                   itemBuilder: (ctx, i) {
                     final s = _suggestions[i];
                     final isHighlighted = i == _highlightedIndex;
-                    return material.InkWell(
+                    return material.GestureDetector(
+                      behavior: material.HitTestBehavior.opaque,
                       onTap: () => _applySuggestion(s),
                       child: material.Container(
                         padding: const material.EdgeInsets.symmetric(
@@ -285,13 +291,13 @@ class _DataGridFilterBarState extends material.State<DataGridFilterBar> {
         return material.Icon(
           material.Icons.code_rounded,
           size: 13,
-          color: material.Colors.amber.shade700,
+          color: cs.mutedForeground,
         );
       case FilterSuggestionKind.keyword:
         return material.Icon(
           material.Icons.vpn_key_outlined,
           size: 13,
-          color: material.Colors.green.shade600,
+          color: cs.mutedForeground.withValues(alpha: 0.8),
         );
     }
   }
@@ -417,16 +423,14 @@ class _DataGridFilterBarState extends material.State<DataGridFilterBar> {
                 ),
               ),
               const Gap(4),
-              material.IconButton(
+              QueryaIconButton(
+                size: QueryaControlSize.sm,
                 icon: material.Icon(
                   widget.onClose != null
                       ? material.Icons.clear_rounded
                       : material.Icons.close,
                   size: 14,
                 ),
-                padding: material.EdgeInsets.zero,
-                constraints: const material.BoxConstraints(minWidth: 20, minHeight: 20),
-                color: cs.mutedForeground,
                 tooltip: 'Clear filter',
                 onPressed: () {
                   _debounceTimer?.cancel();
@@ -438,11 +442,9 @@ class _DataGridFilterBarState extends material.State<DataGridFilterBar> {
             ],
             if (widget.onClose != null) ...[
               const Gap(2),
-              material.IconButton(
+              QueryaIconButton(
+                size: QueryaControlSize.sm,
                 icon: const material.Icon(material.Icons.close, size: 14),
-                padding: material.EdgeInsets.zero,
-                constraints: const material.BoxConstraints(minWidth: 20, minHeight: 20),
-                color: cs.mutedForeground,
                 tooltip: 'Close filter (Esc)',
                 onPressed: () {
                   _debounceTimer?.cancel();

@@ -3,12 +3,16 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/motion/ticker_gated_polling.dart';
+import 'package:querya_desktop/core/stats/metric_history.dart';
 import 'package:querya_desktop/core/util/deep_collection_equals.dart';
 import 'package:querya_desktop/core/database/postgres_connection.dart';
 import 'package:querya_desktop/core/database/postgres_service.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
+import 'package:querya_desktop/shared/widgets/querya_sparkline.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _pollInterval = Duration(seconds: 5);
 const _summaryChipHeight = 88.0;
@@ -19,12 +23,37 @@ class PostgresStatsView extends material.StatefulWidget {
   const PostgresStatsView({
     super.key,
     required this.connectionRow,
+    @visibleForTesting this.statsSource,
   });
 
   final ConnectionRow connectionRow;
 
+  /// Replaces the pooled session's `serverStats()` in tests, so a counting
+  /// fake can stand in for the server. Null in the app.
+  final Future<Map<String, dynamic>> Function()? statsSource;
+
   @override
   material.State<PostgresStatsView> createState() => _PostgresStatsViewState();
+}
+
+/// Adds one poll's numbers to [history]: connections as they are, and the
+/// commits of all databases as a rate per second (a counter).
+@visibleForTesting
+void recordServerStats(
+  MetricHistory history,
+  Map<String, dynamic> stats,
+  DateTime now,
+) {
+  history
+    ..record('connections_active',
+        ((stats['connections_active'] ?? 0) as num).toDouble(), now)
+    ..record('connections_total',
+        ((stats['connections_total'] ?? 0) as num).toDouble(), now);
+  var commits = 0;
+  for (final db in stats['databases'] as List? ?? const []) {
+    commits += ((db as Map)['xact_commit'] as num? ?? 0).toInt();
+  }
+  history.recordCounter('transactions_per_second', commits.toDouble(), now);
 }
 
 class _PostgresStatsViewState extends material.State<PostgresStatsView> {
@@ -32,6 +61,9 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
   PostgresConnection? get _connection => _lease?.connection;
 
   Map<String, dynamic>? _stats;
+
+  /// Samples of the last poll results: connections and transactions per second.
+  final _history = MetricHistory();
   bool _loading = true;
   String? _error;
   Timer? _timer;
@@ -55,18 +87,13 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
   @override
   void dispose() {
     _timer?.cancel();
-    _disconnectCurrent(interruptIfBusy: _loading);
+    _disconnectCurrent();
     super.dispose();
   }
 
-  void _disconnectCurrent({bool interruptIfBusy = false}) {
-    if (interruptIfBusy && _loading) {
-      PostgresService.instance.interrupt(
-        widget.connectionRow,
-        database: widget.connectionRow.databaseName ?? 'postgres',
-        mode: PgSessionMode.readOnly,
-      );
-    }
+  /// Releases the lease. The session is shared with the object tree, other
+  /// views and MCP, so closing this view never interrupts it.
+  void _disconnectCurrent() {
     _lease?.release();
     _lease = null;
   }
@@ -80,6 +107,11 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
       _error = null;
       _stats = null;
     });
+    if (widget.statsSource != null) {
+      await _fetch();
+      if (mounted) _startTimer();
+      return;
+    }
     try {
       final lease = await PostgresService.instance.acquire(
         widget.connectionRow,
@@ -103,9 +135,21 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
     }
   }
 
-  Future<void> _fetch() async {
+  /// Records the poll's numbers. No query is added: the poll already fetched them.
+  void _recordHistory(Map<String, dynamic> stats) =>
+      recordServerStats(_history, stats, DateTime.now());
+
+  /// Whether a poll can run: a test source, or a connected session.
+  bool get _canPoll {
     final c = _connection;
-    if (c == null || !c.isConnected) {
+    return widget.statsSource != null || (c != null && c.isConnected);
+  }
+
+  Future<Map<String, dynamic>> _serverStats() =>
+      widget.statsSource?.call() ?? _connection!.serverStats();
+
+  Future<void> _fetch() async {
+    if (!_canPoll) {
       if (!mounted) return;
       setState(() {
         _error = 'Not connected';
@@ -114,8 +158,9 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
       return;
     }
     try {
-      final stats = await c.serverStats();
+      final stats = await _serverStats();
       if (!mounted) return;
+      _recordHistory(stats);
       if (!replaceIfChanged(_stats, stats, (v) => _stats = v)) {
         if (_loading) {
           setState(() {
@@ -138,13 +183,14 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
   }
 
   Future<void> _onPollTick() async {
-    final c = _connection;
-    if (c == null || !c.isConnected) return;
+    if (!_canPoll) return;
     try {
-      final stats = await c.serverStats();
+      final stats = await _serverStats();
       if (!mounted) return;
-      if (!replaceIfChanged(_stats, stats, (v) => _stats = v)) return;
-      setState(() => _stats = stats);
+      _recordHistory(stats);
+      // The sparklines move with every sample, so rebuild even when the numbers
+      // did not change.
+      setState(() => replaceIfChanged(_stats, stats, (v) => _stats = v));
     } catch (_) {}
   }
 
@@ -155,11 +201,10 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final c = _connection;
     _timer = syncTickerGatedPeriodicTimer(
       context: context,
       timer: _timer,
-      shouldRun: c != null && c.isConnected && !_loading,
+      shouldRun: _canPoll && !_loading,
       interval: _pollInterval,
       onTick: () => unawaited(_onPollTick()),
     );
@@ -167,18 +212,10 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
     final cs = Theme.of(context).colorScheme;
 
     if (_loading) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Connecting...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Connecting...',
         ),
       );
     }
@@ -199,11 +236,11 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
                   style: material.TextStyle(
                       color: cs.mutedForeground, fontSize: 13)),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _load,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -320,11 +357,11 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
                     ),
                   ],
                 ),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Refresh',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _load,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 18),
-                  child: const Text('Refresh'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),
@@ -460,6 +497,15 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
           _row(context, 'Active', '$active'),
           _row(context, 'Idle', '$idle'),
           _row(context, 'Max connections', maxConn),
+          const Gap(8),
+          QueryaSparkline(
+            samples: _history.series('connections_active'),
+            color: context.workbench.accent,
+          ),
+          QueryaSparkline(
+            samples: _history.series('transactions_per_second'),
+            color: context.workbench.accent,
+          ),
         ],
       ),
       minHeight: _gridCardMinHeight,
@@ -521,7 +567,7 @@ class _PostgresStatsViewState extends material.State<PostgresStatsView> {
               ],
             ),
           ),
-          material.Divider(height: 1, color: cs.border.withValues(alpha: 0.3)),
+          QueryaDivider(height: 1, color: cs.border.withValues(alpha: 0.3)),
           for (final db in databases)
             material.Padding(
               padding: const material.EdgeInsets.symmetric(vertical: 5),

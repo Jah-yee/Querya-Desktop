@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Simple color picker dialog for the theme editor.
 Future<Color?> showThemeColorPickerDialog({
@@ -11,7 +12,7 @@ Future<Color?> showThemeColorPickerDialog({
   return showAppDialog<Color>(
     context: context,
     builder: (dialogContext) {
-      return material.AlertDialog(
+      return QueryaModalDialog(
         title: const material.Text('Pick color'),
         content: material.SizedBox(
           width: 320,
@@ -22,14 +23,16 @@ Future<Color?> showThemeColorPickerDialog({
           ),
         ),
         actions: [
-          material.TextButton(
+          QueryaButton.ghost(
+            label: 'Cancel',
             onPressed: () => material.Navigator.pop(dialogContext),
-            child: const material.Text('Cancel'),
+            size: QueryaControlSize.lg,
           ),
-          material.TextButton(
+          QueryaButton.primary(
+            label: 'Apply',
             onPressed: () =>
                 material.Navigator.pop(dialogContext, picked.toColor()),
-            child: const material.Text('Apply'),
+            size: QueryaControlSize.lg,
           ),
         ],
       );

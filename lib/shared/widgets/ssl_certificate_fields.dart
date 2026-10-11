@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/security/ssl_certificate_support.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Optional SSL certificate path fields (Root CA, client cert, client key).
 class SslCertificateFields extends material.StatelessWidget {
@@ -85,7 +86,10 @@ class _SslFileField extends material.StatelessWidget {
               ),
             ),
             const Gap(8),
-            GhostButton(
+            QueryaButton.icon(
+              icon: material.Icons.folder_open_rounded,
+              tooltip: 'Browse…',
+              size: QueryaControlSize.lg,
               onPressed: () async {
                 await pickSslCertificateFile(
                   onPicked: (path) {
@@ -94,7 +98,6 @@ class _SslFileField extends material.StatelessWidget {
                   },
                 );
               },
-              child: const Icon(material.Icons.folder_open_rounded),
             ),
           ],
         ),

@@ -3,7 +3,9 @@ import 'package:querya_desktop/core/database/redis_connection.dart';
 import 'package:querya_desktop/core/database/redis_info.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows all Redis databases (db0–dbN) with key counts.
 class RedisDatabasesView extends material.StatefulWidget {
@@ -97,18 +99,10 @@ class _RedisDatabasesViewState extends material.State<RedisDatabasesView> {
     final shadcnCs = shadcn.Theme.of(context).colorScheme;
 
     if (_loading) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Loading databases...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Loading databases...',
         ),
       );
     }
@@ -127,9 +121,10 @@ class _RedisDatabasesViewState extends material.State<RedisDatabasesView> {
                   style:
                       material.TextStyle(color: cs.destructive, fontSize: 13)),
               const Gap(16),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
                 onPressed: _load,
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),

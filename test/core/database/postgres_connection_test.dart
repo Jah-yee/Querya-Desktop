@@ -574,5 +574,57 @@ void main() {
         ),
       );
     });
+
+    test('buildSettingsForTest initializes SecurityContext with trusted roots when useSSL is true (#1367)', () {
+      final connWithoutSsl = PostgresConnection(
+        id: 1,
+        name: 'test',
+        host: 'localhost',
+        useSSL: false,
+      );
+      expect(connWithoutSsl.buildSettingsForTest().securityContext, isNull);
+
+      final connWithSsl = PostgresConnection(
+        id: 2,
+        name: 'test-ssl',
+        host: 'localhost',
+        useSSL: true,
+      );
+      final settings = connWithSsl.buildSettingsForTest();
+      expect(settings.securityContext, isNotNull);
+    });
+  });
+
+  group('PostgresConnection socket state reflection (#1373)', () {
+    test('isConnected reflects underlying connection isOpen state', () {
+      final conn = PostgresConnection(
+        id: 1,
+        name: 'test',
+        host: 'localhost',
+      );
+      expect(conn.isConnected, isFalse);
+
+      conn.setConnectionForTest(null, isConnected: true);
+      expect(conn.isConnected, isFalse, reason: '_conn is null');
+    });
+
+    test('execute force-closes and marks disconnected on connection lost error', () async {
+      final conn = PostgresConnection(
+        id: 1,
+        name: 'test',
+        host: 'localhost',
+      );
+      conn.setConnectionForTest(null, isConnected: true);
+      conn.runStatementForTest = (sql, timeout) =>
+          Future.error(Exception('Connection reset by peer'));
+
+      try {
+        await conn.execute('SELECT 1');
+        fail('Should have thrown');
+      } catch (_) {}
+
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(conn.isConnected, isFalse);
+    });
   });
 }

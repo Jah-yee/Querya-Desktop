@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
-import 'package:querya_desktop/core/motion/querya_animated_expand.dart';
-import 'package:querya_desktop/core/motion/querya_motion.dart';
-import 'package:querya_desktop/core/motion/querya_motion_context.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/features/workspace/grid_groupings_engine.dart';
 import 'package:querya_desktop/features/workspace/result_grid_view.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/widgets.dart';
 
 /// Groupings / Pivot view tab for tabular data with hierarchical grouping and custom aggregations.
 class DataGridGroupingsView extends material.StatefulWidget {
@@ -103,8 +101,11 @@ class _DataGridGroupingsViewState
   @override
   material.Widget build(material.BuildContext context) {
     if (widget.columns.isEmpty || widget.rows.isEmpty) {
-      return material.Center(
-        child: const Text('No data available for grouping.').muted(),
+      return const material.Center(
+        child: QueryaEmptyState(
+          title: 'No data to group',
+          description: 'Run a query that returns rows, then group them here.',
+        ),
       );
     }
 
@@ -139,21 +140,17 @@ class _DataGridGroupingsViewState
                 const Gap(6),
                 const Text('Group:').small().semiBold(),
                 const Gap(6),
-                material.DropdownButton<int>(
+                QueryaDropdown<int>(
+                  compact: true,
                   value: _selectedColIndices.isNotEmpty &&
                           _selectedColIndices.first < widget.columns.length
                       ? _selectedColIndices.first
                       : 0,
-                  isDense: true,
-                  underline: const material.SizedBox.shrink(),
-                  style: TextStyle(fontSize: 12, color: cs.foreground),
-                  items: List.generate(widget.columns.length, (i) {
-                    return material.DropdownMenuItem<int>(
-                      value: i,
-                      child: Text(widget.columns[i]),
-                    );
-                  }),
-                  onChanged: (idx) {
+                  items: [
+                    for (var i = 0; i < widget.columns.length; i++)
+                      QueryaDropdownItem(value: i, label: widget.columns[i]),
+                  ],
+                  onSelected: (idx) {
                     if (idx != null) {
                       setState(() {
                         _selectedColIndices = [idx];
@@ -165,7 +162,7 @@ class _DataGridGroupingsViewState
                 ),
 
                 const Gap(12),
-                material.VerticalDivider(
+                QueryaDivider.vertical(
                   width: 1,
                   thickness: 1,
                   indent: 8,
@@ -177,18 +174,14 @@ class _DataGridGroupingsViewState
                 // Aggregation Selector
                 const Text('Agg:').small().semiBold(),
                 const Gap(6),
-                material.DropdownButton<GroupingAggType>(
+                QueryaDropdown<GroupingAggType>(
+                  compact: true,
                   value: _aggType,
-                  isDense: true,
-                  underline: const material.SizedBox.shrink(),
-                  style: TextStyle(fontSize: 12, color: cs.foreground),
-                  items: GroupingAggType.values.map((t) {
-                    return material.DropdownMenuItem<GroupingAggType>(
-                      value: t,
-                      child: Text(t.label),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
+                  items: [
+                    for (final t in GroupingAggType.values)
+                      QueryaDropdownItem(value: t, label: t.label),
+                  ],
+                  onSelected: (val) {
                     if (val != null) {
                       setState(() {
                         _aggType = val;
@@ -199,21 +192,17 @@ class _DataGridGroupingsViewState
                 ),
                 if (_aggType != GroupingAggType.count) ...[
                   const Gap(4),
-                  material.DropdownButton<int>(
+                  QueryaDropdown<int>(
+                    compact: true,
                     value: _aggTargetColIndex != null &&
                             _aggTargetColIndex! < widget.columns.length
-                        ? _aggTargetColIndex
+                        ? _aggTargetColIndex!
                         : 0,
-                    isDense: true,
-                    underline: const material.SizedBox.shrink(),
-                    style: TextStyle(fontSize: 12, color: cs.foreground),
-                    items: List.generate(widget.columns.length, (i) {
-                      return material.DropdownMenuItem<int>(
-                        value: i,
-                        child: Text(widget.columns[i]),
-                      );
-                    }),
-                    onChanged: (idx) {
+                    items: [
+                      for (var i = 0; i < widget.columns.length; i++)
+                        QueryaDropdownItem(value: i, label: widget.columns[i]),
+                    ],
+                    onSelected: (idx) {
                       if (idx != null) {
                         setState(() {
                           _aggTargetColIndex = idx;
@@ -225,7 +214,7 @@ class _DataGridGroupingsViewState
                 ],
 
                 const Gap(12),
-                material.VerticalDivider(
+                QueryaDivider.vertical(
                   width: 1,
                   thickness: 1,
                   indent: 8,
@@ -237,18 +226,14 @@ class _DataGridGroupingsViewState
                 // Sort Selector
                 const Text('Sort:').small().semiBold(),
                 const Gap(6),
-                material.DropdownButton<GroupSortBy>(
+                QueryaDropdown<GroupSortBy>(
+                  compact: true,
                   value: _sortBy,
-                  isDense: true,
-                  underline: const material.SizedBox.shrink(),
-                  style: TextStyle(fontSize: 12, color: cs.foreground),
-                  items: GroupSortBy.values.map((s) {
-                    return material.DropdownMenuItem<GroupSortBy>(
-                      value: s,
-                      child: Text(s.label),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
+                  items: [
+                    for (final t in GroupSortBy.values)
+                      QueryaDropdownItem(value: t, label: t.label),
+                  ],
+                  onSelected: (val) {
                     if (val != null) {
                       setState(() {
                         _sortBy = val;
@@ -257,16 +242,14 @@ class _DataGridGroupingsViewState
                     }
                   },
                 ),
-                material.IconButton(
+                QueryaIconButton(
+                  size: QueryaControlSize.sm,
                   icon: material.Icon(
                     _sortAscending
                         ? material.Icons.arrow_upward_rounded
                         : material.Icons.arrow_downward_rounded,
                     size: 14,
                   ),
-                  padding: material.EdgeInsets.zero,
-                  constraints: const material.BoxConstraints(minWidth: 24, minHeight: 24),
-                  color: cs.mutedForeground,
                   onPressed: () => setState(() {
                     _sortAscending = !_sortAscending;
                     _recomputeGroups();
@@ -276,11 +259,9 @@ class _DataGridGroupingsViewState
                 const Gap(8),
                 material.Tooltip(
                   message: 'Copy Pivot CSV to Clipboard',
-                  child: material.IconButton(
+                  child: QueryaIconButton(
+                    size: QueryaControlSize.sm,
                     icon: const material.Icon(material.Icons.copy_rounded, size: 14),
-                    padding: material.EdgeInsets.zero,
-                    constraints: const material.BoxConstraints(minWidth: 24, minHeight: 24),
-                    color: cs.mutedForeground,
                     onPressed: _exportPivot,
                   ),
                 ),
@@ -293,7 +274,7 @@ class _DataGridGroupingsViewState
         material.Expanded(
           child: material.ListView.separated(
             itemCount: groups.length,
-            separatorBuilder: (_, __) => material.Divider(
+            separatorBuilder: (_, __) => QueryaDivider(
               height: 1,
               color: cs.border.withValues(alpha: 0.2),
             ),

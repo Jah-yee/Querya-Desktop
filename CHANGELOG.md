@@ -10,7 +10,159 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Planned
 
 - Planned 0.5.0 — live Marketplace download and install
+- MCP v2: MongoDB and Redis, extension drivers, Streamable HTTP, writes with confirmation
+- Server-side statement timeouts for editor and browse sessions
 - High-refresh Linux compositor investigations (#980)
+
+## [0.4.19] - 2026-10-11
+
+The NoSQL workbench, SSH tunnelling and Production safeguards, the ER diagram (layout, groups, notes, saved views, DBML and PDF export), charts and plans, the read-only MCP server, a rebuilt SQL workspace toolbar and run modes, one control scale and button family across the UI kit, a first round of leaving `shadcn_flutter`, security fixes (PostgreSQL TLS, the extension sandbox), and a round of session and connection correctness fixes.
+
+### Added
+
+**MCP server**
+
+- **MCP server (#1133)** — Querya serves shared PostgreSQL / MySQL / SQLite connections to AI clients (Claude Desktop, Cursor, VS Code, Gemini CLI, ...): `list_connections`, `list_tables`, `describe_table`, `sample_rows`, `run_query`, `explain_query` and a `schema://` resource. Read-only in three layers (SQL guard, read-only session, per-connection opt-in), credentials never sent to the model, `querya-mcp` stdio bridge, Preferences → MCP Server with copy-config buttons and an activity log — see docs/mcp-server.md.
+- **Own session and server-side timeout (#1217)** — MCP queries run on their own read-only session with a server-side statement timeout, not on the user's.
+- **Refusal rule ids (#1231)** — every refused query records the guard rule that refused it; the activity list names it; the security suite covers values and comments placed where a shape check misses them.
+- **Views (#1268)** — `list_tables`, `describe_table` and `sample_rows` cover views and PostgreSQL materialized views (`kind: "view"`).
+- **MongoDB tools (#1271)** — read-only `list_collections`, `find_documents` and `count_documents` for MongoDB connections.
+
+**Connections**
+
+- **Move to folder (#1050)** — *Move to folder* in the connection's context menu, and dragging a connection into a folder or onto the list to take it out.
+
+**NoSQL**
+
+- **MongoDB document viewer (#1026)** — Table Grid / Tree / JSON modes.
+- **MongoDB aggregation pipeline builder and runner (#1027)**, **visual index manager (#1028)**, **MQL query and shell console (#1030)**.
+- **Collection subtree in the connections tree** for MongoDB, **folder tree of Redis keys by delimiter**.
+- **Redis CLI terminal console (#1029)**.
+- **One-click return to the active Mongo collection / Redis key (#1024)**.
+
+**Security**
+
+- **SSH tunnelling and Bastion Host support (#1031)** — password, key and passphrase auth, host key checking, loopback port forwarding, "Test SSH connection".
+- **Environment tagging and Safe Mode** for Production connections.
+- **Masking of sensitive data in result grids** and a **local audit trail of executed mutations**.
+
+**Results, charts and plans**
+
+- **Quick Charts tab** — bar, pie, line with a time axis for date X columns (#1159), SVG export; aggregation by X with Top N and "Other" (#1158), themed tooltips, number formatting, rotated labels, titles (#1161).
+- **Light palette by default for chart and ERD SVG and PNG, with a setting for the current theme (#1163).**
+- **Explain plan trees (#1164)** for PostgreSQL, MySQL and SQLite with the most expensive node; a click on a node shows every field the driver reported.
+- **Sparklines** for connections and transactions or queries per second on Overview dashboards (#1165).
+- **Elapsed time** badge next to the row count in the results toolbar (#1150).
+
+**ER diagram**
+
+- **ER diagram viewer** with layered layout, orthogonal edges around tables, draggable cards, crow's foot ends, nullability and edge tooltips (#1145, #1156).
+- **Fit to screen, zoom controls, table search, click to select (#1154)**; keys-only density, collapse and hide per table, card menu (#1155); Export menu and labelled states (#1157).
+- **Data | Relations view in the table browser (#1149)** and the palette commands `Table: Show relations` / `Table: Show data`.
+- **The diagram reads the catalog on its own read-only session (#1218)**; the PostgreSQL catalog comes from `pg_catalog` (#1167).
+- **The diagram keeps its layout (#1275)** — card positions, collapsed and hidden tables, detail level, zoom and pan, per connection and database, in Querya's own storage.
+- **Cards sized to their content, header colour by schema or per table (#1276)**; **Names / Keys / All detail levels on the toolbar (#1278)**.
+- **Column markers (#1277)** — `?` for nullable, `UQ`, `AI` (identity or sequence), `DF` (default) after the type, with the default in the tooltip.
+- **Comments and enums (#1279, #1280)** — table and column comments from the database as notes; enum values and a domain's base type, from PostgreSQL and MySQL.
+- **Relationship kinds (#1281)** — one-to-one ends drawn as a bar, `1` / `*` labels, a click on an edge picks the relationship, many-to-many link tables marked `M:N`.
+- **Table groups (#1282)** — Shift / Ctrl / Cmd + click, then *Group*: a named, coloured frame with a note that follows its cards; its title drags the group; a frame per schema when the diagram spans several; Auto layout keeps a group together.
+- **Sticky notes (#1283)** — Markdown-light text, colour, resize, optionally attached to a table so it moves with it.
+- **Saved views (#1284)** — name the set of shown tables, groups, notes and viewport; switch from the toolbar; *All tables* is always there.
+- **DBML and PDF export (#1285)** — DBML (file or clipboard) with keys, defaults, enums, refs, groups and notes; one-page PDF in A4 or A3.
+- **New table groups gather their tables** when a frame would cover other cards (#1282); Auto layout keeps a group together.
+
+**SQL workspace**
+
+- **Run modes (#1148)** — Ctrl/Cmd+Enter runs the statement at the cursor or the selection; F5 / Ctrl/Cmd+Shift+Enter run the script one statement at a time, stopping at the first error; Ctrl/Cmd+H opens history.
+- **One-row toolbar (#1150)** — Run with a menu, Cancel while running, Explain, History / Format / Open / Save, a database badge, a transaction badge with Commit / Rollback only while a transaction is open, and a Session menu (autocommit, statement timeout, Begin, Preferences). Diagram sits on the tab strip. Labels hide on a narrow window.
+- **Format SQL on Shift+Alt+F**, **Preferences on Ctrl/Cmd+,** on Linux and Windows too.
+
+**UI kit**
+
+- **One control scale and one button family (#1331–#1335, #1337, #1338)** — heights `sm` 28 / `md` 32 / `lg` 36 shared by buttons, dropdowns, search fields and tab strips, set once per toolbar with `QueryaControlScope`. `QueryaButton` (primary / secondary / ghost / destructive and icon-only) replaces every shadcn button in the app; `QueryaMenuButton`, `QueryaSplitButton` (Execute), `QueryaButtonGroup` and `QueryaDialogActions` (Cancel, secondary, one main action; Esc cancels) build the compositions. Hover, pressed, keyboard-only focus ring, disabled and loading states are the same everywhere; the standard is in `docs/ui-kit.md`.
+- **Own toast, own text styles (#1465)** — toasts draw in the app's overlay and stack; `small()` / `muted()` / `semiBold()` and the other text modifiers are the kit's, not shadcn's. The UI kit in `lib/shared` no longer imports `shadcn_flutter` except through the `widgets.dart` barrel (#1365).
+
+**Platform, packaging and tooling**
+
+- **Portable mode out of the box** through a `.portable` marker (#1056).
+- **Standalone Flathub manifest and bundle icon (#1060)** in `packaging/linux/flatpak/`.
+- **macOS .dmg** in the release pipeline; **AppStream metainfo** for Flatpak; **signed APT and DNF repositories** from the release workflow.
+- **Team connection profile export / import.**
+- **Extension test harness and CLI runner** (`querya-ext-tester`), published with releases; CI recipes for extension authors.
+- **Dev Container** and **CI performance benchmarks** (grid and real-app scenarios, including ERD, charts and multi-tab SQL).
+- **Querya UI Kit** (`lib/shared/widgets`) with guard tests and a guide; desktop popovers for dropdowns and menus (#1021).
+
+### Changed
+
+- **SQL workspaces and table browsers unified** into `GenericSqlWorkspace` and `GenericTableView` (#1032).
+- **Shortcuts reference matches the bindings (#1148)** — F5 is the script run and the table refresh, not "Refresh schema"; Ctrl/Cmd+Enter outside the editor runs the statement at the cursor, as inside it.
+- **Removing a folder keeps its connections (#1267)** — they stay in the list without a folder. Before, they were deleted with it by a foreign key cascade, silently.
+- **A URI connection without a name is named after the URI's host (#1257)** — `Redis: cache.example.com:6380`, `MongoDB: c0.example.net`; Redis and MongoDB used the form's default `localhost`.
+- **Architecture** — `core/` and `shared/` no longer import `features/` or `app/` (#1239); the app installs the hooks `core/` needs in `app/app_wiring.dart`. A guard test keeps it so.
+- **Lint** — `unawaited_futures`, `cancel_subscriptions`, `close_sinks` and `avoid_void_async` are on (#1241).
+- **Motion** — Redis CLI auto-scroll and key folder chevrons use `QueryaMotion` tokens (#1240).
+- **Flutter is pinned to 3.47.1**, the version the 120 Hz Linux engine is built for.
+- **Dialog footers** — About, Driver manager, Preferences, the connection forms and the small name dialogs use `QueryaDialogActions`: Cancel / Close is ghost, Test connection sits between Cancel and the main action, spacing is 8 px, one divider (#1441).
+- **One height per toolbar row** — the SQL, ERD, chart and results toolbars set one control size, and an icon button is the same control as every other button (#1439, #1440).
+- **ERD view split into parts (#1362)** — layout, routing and geometry moved to `core/erd` (`ErdLayoutEngine`, unit-tested without widgets); cards, relation painter, notes, groups, export data, the export flows (`ErdExporter`: Mermaid, DBML, SVG, PNG, PDF), menus and status bodies are their own files.
+- **SQL workspace toolbar, connection forms and the editor's highlighter lifecycle** are separate, tested units (`SqlWorkspaceToolbar`, form sections for network, credentials and SSL, a highlight controller managed per session).
+- **`QueryaApp.build` has no side effects** — the async loads and one-time work moved out of it.
+
+### Fixed
+
+- **Pooled sessions (#1212)** — a lease released after an interrupt no longer touches the entry that replaced it (#1213); one connect attempt per pooled connection and one reconnect per dropped slot (#1214); closing a table, sequence, routine, browser or stats view releases its lease without interrupting the shared session (#1215, #1237).
+- **Timeouts (#1216)** — statements on a session run one at a time, so a statement waiting in line no longer cancels the one running; a server-side cancel (57014) keeps the session, only a bare `TimeoutException` closes it; MySQL no longer closes the session after 10 s of waiting. "Query timed out after 30 s" and "Waited 120 s for the connection" are different errors.
+- **ERD** — SQLite diagram was always empty (#1134); long types fit the card and PK + FK are both shown (#1152); PNG capture is clean and size-capped (#1153); large diagrams fit and the search closes before the pick (#1154); Relations finds MySQL and current-schema PostgreSQL tables (#1250).
+- **ERD interface review** — the current-theme PNG leaves out a picked relation and group marks; Fit includes sticky notes placed away from the cards; notes without a colour use the export palette's outline; keys work after touching a note.
+- **Results** — the Grid, Groupings and Charts tabs no longer clip or overlap (#1272).
+- **PostgreSQL** — binary types without a driver codec no longer throw `FormatException` (#1273).
+- **Connections and secrets (#1302–#1311, #1314, #1315)** — Test Connection of an edited connection uses the saved password and SSH secrets; a saved password can be removed on edit; SSH secrets go with a disabled tunnel; a failed save restores them all; an unreadable keyring is reported as such, not as a wrong password; URL import accepts raw `@`, `#`, `?` in passwords, Windows SQLite paths and IPv6 hosts.
+- **Test Connection says why it fails (#1308)** — Redis, MySQL and MongoDB show the reason, as PostgreSQL does; reasons stay on screen for 20 s.
+- **Redis** — connect has a 10 s timeout, a failed `AUTH` closes its socket, concurrent connects share one attempt (#1307).
+- **Pools and reconnects (#1306, #1313)** — a failed reconnect gives its lease back, so the slot can be reused; MySQL `forceClose` during connect releases the SSH tunnel and does not revive the session.
+- **SSH** — host key fingerprints use the OpenSSH `SHA256:<base64>` form, and saved hex pins still match (#1304); tunnel failures name the bastion and are not reported as database authentication failures (#1305).
+- **Errors (#1310, #1316)** — a missing column is not reported as a missing table; a full pool, a lost session and TLS failures each have their own message and hint.
+- **MongoDB (#1309)** — connection strings with several hosts (replica sets) import and connect; through an SSH tunnel they connect directly to the tunnel endpoint, and `mongodb+srv://` with a tunnel gets an explanation.
+- **Editing a connection of a missing extension or driver** explains why nothing opens, and never opens another driver's form (#1314).
+- **Charts** — pie legend, distinct colours and donut size (#1160).
+- **SQLite** — columns with the same name stay separate in query results (#1144).
+- **Updater and Windows** — the Linux bundle replace preserves `QueryaData` and `.portable` (#1055); file associations and registry writes are optional (#1054).
+- **Packaging** — desktop and icon caches are refreshed after install and removal.
+- **Run on an empty editor says so (#1478)** — *Nothing to run* instead of silence; the status bar follows the active tab and no longer shows another tab's rows and time or repeats the row count (#1479).
+- **Removing a connection** asks first and leaves its workspace; *Remove connection* is a destructive menu item.
+- **SQL workspace** — the status bar no longer keeps *Running query…* after a failed run; a long query error scrolls instead of overflowing the results pane; a code editor that fills its space starts its text at the top.
+- **Editor** — no duplicate `onChanged`, no false cursor jumps, default highlighting on (#1430); MongoDB documents in JSON mode are highlighted (#1432).
+- **Data grid** — the WHERE clause of an edit uses the column's real type and tells the string `'NULL'` from SQL `NULL`; the value panel no longer validates twice (#1431).
+- **UI** — export and copy menu buttons have one chevron; the tab strip draws its focus ring only for keyboard focus (#1438); dropdown menus are at least as wide as their trigger (#1444); form rules use the theme's border colour, not black, in the light theme (#1443); the new-connection wizard search is the standard search field (#1442).
+- **Look and feel** — a disabled primary button is a grey chip with a readable label; the SQL toolbar badge reads *Auto-commit* / *Manual commit* before the first run; below 1100 px the ERD toolbar shows *Note*, *Auto layout* and the group buttons as icons so *Export* does not wrap alone; Preferences MCP buttons are the same size as the rest.
+- **Startup recovery** — when the local database cannot be opened, the app shows a recovery screen instead of failing silently.
+- **Updater (Windows)** — an in-place update mirrors the new bundle, so obsolete DLLs and assets are removed.
+- **SSH** — a failed tunnel closes its sockets and the jump socket, a missing key file is reported, concurrent callers share one dial, and a local forwarder that survived a failed keep-alive is closed; a dropped socket marks the session closed (`isConnected`).
+- **PostgreSQL** — the SSL mode dropdown no longer overflows in the form.
+- **Packaging** — `bubblewrap` is a recommended package of the Linux `.deb` and `.rpm` (extension sandbox).
+- **Accessibility** — tabs close from the keyboard (Delete / Backspace) with a 24 px close target; the dropdown trigger and items are exposed to screen readers; the selected row stays visible in the Command Palette and Quick Switcher; icon buttons expose their focus ring and state.
+
+### Security
+
+- **PostgreSQL TLS** — the SSL mode is a setting of the connection; with a root CA the connection verifies the server (`verify-full`) instead of encrypting without checking.
+- **Extension sandbox** — the host's credentials are no longer reachable from inside the bubblewrap and Seatbelt sandboxes.
+
+### Performance
+
+- **ERD** — rasterized router obstacles and one route per frame while dragging (#1168); route search in flat generation-stamped arrays; hover rebuilds only the cards it changes (#1169).
+- **Charts** — memoized chart points and LTTB downsampling (#1170).
+- **SQL workspace** — rows show before the table schema lookup; schema lookups cached per table (#1171); the transaction state is probed only when unknown (#1172).
+- **Result grid** — filtering runs in a background isolate and is debounced (#1347); the context menu and tooltips are handled once for the grid, not per cell (#1346); drag selection and column-width sampling no longer allocate per pointer move.
+- **Editor** — no full-string comparisons or redundant listeners on every keystroke (#1352); linear statement splitting and line counting (#1350); no highlight flicker on documents over 8 KB (#1351); highlighters sync once when a theme transition ends.
+- **Drivers** — `CompactResultDataset` in the SQL drivers avoids three copies of every result (#1355); MySQL interns repeated strings; SQLite converts rows once.
+- **UI** — the dialog backdrop no longer animates a blur sigma every frame (#1341); the tab strip drops speculative `IntrinsicWidth` layout (#1342); the Command Palette and Quick Switcher do not search twice (#1343); the SDUI tree caches its visible rows; driver icons do not block the build on `File.existsSync`; the theme's token colour hash is cached and JSONC strings are scanned once.
+
+### Testing and CI
+
+- **E2E suite** (`test/e2e`, run in CI and gating `release`): connection lifecycle and forms of every type, folders, SSH bastion tunnel, credential scrubbing, SQL workspaces and export, command palette, extensions sandbox, Redis CLI and key tree, Mongo viewer, index manager, aggregations, CRUD, theme import, shutdown.
+- **Test sections** run as parallel jobs; self-hosted runners; a MySQL server and bubblewrap for the live database and sandbox tests.
+- **Guards** — UI kit usage, and `core/` and `shared/` free of `features/` and `app/` imports; `lib/shared` must not import `shadcn_flutter` (a ratchet); no raw `Divider`, no shadcn or raw Material buttons, no `*Button` class outside the kit (two allowed) and no literal tooltip delay (`test/guards/`).
+- **Benchmarks** compare build time over interleaved runs and cover ERD, charts and multi-tab SQL scenarios.
 
 ## [0.4.18] - 2026-09-28
 

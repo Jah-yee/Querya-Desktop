@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
 
 import 'querya_editor_theme.dart';
 import 'querya_semantic_palette.dart';
@@ -13,9 +14,15 @@ class QueryaThemeScope extends InheritedWidget {
     super.key,
     required this.data,
     required super.child,
+    this.transitioning = false,
   });
 
   final QueryaTheme data;
+
+  /// Whether [data] is an intermediate frame of a theme animation. Consumers
+  /// that are costly to update (syntax highlighters) can wait for the final
+  /// frame instead of following every interpolated colour (#1358).
+  final bool transitioning;
 
   static QueryaTheme of(BuildContext context) {
     final scope =
@@ -28,8 +35,18 @@ class QueryaThemeScope extends InheritedWidget {
     return context.dependOnInheritedWidgetOfExactType<QueryaThemeScope>()?.data;
   }
 
+  /// Whether the theme is mid-animation. Registers a dependency, so the caller
+  /// is rebuilt when the animation ends.
+  static bool isTransitioning(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<QueryaThemeScope>()
+            ?.transitioning ??
+        false;
+  }
+
   @override
-  bool updateShouldNotify(QueryaThemeScope oldWidget) => data != oldWidget.data;
+  bool updateShouldNotify(QueryaThemeScope oldWidget) =>
+      data != oldWidget.data || transitioning != oldWidget.transitioning;
 }
 
 /// Convenient access to [QueryaTheme] tokens and [Theme] / [ColorScheme] from [BuildContext].
@@ -43,6 +60,16 @@ extension QueryaThemeContext on BuildContext {
   QueryaTheme get queryaTheme => QueryaThemeScope.of(this);
 
   QueryaWorkbenchTheme get workbench => queryaTheme.workbench;
+
+  /// The workbench tokens of the nearest [QueryaThemeScope], or the defaults
+  /// for the ambient brightness when there is none (a widget under a bare app,
+  /// as in tests). Kit controls use this so they never assert on a missing
+  /// scope.
+  QueryaWorkbenchTheme get workbenchOrDefault =>
+      QueryaThemeScope.maybeOf(this)?.workbench ??
+      (colors.brightness == Brightness.light
+          ? QueryaWorkbenchTheme.lightDefault
+          : QueryaWorkbenchTheme.darkDefault);
 
   QueryaEditorTheme get editorTheme => queryaTheme.editor;
 

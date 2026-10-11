@@ -6,6 +6,7 @@ import 'package:querya_desktop/core/editor/querya_code_editor.dart';
 import 'package:querya_desktop/core/editor/querya_code_language.dart';
 import 'package:querya_desktop/features/workspace/xml_html_formatter.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Opens a rich modal inspector for viewing and editing large text, JSON, XML, or BLOB values.
 ///
@@ -295,75 +296,58 @@ class _GridCellInspectorDialogState
                     ).semiBold(),
                   ),
                   if (_isJson()) ...[
-                    GhostButton(
-                      density: ButtonDensity.compact,
+                    QueryaButton.ghost(
+                      label: 'Format JSON',
+                      icon: material.Icons.format_align_left_rounded,
                       onPressed: _formatJson,
-                      leading: const material.Icon(
-                        material.Icons.format_align_left_rounded,
-                        size: 14,
-                      ),
-                      child: const Text('Format JSON'),
+                      size: QueryaControlSize.sm,
                     ),
                     const Gap(6),
-                    GhostButton(
-                      density: ButtonDensity.compact,
+                    QueryaButton.ghost(
+                      label: 'Minify',
+                      icon: material.Icons.compress_rounded,
                       onPressed: _minifyJson,
-                      leading: const material.Icon(
-                        material.Icons.compress_rounded,
-                        size: 14,
-                      ),
-                      child: const Text('Minify'),
+                      size: QueryaControlSize.sm,
                     ),
                     const Gap(6),
                   ],
                   if (_isXml()) ...[
-                    GhostButton(
-                      density: ButtonDensity.compact,
+                    QueryaButton.ghost(
+                      label: 'Format XML',
+                      icon: material.Icons.code_rounded,
                       onPressed: _formatXml,
-                      leading: const material.Icon(
-                        material.Icons.code_rounded,
-                        size: 14,
-                      ),
-                      child: const Text('Format XML'),
+                      size: QueryaControlSize.sm,
                     ),
                     const Gap(6),
                   ],
-                  IconButton.ghost(
-                    density: ButtonDensity.compact,
+                  QueryaButton.icon(
+                    icon: material.Icons.close_rounded,
+                    tooltip: 'Close',
+                    size: QueryaControlSize.sm,
                     onPressed: () => material.Navigator.of(context).pop(null),
-                    icon: const material.Icon(
-                      material.Icons.close_rounded,
-                      size: 16,
-                    ),
                   ),
                   if (_isHex()) ...[
-                    GhostButton(
-                      density: ButtonDensity.compact,
+                    QueryaButton.ghost(
+                      label: 'Format Hex',
+                      icon: material.Icons.grid_view_rounded,
                       onPressed: _formatHex,
-                      leading: const material.Icon(
-                        material.Icons.grid_view_rounded,
-                        size: 14,
-                      ),
-                      child: const Text('Format Hex'),
+                      size: QueryaControlSize.sm,
                     ),
                     const Gap(6),
                   ],
-                  GhostButton(
-                    density: ButtonDensity.compact,
-                    onPressed: () => setState(() => _wordWrap = !_wordWrap),
-                    leading: material.Icon(
-                      _wordWrap
+                  QueryaButton.ghost(
+                    label: _wordWrap ? 'Wrap' : 'No Wrap',
+                    icon: _wordWrap
                           ? material.Icons.wrap_text_rounded
                           : material.Icons.notes_rounded,
-                      size: 14,
-                    ),
-                    child: Text(_wordWrap ? 'Wrap' : 'No Wrap'),
+                    onPressed: () => setState(() => _wordWrap = !_wordWrap),
+                    size: QueryaControlSize.sm,
                   ),
                   const Gap(6),
-                  GhostButton(
-                    density: ButtonDensity.compact,
+                  QueryaButton.ghost(
+                    label: 'Set NULL',
                     onPressed: _isNull ? null : _setNull,
-                    child: const Text('Set NULL'),
+                    size: QueryaControlSize.sm,
                   ),
                 ],
               ),
@@ -389,11 +373,11 @@ class _GridCellInspectorDialogState
                             children: [
                               const Text('Value is NULL').muted().semiBold(),
                               const Gap(8),
-                              GhostButton(
-                                density: ButtonDensity.compact,
+                              QueryaButton.ghost(
+                                label: 'Enter text value',
                                 onPressed: () =>
                                     setState(() => _isNull = false),
-                                child: const Text('Enter text value'),
+                                size: QueryaControlSize.sm,
                               ),
                             ],
                           ),
@@ -438,8 +422,9 @@ class _GridCellInspectorDialogState
                 children: [
                   material.Row(
                     children: [
-                      GhostButton(
-                        density: ButtonDensity.compact,
+                      QueryaButton.ghost(
+                        label: 'Copy',
+                        icon: material.Icons.copy_rounded,
                         onPressed: _savingToDb
                             ? null
                             : () {
@@ -449,11 +434,7 @@ class _GridCellInspectorDialogState
                                           _isNull ? 'NULL' : _controller.text),
                                 );
                               },
-                        leading: const material.Icon(
-                          material.Icons.copy_rounded,
-                          size: 14,
-                        ),
-                        child: const Text('Copy'),
+                        size: QueryaControlSize.sm,
                       ),
                       const Gap(12),
                       if (!_isNull)
@@ -475,42 +456,31 @@ class _GridCellInspectorDialogState
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      OutlineButton(
-                        density: ButtonDensity.compact,
+                      QueryaButton.ghost(
+                        label: 'Cancel',
                         onPressed: _savingToDb
                             ? null
                             : () => material.Navigator.of(context).pop(null),
-                        child: const Text('Cancel'),
+                        size: QueryaControlSize.sm,
                       ),
                       if (widget.onSaveToDatabase != null) ...[
-                        PrimaryButton(
-                          density: ButtonDensity.compact,
+                        QueryaButton.primary(
+                          label: _savingToDb ? 'Saving…' : 'Save to DB',
+                          icon: material.Icons.save_rounded,
+                          loading: _savingToDb,
                           onPressed: _savingToDb ? null : _saveToDatabase,
-                          leading: _savingToDb
-                              ? material.SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: material.CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: cs.primaryForeground,
-                                  ),
-                                )
-                              : const material.Icon(
-                                  material.Icons.save_rounded,
-                                  size: 14,
-                                ),
-                          child: Text(_savingToDb ? 'Saving…' : 'Save to DB'),
+                          size: QueryaControlSize.sm,
                         ),
-                        OutlineButton(
-                          density: ButtonDensity.compact,
+                        QueryaButton.secondary(
+                          label: 'Apply',
                           onPressed: _savingToDb ? null : _apply,
-                          child: const Text('Apply'),
+                          size: QueryaControlSize.sm,
                         ),
                       ] else
-                        PrimaryButton(
-                          density: ButtonDensity.compact,
+                        QueryaButton.primary(
+                          label: 'Apply',
                           onPressed: _apply,
-                          child: const Text('Apply'),
+                          size: QueryaControlSize.sm,
                         ),
                     ],
                   ),

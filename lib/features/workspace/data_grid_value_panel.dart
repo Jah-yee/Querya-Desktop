@@ -4,7 +4,12 @@ import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
 import 'package:querya_desktop/core/editor/querya_code_editor.dart';
 import 'package:querya_desktop/core/editor/querya_code_language.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
+import 'package:querya_desktop/shared/widgets/querya_dropdown.dart';
+import 'package:querya_desktop/shared/widgets/querya_icon_button.dart';
+import 'package:querya_desktop/shared/widgets/querya_text.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 import 'xml_html_formatter.dart';
 
@@ -46,6 +51,7 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
   bool _wordWrap = true;
   bool _preserveCompact = false;
   Timer? _debounceTimer;
+  bool _isProgrammaticUpdate = false;
 
   static bool _isCompact(String input) {
     final trimmed = input.trim();
@@ -81,7 +87,19 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
     _validateContent();
   }
 
+  void _setControllerTextProgrammatically(String text) {
+    if (_controller.text == text) return;
+    _isProgrammaticUpdate = true;
+    try {
+      _controller.text = text;
+    } finally {
+      _isProgrammaticUpdate = false;
+      _debounceTimer?.cancel();
+    }
+  }
+
   void _onTextChanged() {
+    if (_isProgrammaticUpdate) return;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 150), () {
       if (mounted) {
@@ -94,10 +112,9 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
   void didUpdateWidget(covariant DataGridValuePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.cellValue != widget.cellValue) {
-      _debounceTimer?.cancel();
       _initialDetectedLanguage = _detectLanguage(widget.cellValue);
       _preserveCompact = _isCompact(widget.cellValue);
-      _controller.text = _formatInitialValue(widget.cellValue);
+      _setControllerTextProgrammatically(_formatInitialValue(widget.cellValue));
       _validateContent();
     }
   }
@@ -185,11 +202,13 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
       try {
         final parsed = jsonDecode(_controller.text);
         final pretty = const JsonEncoder.withIndent('  ').convert(parsed);
-        setState(() => _controller.text = pretty);
+        setState(() => _setControllerTextProgrammatically(pretty));
+        _validateContent();
       } catch (_) {}
     } else if (lang == ValuePanelLanguage.xml) {
       final pretty = XmlHtmlFormatter.format(_controller.text);
-      setState(() => _controller.text = pretty);
+      setState(() => _setControllerTextProgrammatically(pretty));
+      _validateContent();
     }
   }
 
@@ -200,16 +219,18 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
         final parsed = jsonDecode(_controller.text);
         final compact = jsonEncode(parsed);
         setState(() {
-          _controller.text = compact;
+          _setControllerTextProgrammatically(compact);
           _preserveCompact = true;
         });
+        _validateContent();
       } catch (_) {}
     } else if (lang == ValuePanelLanguage.xml) {
       final compact = XmlHtmlFormatter.minify(_controller.text);
       setState(() {
-        _controller.text = compact;
+        _setControllerTextProgrammatically(compact);
         _preserveCompact = true;
       });
+      _validateContent();
     }
   }
 
@@ -297,11 +318,9 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
                     overflow: material.TextOverflow.ellipsis,
                   ).small().semiBold(),
                 ),
-                material.IconButton(
+                QueryaIconButton(
+                  size: QueryaControlSize.sm,
                   icon: const material.Icon(material.Icons.close, size: 14),
-                  padding: material.EdgeInsets.zero,
-                  constraints: const material.BoxConstraints(minWidth: 24, minHeight: 24),
-                  color: cs.mutedForeground,
                   onPressed: widget.onClose,
                 ),
               ],
@@ -315,39 +334,22 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
             child: material.Row(
               children: [
                 // Language Dropdown / Pill
-                material.DropdownButton<ValuePanelLanguage>(
+                QueryaDropdown<ValuePanelLanguage>(
+                  compact: true,
                   value: _selectedLanguage,
-                  isDense: true,
-                  underline: const material.SizedBox(),
-                  icon: const material.Icon(material.Icons.arrow_drop_down, size: 16),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: cs.foreground,
-                    fontWeight: FontWeight.w600,
-                  ),
                   items: const [
-                    material.DropdownMenuItem(
-                      value: ValuePanelLanguage.auto,
-                      child: Text('Auto'),
-                    ),
-                    material.DropdownMenuItem(
-                      value: ValuePanelLanguage.json,
-                      child: Text('JSON'),
-                    ),
-                    material.DropdownMenuItem(
-                      value: ValuePanelLanguage.xml,
-                      child: Text('XML/HTML'),
-                    ),
-                    material.DropdownMenuItem(
-                      value: ValuePanelLanguage.sql,
-                      child: Text('SQL'),
-                    ),
-                    material.DropdownMenuItem(
-                      value: ValuePanelLanguage.text,
-                      child: Text('Plain Text'),
-                    ),
+                    QueryaDropdownItem(
+                        value: ValuePanelLanguage.auto, label: 'Auto'),
+                    QueryaDropdownItem(
+                        value: ValuePanelLanguage.json, label: 'JSON'),
+                    QueryaDropdownItem(
+                        value: ValuePanelLanguage.xml, label: 'XML/HTML'),
+                    QueryaDropdownItem(
+                        value: ValuePanelLanguage.sql, label: 'SQL'),
+                    QueryaDropdownItem(
+                        value: ValuePanelLanguage.text, label: 'Plain Text'),
                   ],
-                  onChanged: (val) {
+                  onSelected: (val) {
                     if (val != null) {
                       setState(() => _selectedLanguage = val);
                       _validateContent();
@@ -356,42 +358,31 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
                 ),
                 const Gap(6),
                 if (activeLang == ValuePanelLanguage.json || activeLang == ValuePanelLanguage.xml) ...[
-                  material.TextButton(
-                    onPressed: _formatCode,
-                    style: material.TextButton.styleFrom(
-                      padding: const material.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      minimumSize: material.Size.zero,
-                      tapTargetSize: material.MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('Format').small(),
-                  ),
+                  QueryaButton.ghost(
+ label: 'Format',
+ size: QueryaControlSize.sm,
+ onPressed: _formatCode,
+ ),
                   const Gap(4),
-                  material.TextButton(
-                    onPressed: _minifyCode,
-                    style: material.TextButton.styleFrom(
-                      padding: const material.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      minimumSize: material.Size.zero,
-                      tapTargetSize: material.MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('Minify').small(),
-                  ),
+                  QueryaButton.ghost(
+ label: 'Minify',
+ size: QueryaControlSize.sm,
+ onPressed: _minifyCode,
+ ),
                 ],
                 const material.Spacer(),
-                material.IconButton(
+                QueryaIconButton(
+                  size: QueryaControlSize.sm,
                   icon: material.Icon(
                     _wordWrap ? material.Icons.wrap_text : material.Icons.notes,
                     size: 14,
                   ),
-                  padding: material.EdgeInsets.zero,
-                  constraints: const material.BoxConstraints(minWidth: 24, minHeight: 24),
-                  color: _wordWrap ? cs.primary : cs.mutedForeground,
+                  isActive: _wordWrap,
                   onPressed: () => setState(() => _wordWrap = !_wordWrap),
                 ),
-                material.IconButton(
+                QueryaIconButton(
+                  size: QueryaControlSize.sm,
                   icon: const material.Icon(material.Icons.copy_rounded, size: 14),
-                  padding: material.EdgeInsets.zero,
-                  constraints: const material.BoxConstraints(minWidth: 24, minHeight: 24),
-                  color: cs.mutedForeground,
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: _controller.text));
                   },
@@ -492,16 +483,11 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
                       ),
                     ),
                   ],
-                  material.ElevatedButton(
-                    onPressed: _validationError != null ? null : _handleUpdateValue,
-                    style: material.ElevatedButton.styleFrom(
-                      backgroundColor: cs.primary,
-                      foregroundColor: cs.primaryForeground,
-                      padding: const material.EdgeInsets.symmetric(vertical: 8),
-                      minimumSize: material.Size.zero,
-                    ),
-                    child: const Text('Update Cell Value').small().bold(),
-                  ),
+                  QueryaButton.primary(
+ label: 'Update Cell Value',
+ size: QueryaControlSize.sm,
+ onPressed: _validationError != null ? null : _handleUpdateValue,
+ ),
                 ],
               ),
             ),

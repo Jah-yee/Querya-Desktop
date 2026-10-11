@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:mongo_dart/mongo_dart.dart';
 
 import '../storage/local_db.dart';
@@ -31,7 +32,20 @@ void _throwIfMongoWriteFailed(
 /// Service for managing MongoDB connections.
 class MongoService {
   MongoService._();
-  static final MongoService instance = MongoService._();
+
+  /// A service a test subclasses to answer without a server.
+  @visibleForTesting
+  MongoService.forTest();
+
+  static final MongoService _real = MongoService._();
+  static MongoService _instance = _real;
+
+  static MongoService get instance => _instance;
+
+  /// Replaces [instance] in tests; null puts the real service back.
+  @visibleForTesting
+  static set instanceForTest(MongoService? service) =>
+      _instance = service ?? _real;
 
   final Map<int, MongoConnection> _connections = {};
 
@@ -78,18 +92,7 @@ class MongoService {
       existing.disconnect(); // fire-and-forget; disconnect is safe
     }
 
-    final connection = MongoConnection(
-      id: id,
-      name: row.name,
-      host: row.host ?? 'localhost',
-      port: row.port ?? 27017,
-      username: row.username,
-      password: row.password,
-      database: row.databaseName,
-      authSource: row.authSource,
-      useSSL: row.useSSL,
-      connectionString: row.connectionString,
-    );
+    final connection = MongoConnection.fromConnectionRow(row);
 
     _connections[connection.id] = connection;
     return connection;
@@ -192,9 +195,22 @@ class MongoService {
       final pipe = pipeline
           .map((stage) => stage.map((k, v) => MapEntry(k, v as Object)))
           .toList();
-      final result = await coll.aggregate(pipe);
-      // aggregate returns a Map, wrap it in a List
-      return [Map<String, dynamic>.from(result)];
+      try {
+        final docs = await coll.aggregateToStream(pipe).toList();
+        return docs.map((d) => Map<String, dynamic>.from(d)).toList();
+      } catch (_) {
+        final result = await coll.aggregate(pipe);
+        if (result['cursor'] is Map &&
+            (result['cursor'] as Map)['firstBatch'] is List) {
+          final batch = (result['cursor'] as Map)['firstBatch'] as List;
+          return batch.map((d) => Map<String, dynamic>.from(d as Map)).toList();
+        }
+        if (result['result'] is List) {
+          final res = result['result'] as List;
+          return res.map((d) => Map<String, dynamic>.from(d as Map)).toList();
+        }
+        return [Map<String, dynamic>.from(result)];
+      }
     });
   }
 
@@ -322,6 +338,88 @@ class MongoService {
       final coll = db.collection(collection);
       final indexes = await coll.getIndexes();
       return indexes.cast<Map<String, dynamic>>();
+    });
+  }
+
+  /// Returns index information merged with disk sizes from collStats.
+  Future<List<Map<String, dynamic>>> getIndexesWithStats(
+    MongoConnection connection,
+    String database,
+    String collection,
+  ) async {
+    return _withDb(connection, database, (db) async {
+      final coll = db.collection(collection);
+      final indexes = await coll.getIndexes();
+      final list =
+          indexes.map((idx) => Map<String, dynamic>.from(idx)).toList();
+
+      try {
+        final stats =
+            await db.runCommand(<String, Object>{'collStats': collection});
+        final indexSizes = stats['indexSizes'] as Map?;
+        if (indexSizes != null) {
+          for (final idx in list) {
+            final name = idx['name']?.toString();
+            if (name != null && indexSizes.containsKey(name)) {
+              idx['size'] = indexSizes[name];
+            }
+          }
+        }
+      } catch (_) {
+        // collStats may not be supported on some restricted roles/DBs; indexes list still returned
+      }
+
+      return list;
+    });
+  }
+
+  /// Creates a new index on [collection].
+  Future<Map<String, dynamic>> createIndex(
+    MongoConnection connection,
+    String database,
+    String collection, {
+    required Map<String, dynamic> keys,
+    String? name,
+    bool unique = false,
+    bool sparse = false,
+    int? expireAfterSeconds,
+  }) async {
+    if (keys.isEmpty) {
+      throw ArgumentError('Index keys cannot be empty');
+    }
+    return _withDb(connection, database, (db) async {
+      final generatedName = name ??
+          keys.entries.map((e) => '${e.key}_${e.value}').join('_');
+      final indexSpec = <String, Object>{
+        'key': keys,
+        'name': generatedName,
+        if (unique) 'unique': true,
+        if (sparse) 'sparse': true,
+        if (expireAfterSeconds != null)
+          'expireAfterSeconds': expireAfterSeconds,
+      };
+
+      final cmd = <String, Object>{
+        'createIndexes': collection,
+        'indexes': [indexSpec],
+      };
+      return db.runCommand(cmd);
+    });
+  }
+
+  /// Drops an index by [indexName]. Prevents dropping the primary index `_id_`.
+  Future<Map<String, dynamic>> dropIndex(
+    MongoConnection connection,
+    String database,
+    String collection,
+    String indexName,
+  ) async {
+    if (indexName == '_id_' || indexName == '_id') {
+      throw ArgumentError('Cannot drop the primary index _id_');
+    }
+    return _withDb(connection, database, (db) async {
+      final coll = db.collection(collection);
+      return coll.dropIndexes(indexName);
     });
   }
 

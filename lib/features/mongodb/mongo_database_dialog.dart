@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows dialog to create a new MongoDB database.
 Future<String?> showCreateMongoDBDialog(material.BuildContext context) async {
@@ -70,7 +71,7 @@ class _CreateMongoDBDialogContentState
               ],
             ),
           ),
-          const material.Divider(height: 1),
+          const QueryaDivider(height: 1),
           material.Padding(
             padding: const material.EdgeInsets.all(24),
             child: material.Column(
@@ -85,26 +86,19 @@ class _CreateMongoDBDialogContentState
               ],
             ),
           ),
-          const material.Divider(height: 1),
-          material.Container(
-            padding: const material.EdgeInsets.symmetric(
-                horizontal: 24, vertical: 16),
-            child: material.Row(
-              mainAxisAlignment: material.MainAxisAlignment.end,
-              children: [
-                GhostButton(
+          ListenableBuilder(
+            listenable: _nameController,
+            builder: (context, __) => QueryaDialogActions(
+              cancel: QueryaButton.ghost(
+                  label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  size: QueryaControlSize.lg,
                 ),
-                const Gap(12),
-                ListenableBuilder(
-                  listenable: _nameController,
-                  builder: (context, __) => PrimaryButton(
+              primary: QueryaButton.primary(
+                    label: 'Create',
                     onPressed: _formValid ? _save : null,
-                    child: const Text('Create'),
+                    size: QueryaControlSize.lg,
                   ),
-                ),
-              ],
             ),
           ),
         ],

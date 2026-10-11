@@ -7,6 +7,7 @@ import 'package:querya_desktop/features/sqlite/sqlite_overview_tab.dart';
 import 'package:querya_desktop/features/sqlite/sqlite_sql_tx_guard.dart';
 import 'package:querya_desktop/features/sqlite/sqlite_sql_workspace.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 class SqliteWorkspaceHome extends material.StatefulWidget {
   const SqliteWorkspaceHome({
@@ -101,15 +102,11 @@ class _SqliteWorkspaceHomeState extends material.State<SqliteWorkspaceHome> {
               if (widget.lastSelectedSqliteObject != null &&
                   widget.onRestoreLastSelectedObject != null) ...[
                 const Gap(12),
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Return to ${widget.lastSelectedSqliteObject!.name}',
+                  icon: material.Icons.table_chart_outlined,
                   onPressed: widget.onRestoreLastSelectedObject,
-                  leading: const material.Icon(
-                    material.Icons.table_chart_outlined,
-                    size: 14,
-                  ),
-                  child: Text(
-                      'Return to ${widget.lastSelectedSqliteObject!.name}'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
               material.Expanded(
@@ -125,7 +122,7 @@ class _SqliteWorkspaceHomeState extends material.State<SqliteWorkspaceHome> {
             ],
           ),
         ),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         Expanded(
           child: QueryaCrossFadeStack(
             index: _tab,

@@ -5,18 +5,22 @@ import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/layout/ui_scale.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/features/connections/driver_manager_dialog.dart';
 import 'package:querya_desktop/core/actions/querya_command_host.dart';
 import 'package:querya_desktop/features/command_palette/command_palette_dialog.dart';
 import 'package:querya_desktop/features/command_palette/quick_switcher_dialog.dart';
 import 'package:querya_desktop/features/settings/preferences_dialog.dart';
+import 'package:querya_desktop/shared/widgets/connection_environment_badge.dart';
 import 'package:querya_desktop/features/extensions/presentation/pages/extension_manager_dialog.dart';
 import 'package:querya_desktop/features/help/about_dialog.dart';
 import 'package:querya_desktop/features/updater/update_available_badge.dart';
 import 'package:querya_desktop/features/updater/update_controller.dart';
 import 'package:querya_desktop/features/updater/update_dialog.dart';
 import 'package:querya_desktop/core/actions/sql_editor_actions.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/querya_icon_button.dart';
+import 'package:querya_desktop/shared/widgets/querya_text.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 /// Custom bitsdojo title bar styled from [QueryaThemeScope] workbench tokens.
 class QueryaWindowTitleBar extends StatelessWidget {
@@ -102,6 +106,7 @@ class QueryaWindowTitleBar extends StatelessWidget {
   @override
   material.Widget build(material.BuildContext context) {
     final wb = context.workbench;
+    final environment = activeConnection?.environment;
     final buttonColors = windowButtonColors(context);
     final closeButtonColors = QueryaWindowTitleBar.closeButtonColors(context);
 
@@ -123,28 +128,17 @@ class QueryaWindowTitleBar extends StatelessWidget {
                     const Text('Querya').semiBold().small(),
                     const Gap(12),
                     if (onToggleSidebar != null) ...[
-                      material.Tooltip(
-                        message:
-                            'Toggle Sidebar (${Platform.isMacOS ? "Cmd+B" : "Ctrl+B"})',
-                        child: material.IconButton(
-                          key: const Key('title_bar_toggle_sidebar_button'),
-                          icon: material.Icon(
-                            isSidebarVisible
-                                ? material.Icons.view_sidebar_rounded
-                                : material.Icons.view_sidebar_outlined,
-                            size: 16,
-                            color: isSidebarVisible
-                                ? Theme.of(context).colorScheme.foreground
-                                : wb.mutedForeground,
-                          ),
-                          splashRadius: 14,
-                          padding: const material.EdgeInsets.all(4),
-                          constraints: const material.BoxConstraints(
-                            minWidth: 26,
-                            minHeight: 26,
-                          ),
-                          onPressed: onToggleSidebar,
+                      QueryaIconButton(
+                        key: const Key('title_bar_toggle_sidebar_button'),
+                        icon: material.Icon(
+                          isSidebarVisible
+                              ? material.Icons.view_sidebar_rounded
+                              : material.Icons.view_sidebar_outlined,
                         ),
+                        tooltip:
+                            'Toggle Sidebar (${Platform.isMacOS ? "Cmd+B" : "Ctrl+B"})',
+                        size: QueryaControlSize.sm,
+                        onPressed: onToggleSidebar,
                       ),
                       const Gap(12),
                     ] else
@@ -429,6 +423,10 @@ class QueryaWindowTitleBar extends StatelessWidget {
               ? MoveWindow()
               : const SizedBox(),
         ),
+        if (environment != null) ...[
+          ConnectionEnvironmentBadge(environment: environment),
+          const Gap(8),
+        ],
         Row(
           mainAxisSize: material.MainAxisSize.min,
           children: [
@@ -448,7 +446,7 @@ class QueryaWindowTitleBar extends StatelessWidget {
 
     return material.Container(
       height: context.scaled(40),
-      color: titleBarBackground(context),
+      color: environmentChromeColor(wb, environment, titleBarBackground(context)),
       child: useNativeWindowChrome ? WindowTitleBarBox(child: inner) : inner,
     );
   }

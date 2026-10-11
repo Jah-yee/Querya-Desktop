@@ -1,14 +1,24 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart' as material;
+import 'package:querya_desktop/features/connections/connection_test_result.dart';
+import 'package:querya_desktop/features/connections/connection_default_name.dart';
+import 'package:querya_desktop/core/security/connection_environment.dart';
+import 'package:querya_desktop/features/connections/environment_section.dart';
 import 'package:querya_desktop/core/database/mysql_connection.dart';
 import 'package:querya_desktop/core/layout/window_layout.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
+import 'package:querya_desktop/features/connections/forms/connection_auth_section.dart';
+import 'package:querya_desktop/features/connections/forms/connection_database_section.dart';
+import 'package:querya_desktop/features/connections/forms/connection_host_port_section.dart';
 import 'package:querya_desktop/features/connections/connection_creation_flow.dart';
+import 'package:querya_desktop/features/connections/ssh_tunnel_section.dart';
 import 'package:querya_desktop/features/connections/ssl_certificate_support.dart';
 import 'package:querya_desktop/shared/widgets/form_validity_notifier.dart';
 import 'package:querya_desktop/shared/widgets/ssl_certificate_fields.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows MySQL / MariaDB connection form dialog.
 /// Returns [ConnectionRow] if saved, null if cancelled.
@@ -54,8 +64,12 @@ class _MysqlConnectionFormContentState
   final _sslCertController = material.TextEditingController();
   final _sslKeyController = material.TextEditingController();
 
+  SshTunnelConfig _sshConfig = const SshTunnelConfig();
+  ConnectionEnvironment? _environment;
+  final SshTunnelSecrets _sshSecrets = SshTunnelSecrets();
+
+  bool _removeSavedPassword = false;
   bool _useSSL = true;
-  bool _showPassword = false;
   bool _isTesting = false;
   String? _testResult;
   Timer? _dismissTimer;
@@ -85,6 +99,7 @@ class _MysqlConnectionFormContentState
     final initial = widget.initial;
     if (initial != null) {
       _nameController.text = initial.name;
+      _environment = initial.environment;
       _hostController.text = initial.host ?? '';
       _portController.text = (initial.port ?? 3306).toString();
       _usernameController.text = initial.username ?? '';
@@ -92,6 +107,9 @@ class _MysqlConnectionFormContentState
       _useSSL = initial.useSSL;
       _connectionStringController.text =
           redactUriPassword(initial.connectionString) ?? '';
+      if (initial.sshTunnelConfig != null) {
+        _sshConfig = initial.sshTunnelConfig!;
+      }
     }
 
     _formValidNotifier.seed();
@@ -178,7 +196,7 @@ class _MysqlConnectionFormContentState
       _isTesting = false;
       _testResult = result;
     });
-    _dismissTimer = Timer(const Duration(seconds: 5), () {
+    _dismissTimer = Timer(connectionTestResultLifetime(result), () {
       if (mounted) setState(() => _testResult = null);
     });
   }
@@ -200,6 +218,15 @@ class _MysqlConnectionFormContentState
     try {
       final uri = _effectiveConnectionUri();
       final dbText = _databaseController.text.trim();
+      // Blank secret fields mean the saved ones when a connection is edited.
+      final secrets = await secretsForConnectionTest(
+        connectionId: widget.initial?.id,
+        password:
+            _passwordController.text.isEmpty ? null : _passwordController.text,
+        connectionString: uri.isEmpty ? null : uri,
+        sshSecrets: _sshConfig.enabled ? _sshSecrets : null,
+        useSavedPassword: !_removeSavedPassword,
+      );
       final conn = MysqlConnection(
         id: 0,
         name: _nameController.text.trim().isEmpty
@@ -211,13 +238,16 @@ class _MysqlConnectionFormContentState
         username: _usernameController.text.trim().isEmpty
             ? null
             : _usernameController.text.trim(),
-        password:
-            _passwordController.text.isEmpty ? null : _passwordController.text,
+        password: secrets.password,
         useSSL: _useSSL || _hasSslCertificateFields(),
-        connectionString: uri.isEmpty ? null : uri,
+        connectionString: secrets.connectionString,
+        sshConfig: _sshConfig.enabled ? _sshConfig : null,
+        sshSecrets: secrets.sshSecrets,
       );
-      final ok = await conn.testConnection();
-      if (mounted) _showTestResult(ok ? 'success' : 'failed');
+      final result = await conn.testConnection();
+      if (mounted) {
+        _showTestResult(result.ok ? 'success' : (result.error ?? 'failed'));
+      }
     } catch (e) {
       if (mounted) _showTestResult('error: $e');
     }
@@ -233,11 +263,15 @@ class _MysqlConnectionFormContentState
     final uri = _effectiveConnectionUri();
     final displayName = name.isNotEmpty
         ? name
-        : (uri.isNotEmpty
-            ? 'MySQL (URI)'
-            : 'MySQL $host:$port${database.isNotEmpty ? '/$database' : ''}');
+        : defaultConnectionName(
+            label: 'MySQL',
+            defaultPort: 3306,
+            uri: uri,
+            fields:
+                'MySQL $host:$port${database.isNotEmpty ? '/$database' : ''}',
+          );
     final initial = widget.initial;
-    final row = ConnectionRow(
+    var row = ConnectionRow(
       id: initial?.id,
       type: initial?.type ?? 'mysql',
       name: displayName,
@@ -257,7 +291,11 @@ class _MysqlConnectionFormContentState
       folderId: initial?.folderId ?? widget.folderId,
       sortOrder: initial?.sortOrder ?? 0,
       createdAt: initial?.createdAt ?? DateTime.now().toUtc().toIso8601String(),
+      sshSecrets: _sshConfig.enabled ? _sshSecrets : null,
     );
+    row = row.withSshTunnelConfig(_sshConfig.enabled ? _sshConfig : null);
+    row = row.withEnvironment(_environment);
+    row = row.copyWith(removeSavedPassword: _removeSavedPassword);
     material.Navigator.of(context).pop(row);
   }
 
@@ -345,7 +383,7 @@ class _MysqlConnectionFormContentState
                 ],
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             material.Expanded(
               child: material.FocusTraversalGroup(
                 policy: material.WidgetOrderTraversalPolicy(),
@@ -381,91 +419,27 @@ class _MysqlConnectionFormContentState
                       ),
                     ),
                     const Gap(16),
-                    material.Row(
-                      children: [
-                        material.Expanded(
-                          flex: 3,
-                          child: material.Column(
-                            crossAxisAlignment:
-                                material.CrossAxisAlignment.stretch,
-                            mainAxisSize: material.MainAxisSize.min,
-                            children: [
-                              const Text('Host').small().semiBold(),
-                              const Gap(8),
-                              TextField(
-                                controller: _hostController,
-                                placeholder: const Text('localhost'),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Gap(12),
-                        material.Expanded(
-                          flex: 1,
-                          child: material.Column(
-                            crossAxisAlignment:
-                                material.CrossAxisAlignment.stretch,
-                            mainAxisSize: material.MainAxisSize.min,
-                            children: [
-                              const Text('Port').small().semiBold(),
-                              const Gap(8),
-                              TextField(
-                                controller: _portController,
-                                placeholder: const Text('3306'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    ConnectionHostPortSection(
+                      hostController: _hostController,
+                      portController: _portController,
+                      portPlaceholder: '3306',
                     ),
                     const Gap(16),
-                    const Text('Database (optional)').small().semiBold(),
-                    const Gap(8),
-                    TextField(
-                      controller: _databaseController,
-                      placeholder: const Text('Leave empty to browse all'),
+                    ConnectionDatabaseSection(
+                      databaseController: _databaseController,
+                      label: 'Database (optional)',
+                      placeholder: 'Leave empty to browse all',
                     ),
                     const Gap(16),
-                    const Text('Username').small().semiBold(),
-                    const Gap(8),
-                    TextField(
-                      controller: _usernameController,
-                      placeholder: const Text('root'),
-                    ),
-                    const Gap(16),
-                    const Text('Password').small().semiBold(),
-                    const Gap(8),
-                    material.Stack(
-                      children: [
-                        TextField(
-                          controller: _passwordController,
-                          placeholder: Text(
-                            _isEditing
-                                ? 'Leave blank to keep existing'
-                                : 'Password',
-                          ),
-                          obscureText: !_showPassword,
-                        ),
-                        material.Positioned(
-                          right: 8,
-                          top: 0,
-                          bottom: 0,
-                          child: material.Center(
-                            child: material.IconButton(
-                              icon: material.Icon(
-                                _showPassword
-                                    ? material.Icons.visibility_off
-                                    : material.Icons.visibility,
-                                size: 20,
-                              ),
-                              onPressed: () => setState(
-                                  () => _showPassword = !_showPassword),
-                              padding: material.EdgeInsets.zero,
-                              constraints: const material.BoxConstraints(),
-                            ),
-                          ),
-                        ),
-                      ],
+                    ConnectionAuthSection(
+                      usernameController: _usernameController,
+                      passwordController: _passwordController,
+                      usernamePlaceholder: 'root',
+                      isEditing: _isEditing,
+                      removeSavedPassword: _removeSavedPassword,
+                      onRemoveSavedPasswordChanged: (v) =>
+                          setState(() => _removeSavedPassword = v),
+                      useRowLayout: false,
                     ),
                     const Gap(16),
                     material.Row(
@@ -478,21 +452,39 @@ class _MysqlConnectionFormContentState
                         const Text('Use SSL/TLS').small(),
                       ],
                     ),
-                      if (_useSSL) ...[
-                        const Gap(16),
-                        SslCertificateFields(
-                          rootCertController: _sslRootCertController,
-                          clientCertController: _sslCertController,
-                          clientKeyController: _sslKeyController,
-                          onChanged: _syncUriSslParams,
-                        ),
-                      ],
+                    if (_useSSL) ...[
+                      const Gap(16),
+                      SslCertificateFields(
+                        rootCertController: _sslRootCertController,
+                        clientCertController: _sslCertController,
+                        clientKeyController: _sslKeyController,
+                        onChanged: _syncUriSslParams,
+                      ),
+                    ],
+                    const Gap(16),
+                    EnvironmentSection(
+                      value: _environment,
+                      onChanged: (e) => setState(() => _environment = e),
+                    ),
+                    const Gap(16),
+                    // SSH Tunneling Section
+                    SshTunnelSection(
+                      config: _sshConfig,
+                      secrets: _sshSecrets,
+                      connectionId: widget.initial?.id,
+                      onChanged: (cfg) => setState(() => _sshConfig = cfg),
+                      targetHost: _hostController.text.trim().isNotEmpty
+                          ? _hostController.text.trim()
+                          : 'localhost',
+                      targetPort:
+                          int.tryParse(_portController.text.trim()) ?? 3306,
+                    ),
                     ],
                   ),
                 ),
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             if (_testResult != null)
               material.Padding(
                 padding: const material.EdgeInsets.fromLTRB(24, 8, 16, 8),
@@ -530,29 +522,19 @@ class _MysqlConnectionFormContentState
                           const Gap(10),
                           material.Expanded(
                             child: Text(
-                              _testResult == 'success'
-                                  ? 'Connection successful!'
-                                  : _testResult!.startsWith('error:')
-                                      ? _testResult!.substring(7)
-                                      : 'Connection failed',
+                              connectionTestMessage(_testResult!),
                               style: material.TextStyle(
                                 fontSize: 13,
                                 color: theme.foreground,
                               ),
                             ).small(),
                           ),
-                          material.IconButton(
-                            icon: material.Icon(
-                              material.Icons.close,
-                              size: 18,
-                              color: theme.mutedForeground,
-                            ),
-                            onPressed: _dismissResult,
-                            style: material.IconButton.styleFrom(
-                              minimumSize: const material.Size(28, 28),
-                              padding: material.EdgeInsets.zero,
-                            ),
-                          ),
+                          QueryaIconButton(
+icon: const material.Icon(material.Icons.close),
+tooltip: 'Dismiss',
+size: QueryaControlSize.sm,
+onPressed: _dismissResult,
+),
                         ],
                       ),
                     ),
@@ -561,64 +543,29 @@ class _MysqlConnectionFormContentState
               ),
             material.FocusTraversalGroup(
               policy: material.WidgetOrderTraversalPolicy(),
-              child: material.Container(
-                padding: const material.EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 16),
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: _formValidNotifier.listenable,
-                  builder: (context, formValid, _) {
-                    return material.Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      alignment: material.WrapAlignment.spaceBetween,
-                      children: [
-                        OutlineButton(
-                          onPressed:
-                              formValid && !_isTesting ? _testConnection : null,
-                          leading: _isTesting
-                              ? material.SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: material.CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: theme.primary,
-                                  ),
-                                )
-                              : material.Icon(
-                                  material.Icons.link_rounded,
-                                  size: 18,
-                                  color: formValid
-                                      ? theme.primary
-                                      : theme.mutedForeground,
-                                ),
-                          child: Text(
-                            'Test Connection',
-                            style: material.TextStyle(
-                              fontWeight: material.FontWeight.w500,
-                              color: formValid
-                                  ? theme.primary
-                                  : theme.mutedForeground,
-                            ),
-                          ),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _formValidNotifier.listenable,
+                builder: (context, formValid, _) => QueryaDialogActions(
+                  secondary: [
+                    QueryaButton.secondary(
+                          label: 'Test Connection',
+                          icon: material.Icons.link_rounded,
+                          loading: _isTesting,
+                          size: QueryaControlSize.lg,
+                          onPressed: formValid && !_isTesting ? _testConnection : null,
                         ),
-                        material.Row(
-                          mainAxisSize: material.MainAxisSize.min,
-                          children: [
-                            GhostButton(
+                  ],
+                  cancel: QueryaButton.ghost(
+                              label: 'Cancel',
                               onPressed: () =>
                                   material.Navigator.of(context).pop(),
-                              child: const Text('Cancel'),
+                              size: QueryaControlSize.lg,
                             ),
-                            const Gap(12),
-                            PrimaryButton(
+                  primary: QueryaButton.primary(
+                              label: 'Save',
                               onPressed: formValid ? _save : null,
-                              child: const Text('Save'),
+                              size: QueryaControlSize.lg,
                             ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
                 ),
               ),
             ),

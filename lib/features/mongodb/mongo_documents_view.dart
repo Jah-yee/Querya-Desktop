@@ -4,15 +4,40 @@ import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/database/destructive_sql_detector.dart';
 import 'package:querya_desktop/core/database/mongodb_connection.dart';
 import 'package:querya_desktop/core/database/mongodb_service.dart';
+import 'package:querya_desktop/core/storage/app_settings.dart';
 import 'package:querya_desktop/features/mongodb/mongo_add_document_dialog.dart';
+import 'package:querya_desktop/features/mongodb/mongo_document_tree_view.dart';
+import 'package:querya_desktop/features/mongodb/mongo_documents_json_view.dart';
+import 'package:querya_desktop/features/mongodb/mongo_documents_table_view.dart';
 import 'package:querya_desktop/features/mongodb/mongo_ejson.dart';
 import 'package:querya_desktop/features/mongodb/mongo_field_codec.dart';
 import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart';
 import 'package:querya_desktop/features/workspace/grid_cell_popover_inspector.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _defaultLimit = 25;
+
+/// View modes for MongoDB documents viewer.
+enum MongoDocumentsViewMode {
+  table('table', 'Table'),
+  tree('tree', 'Tree'),
+  json('json', 'JSON'),
+  cards('cards', 'Cards');
+
+  const MongoDocumentsViewMode(this.id, this.label);
+  final String id;
+  final String label;
+
+  static MongoDocumentsViewMode fromString(String? value) {
+    for (final mode in MongoDocumentsViewMode.values) {
+      if (mode.id == value) return mode;
+    }
+    return MongoDocumentsViewMode.table;
+  }
+}
 
 /// Paginated document browser for a MongoDB collection.
 class MongoDocumentsView extends material.StatefulWidget {
@@ -22,16 +47,26 @@ class MongoDocumentsView extends material.StatefulWidget {
     required this.database,
     required this.collection,
     this.onDocumentTap,
+    this.onOpenAggregation,
+    this.onOpenIndexes,
+    this.onOpenQueryConsole,
     this.refreshToken = 0,
+    this.initialViewMode,
   });
 
   final MongoConnection connection;
   final String database;
   final String collection;
   final ValueChanged<Map<String, dynamic>>? onDocumentTap;
+  final material.VoidCallback? onOpenAggregation;
+  final material.VoidCallback? onOpenIndexes;
+  final material.VoidCallback? onOpenQueryConsole;
 
   /// Incremented by the parent when the user requests a refresh (toolbar).
   final int refreshToken;
+
+  /// Optional initial view mode (overrides persisted setting, e.g. for testing).
+  final MongoDocumentsViewMode? initialViewMode;
 
   @override
   material.State<MongoDocumentsView> createState() =>
@@ -80,11 +115,37 @@ class _MongoDocumentsViewState extends material.State<MongoDocumentsView> {
   final _filterController = material.TextEditingController();
   Map<String, dynamic>? _activeFilter;
   String? _emptyFilterHint;
+  late MongoDocumentsViewMode _viewMode;
 
   @override
   void initState() {
     super.initState();
+    _viewMode = widget.initialViewMode ?? MongoDocumentsViewMode.table;
+    if (widget.initialViewMode == null) {
+      unawaited(_loadInitialViewMode());
+    }
     _load();
+  }
+
+  Future<void> _loadInitialViewMode() async {
+    try {
+      final saved = await AppSettings.instance.getMongoDocumentsViewMode();
+      if (mounted) {
+        setState(() {
+          _viewMode = MongoDocumentsViewMode.fromString(saved);
+        });
+      }
+    } catch (_) {
+      // Keep current mode
+    }
+  }
+
+  void _setViewMode(MongoDocumentsViewMode mode) {
+    if (_viewMode == mode) return;
+    setState(() {
+      _viewMode = mode;
+    });
+    unawaited(AppSettings.instance.setMongoDocumentsViewMode(mode.id));
   }
 
   @override
@@ -310,18 +371,10 @@ class _MongoDocumentsViewState extends material.State<MongoDocumentsView> {
     final cs = Theme.of(context).colorScheme;
 
     if (_loading && _documents.isEmpty) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Loading documents...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Loading documents...',
         ),
       );
     }
@@ -331,10 +384,10 @@ class _MongoDocumentsViewState extends material.State<MongoDocumentsView> {
       children: [
         // Filter bar
         _buildFilterBar(cs),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         // Error banner
         if (_error != null) _buildErrorBanner(cs),
-        // Document list (virtualized)
+        // Document content (mode-dependent)
         material.Expanded(
           child: _documents.isEmpty
               ? material.Center(
@@ -344,25 +397,48 @@ class _MongoDocumentsViewState extends material.State<MongoDocumentsView> {
                         .muted(),
                   ),
                 )
-              : material.ListView.separated(
-                  padding: const material.EdgeInsets.all(16),
-                  cacheExtent: 400,
-                  itemCount: _documents.length,
-                  separatorBuilder: (_, __) => const Gap(8),
-                  itemBuilder: (context, i) {
-                    final shadcnCs = shadcn.Theme.of(context).colorScheme;
-                    return _DocumentCard(
-                      document: _documents[i],
-                      index: _skip + i,
-                      colorScheme: cs,
-                      shadcnCs: shadcnCs,
-                      onView: () => widget.onDocumentTap?.call(_documents[i]),
-                      onDelete: () => _deleteDocument(_documents[i]),
-                      onInspectField: (field) =>
-                          unawaited(_inspectField(_documents[i], field)),
-                    );
-                  },
-                ),
+              : switch (_viewMode) {
+                  MongoDocumentsViewMode.table => MongoDocumentsTableView(
+                      documents: _documents,
+                      onDocumentTap: widget.onDocumentTap,
+                      onDeleteDocument: (doc) =>
+                          unawaited(_deleteDocument(doc)),
+                      onInspectField: (doc, field) =>
+                          unawaited(_inspectField(doc, field)),
+                    ),
+                  MongoDocumentsViewMode.tree => MongoDocumentTreeView(
+                      documents: _documents,
+                      startIndex: _skip,
+                      onDocumentTap: widget.onDocumentTap,
+                      onDeleteDocument: (doc) =>
+                          unawaited(_deleteDocument(doc)),
+                      onInspectField: (doc, field) =>
+                          unawaited(_inspectField(doc, field)),
+                    ),
+                  MongoDocumentsViewMode.json => MongoDocumentsJsonView(
+                      documents: _documents,
+                    ),
+                  MongoDocumentsViewMode.cards => material.ListView.separated(
+                      padding: const material.EdgeInsets.all(16),
+                      cacheExtent: 400,
+                      itemCount: _documents.length,
+                      separatorBuilder: (_, __) => const Gap(8),
+                      itemBuilder: (context, i) {
+                        final shadcnCs = shadcn.Theme.of(context).colorScheme;
+                        return _DocumentCard(
+                          document: _documents[i],
+                          index: _skip + i,
+                          colorScheme: cs,
+                          shadcnCs: shadcnCs,
+                          onView: () =>
+                              widget.onDocumentTap?.call(_documents[i]),
+                          onDelete: () => _deleteDocument(_documents[i]),
+                          onInspectField: (field) =>
+                              unawaited(_inspectField(_documents[i], field)),
+                        );
+                      },
+                    ),
+                },
         ),
         // Pagination bar
         _buildPaginationBar(cs),
@@ -380,36 +456,115 @@ class _MongoDocumentsViewState extends material.State<MongoDocumentsView> {
       ),
       child: Row(
         children: [
-          material.Icon(material.Icons.filter_list_rounded,
-              size: 18, color: shadcnCs.mutedForeground),
-          const Gap(10),
           material.Expanded(
-            child: TextField(
+            child: QueryaSearchField(
               controller: _filterController,
-              placeholder: const Text(
-                r'Filter (JSON / EJSON) e.g. {"_id": {"$oid": "…"}}',
-              ),
+              placeholder:
+                  r'Filter (JSON / EJSON) e.g. {"_id": {"$oid": "…"}}',
               onSubmitted: (_) => _applyFilter(),
+              onChanged: (val) {
+                if (val.isEmpty) _clearFilter();
+              },
             ),
           ),
           const Gap(8),
-          OutlineButton(
+          QueryaButton.secondary(
+            label: 'Apply',
             onPressed: _applyFilter,
-            size: ButtonSize.small,
-            child: const Text('Apply'),
+            size: QueryaControlSize.sm,
           ),
           const Gap(4),
-          GhostButton(
+          QueryaButton.ghost(
+            label: 'Clear',
             onPressed: _clearFilter,
-            size: ButtonSize.small,
-            child: const Text('Clear'),
+            size: QueryaControlSize.sm,
           ),
           const Gap(12),
-          PrimaryButton(
+          // View Mode Switcher
+          material.SizedBox(
+            height: 28,
+            child: material.SegmentedButton<MongoDocumentsViewMode>(
+              segments: const [
+                material.ButtonSegment(
+                  value: MongoDocumentsViewMode.table,
+                  label: material.Text('Table'),
+                  icon: material.Icon(
+                    material.Icons.table_chart_rounded,
+                    size: 14,
+                  ),
+                ),
+                material.ButtonSegment(
+                  value: MongoDocumentsViewMode.tree,
+                  label: material.Text('Tree'),
+                  icon: material.Icon(
+                    material.Icons.account_tree_rounded,
+                    size: 14,
+                  ),
+                ),
+                material.ButtonSegment(
+                  value: MongoDocumentsViewMode.json,
+                  label: material.Text('JSON'),
+                  icon: material.Icon(
+                    material.Icons.code_rounded,
+                    size: 14,
+                  ),
+                ),
+                material.ButtonSegment(
+                  value: MongoDocumentsViewMode.cards,
+                  label: material.Text('Cards'),
+                  icon: material.Icon(
+                    material.Icons.view_stream_rounded,
+                    size: 14,
+                  ),
+                ),
+              ],
+              selected: {_viewMode},
+              onSelectionChanged: (selected) {
+                _setViewMode(selected.first);
+              },
+              showSelectedIcon: false,
+              style: material.SegmentedButton.styleFrom(
+                padding: const material.EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 0,
+                ),
+                visualDensity: material.VisualDensity.compact,
+              ),
+            ),
+          ),
+          if (widget.onOpenAggregation != null) ...[
+            const Gap(8),
+            QueryaButton.secondary(
+              label: 'Aggregation',
+              icon: material.Icons.auto_awesome_motion_rounded,
+              onPressed: widget.onOpenAggregation,
+              size: QueryaControlSize.sm,
+            ),
+          ],
+          if (widget.onOpenIndexes != null) ...[
+            const Gap(8),
+            QueryaButton.secondary(
+              label: 'Indexes',
+              icon: material.Icons.layers_outlined,
+              onPressed: widget.onOpenIndexes,
+              size: QueryaControlSize.sm,
+            ),
+          ],
+          if (widget.onOpenQueryConsole != null) ...[
+            const Gap(8),
+            QueryaButton.secondary(
+              label: 'Console',
+              icon: material.Icons.terminal_rounded,
+              onPressed: widget.onOpenQueryConsole,
+              size: QueryaControlSize.sm,
+            ),
+          ],
+          const Gap(12),
+          QueryaButton.primary(
+            label: 'Add Document',
+            icon: material.Icons.add_rounded,
             onPressed: _addDocument,
-            size: ButtonSize.small,
-            leading: const material.Icon(material.Icons.add_rounded, size: 16),
-            child: const Text('Add Document'),
+            size: QueryaControlSize.sm,
           ),
         ],
       ),
@@ -607,16 +762,19 @@ class _DocumentCardState extends State<_DocumentCard> {
                         ),
                       ),
                       const Gap(8),
-                      _SmallActionButton(
-                        icon: material.Icons.edit_rounded,
-                        color: context.semanticPalette.action,
-                        onTap: widget.onView,
+                      QueryaIconButton(
+                        icon: const material.Icon(material.Icons.edit_rounded),
+                        tooltip: 'Open document',
+                        size: QueryaControlSize.sm,
+                        onPressed: widget.onView,
                       ),
                       const Gap(4),
-                      _SmallActionButton(
-                        icon: material.Icons.delete_rounded,
-                        color: context.semanticPalette.destructive,
-                        onTap: widget.onDelete,
+                      QueryaIconButton(
+                        icon: const material.Icon(material.Icons.delete_rounded),
+                        tooltip: 'Delete document',
+                        size: QueryaControlSize.sm,
+                        isDestructive: true,
+                        onPressed: widget.onDelete,
                       ),
                     ],
                   ),
@@ -723,7 +881,7 @@ class MongoFieldList extends StatelessWidget {
     );
   }
 
-  Widget _buildDivider() => material.Divider(
+  Widget _buildDivider() => QueryaDivider(
         height: 1,
         color: colorScheme.border.withValues(alpha: 0.2),
       );
@@ -777,25 +935,3 @@ class MongoFieldList extends StatelessWidget {
 
 // ─── Small icon-only action button ──────────────────────────────────────────
 
-class _SmallActionButton extends StatelessWidget {
-  const _SmallActionButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final material.IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return material.IconButton(
-      onPressed: onTap,
-      icon: material.Icon(icon, size: 15, color: color),
-      padding: const material.EdgeInsets.all(5),
-      constraints: const material.BoxConstraints(minWidth: 28, minHeight: 28),
-      splashRadius: 18,
-    );
-  }
-}

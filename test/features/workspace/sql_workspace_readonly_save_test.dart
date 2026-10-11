@@ -6,7 +6,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/sqlite/sqlite_sql_workspace.dart';
 import 'package:querya_desktop/features/workspace/data_grid_staging_buffer.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../support/querya_theme_test_shell.dart';
@@ -119,10 +119,10 @@ void main() {
     dynamicState.debugRebuildActivePane();
     await tester.pumpAndSettle();
 
-    final saveButtonFinder = find.widgetWithText(PrimaryButton, 'Save Changes');
+    final saveButtonFinder = find.widgetWithText(QueryaButton, 'Save Changes');
     expect(saveButtonFinder, findsOneWidget);
     expect(
-      tester.widget<PrimaryButton>(saveButtonFinder).onPressed,
+      tester.widget<QueryaButton>(saveButtonFinder).onPressed,
       isNotNull,
       reason: 'Save should be enabled while writable and dirty',
     );
@@ -133,10 +133,10 @@ void main() {
     await tester.pumpWidget(buildWorkspace(isReadOnly: true));
     await tester.pumpAndSettle();
 
-    final saveButtonAfter = find.widgetWithText(PrimaryButton, 'Save Changes');
+    final saveButtonAfter = find.widgetWithText(QueryaButton, 'Save Changes');
     expect(saveButtonAfter, findsOneWidget);
     expect(
-      tester.widget<PrimaryButton>(saveButtonAfter).onPressed,
+      tester.widget<QueryaButton>(saveButtonAfter).onPressed,
       isNull,
       reason:
           'Save must disable once the connection is read-only, even though '

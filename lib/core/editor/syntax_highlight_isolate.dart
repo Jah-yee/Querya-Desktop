@@ -52,10 +52,11 @@ List<HighlightSegment> syntaxHighlightInIsolate(SyntaxHighlightJob job) {
   );
   final highlighter = Highlighter(language: job.language, theme: theme);
   final span = highlighter.highlight(job.code);
-  return _flattenSpan(span);
+  return flattenSpan(span);
 }
 
-List<HighlightSegment> _flattenSpan(TextSpan span) {
+/// Flattens a nested [TextSpan] into a linear list of [HighlightSegment]s.
+List<HighlightSegment> flattenSpan(TextSpan span) {
   final out = <HighlightSegment>[];
   void walk(TextSpan node) {
     final style = node.style;
@@ -78,6 +79,113 @@ List<HighlightSegment> _flattenSpan(TextSpan span) {
 
   walk(span);
   return out;
+}
+
+/// Patches cached [oldSegments] to match [newText] while preserving formatting
+/// and syntax colors for untouched regions. Used during interactive typing in
+/// large documents (>= 8KB) while background isolate highlighting is in flight (#1351).
+List<HighlightSegment> patchHighlightSegments({
+  required String oldText,
+  required List<HighlightSegment> oldSegments,
+  required String newText,
+}) {
+  if (oldText == newText) return oldSegments;
+  if (oldSegments.isEmpty) {
+    return [HighlightSegment(text: newText)];
+  }
+  if (newText.isEmpty) {
+    return const [];
+  }
+
+  var prefixLen = 0;
+  final minLen =
+      oldText.length < newText.length ? oldText.length : newText.length;
+  while (prefixLen < minLen &&
+      oldText.codeUnitAt(prefixLen) == newText.codeUnitAt(prefixLen)) {
+    prefixLen++;
+  }
+
+  var suffixLen = 0;
+  final maxSuffix = minLen - prefixLen;
+  while (suffixLen < maxSuffix &&
+      oldText.codeUnitAt(oldText.length - 1 - suffixLen) ==
+          newText.codeUnitAt(newText.length - 1 - suffixLen)) {
+    suffixLen++;
+  }
+
+  final result = <HighlightSegment>[];
+  var offset = 0;
+
+  // 1. Preserve prefix segments.
+  for (var i = 0; i < oldSegments.length; i++) {
+    final seg = oldSegments[i];
+    final segLen = seg.text.length;
+    final segStart = offset;
+    final segEnd = offset + segLen;
+    offset = segEnd;
+
+    if (segStart >= prefixLen) {
+      break;
+    }
+    if (segEnd <= prefixLen) {
+      result.add(seg);
+    } else {
+      final cutLen = prefixLen - segStart;
+      if (cutLen > 0) {
+        result.add(
+          HighlightSegment(
+            text: seg.text.substring(0, cutLen),
+            colorArgb: seg.colorArgb,
+            fontWeightValue: seg.fontWeightValue,
+            fontStyleIndex: seg.fontStyleIndex,
+          ),
+        );
+      }
+      break;
+    }
+  }
+
+  // 2. Insert edited middle text.
+  final middleLen = (newText.length - suffixLen) - prefixLen;
+  if (middleLen > 0) {
+    result.add(
+      HighlightSegment(
+        text: newText.substring(prefixLen, newText.length - suffixLen),
+      ),
+    );
+  }
+
+  // 3. Preserve suffix segments.
+  final suffixStart = oldText.length - suffixLen;
+  offset = 0;
+  for (var i = 0; i < oldSegments.length; i++) {
+    final seg = oldSegments[i];
+    final segLen = seg.text.length;
+    final segStart = offset;
+    final segEnd = offset + segLen;
+    offset = segEnd;
+
+    if (segEnd <= suffixStart) {
+      continue;
+    }
+    if (segStart >= suffixStart) {
+      result.add(seg);
+    } else {
+      final cutStart = suffixStart - segStart;
+      if (cutStart < segLen) {
+        result.add(
+          HighlightSegment(
+            text: seg.text.substring(cutStart),
+            colorArgb: seg.colorArgb,
+            fontWeightValue: seg.fontWeightValue,
+            fontStyleIndex: seg.fontStyleIndex,
+          ),
+        );
+      }
+    }
+  }
+
+  return result;
 }
 
 TextSpan segmentsToTextSpan(

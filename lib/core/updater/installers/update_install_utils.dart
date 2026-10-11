@@ -163,9 +163,9 @@ if [ ! -d "\$SRC/lib" ] && [ ! -d "\$SRC/data" ]; then
   exit 1
 fi
 if command -v rsync >/dev/null 2>&1; then
-  rsync -a --delete "\$SRC"/ "\$DST"/
+  rsync -a --delete --exclude='QueryaData' --exclude='.portable' "\$SRC"/ "\$DST"/
 else
-  rm -rf "\$DST"/*
+  find "\$DST" -mindepth 1 -maxdepth 1 ! -name 'QueryaData' ! -name '.portable' -exec rm -rf {} +
   cp -a "\$SRC"/. "\$DST"/
 fi
 chmod +x "\$EXE" 2>/dev/null || true
@@ -212,7 +212,11 @@ if %ERRORLEVEL%==0 (
   timeout /t 1 /nobreak >NUL
   goto wait
 )
-xcopy /E /Y /I "%SRC%\\*" "%DST%\\"
+robocopy "%SRC%" "%DST%" /MIR /XD "QueryaData" /XF ".portable" /R:2 /W:1
+if %ERRORLEVEL% GEQ 8 (
+  echo Update failed with error %ERRORLEVEL%
+  exit /b %ERRORLEVEL%
+)
 start "" "%EXE%"
 del "%~f0"
 ''';

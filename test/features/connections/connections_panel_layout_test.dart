@@ -8,7 +8,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/theme/app_theme.dart';
 import 'package:querya_desktop/core/ui/querya_tree_tokens.dart';
 import 'package:querya_desktop/features/connections/connections_panel.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 import '../../support/layout_overflow.dart';
 
@@ -383,6 +383,33 @@ void main() {
               skipInitialDbLoadForTest: true,
               selectedConnectionId: 10,
               selectedRedisDb: 0,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(ConnectionsPanel), findsOneWidget);
+    });
+
+    testWidgets('ConnectionsPanel propagates Mongo collection selection',
+        (tester) async {
+      await pumpWidgetWithSurfaceSize(
+        tester,
+        const material.Size(400, 600),
+        ShadcnApp(
+          theme: AppTheme.dark,
+          darkTheme: AppTheme.dark,
+          themeMode: ThemeMode.dark,
+          home: material.SizedBox(
+            width: 400,
+            height: 600,
+            child: ConnectionsPanel(
+              skipInitialDbLoadForTest: true,
+              selectedConnectionId: 14,
+              selectedMongoDb: 'app',
+              selectedMongoCollection: 'users',
+              onMongoCollectionSelected: (conn, db, col) {},
             ),
           ),
         ),

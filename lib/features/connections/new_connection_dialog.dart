@@ -8,6 +8,7 @@ import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/core/motion/querya_hover_surface.dart';
 import 'package:querya_desktop/features/connections/driver_icon.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 export 'package:querya_desktop/core/database/connection_type.dart';
 export 'package:querya_desktop/core/database/connection_type_choice.dart';
@@ -116,39 +117,18 @@ class _NewConnectionDialogContentState
                           'Create new database connection. Find your database driver in the list below.',
                         ).muted().small(),
                         const material.SizedBox(height: 12),
-                        material.Container(
-                          decoration: material.BoxDecoration(
-                            color: theme.muted.withValues(alpha: 0.2),
-                            borderRadius: material.BorderRadius.circular(8),
-                            border: material.Border.all(
-                                color: theme.border.withValues(alpha: 0.4)),
-                          ),
-                          padding: const material.EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          child: material.Row(
-                            children: [
-                              material.Icon(
-                                material.Icons.search_rounded,
-                                size: 20,
-                                color: theme.mutedForeground,
-                              ),
-                              const material.SizedBox(width: 10),
-                              material.Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  placeholder: const Text('Search...'),
-                                  onChanged: (v) => setState(() {
-                                    _searchQuery = v;
-                                    if (_selected != null &&
-                                        !_filteredTypes.any(
-                                            (t) => _sameChoice(t, _selected))) {
-                                      _selected = null;
-                                    }
-                                  }),
-                                ),
-                              ),
-                            ],
-                          ),
+                        QueryaSearchField(
+                          controller: _searchController,
+                          size: QueryaControlSize.lg,
+                          debounceDuration: Duration.zero,
+                          onChanged: (v) => setState(() {
+                            _searchQuery = v;
+                            if (_selected != null &&
+                                !_filteredTypes
+                                    .any((t) => _sameChoice(t, _selected))) {
+                              _selected = null;
+                            }
+                          }),
                         ),
                         const material.SizedBox(height: 12),
                         _FilterDropdowns(
@@ -237,16 +217,18 @@ class _NewConnectionDialogContentState
                     child: material.Row(
                       mainAxisAlignment: material.MainAxisAlignment.end,
                       children: [
-                        GhostButton(
+                        QueryaButton.ghost(
+                          label: 'Cancel',
                           onPressed: () => material.Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
+                          size: QueryaControlSize.lg,
                         ),
                         const material.SizedBox(width: 12),
-                        PrimaryButton(
+                        QueryaButton.primary(
+                          label: 'Next',
                           onPressed: _selected == null
                               ? null
                               : () => material.Navigator.of(context).pop(_selected),
-                          child: const Text('Next'),
+                          size: QueryaControlSize.lg,
                         ),
                       ],
                     ),
@@ -305,6 +287,7 @@ class _FilterDropdowns extends StatelessWidget {
         const material.SizedBox(height: 4),
         QueryaDropdown<_Category>(
           value: category,
+          size: QueryaControlSize.lg,
           expandToParent: true,
           items: _categoryItems,
           onSelected: (value) {
@@ -323,6 +306,7 @@ class _FilterDropdowns extends StatelessWidget {
           value: selected,
           hint: filteredTypes.isEmpty ? 'No matches' : 'Select database…',
           enabled: filteredTypes.isNotEmpty,
+          size: QueryaControlSize.lg,
           expandToParent: true,
           items: [
             for (final type in filteredTypes)

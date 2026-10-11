@@ -10,40 +10,124 @@ on:
     branches: [ main, dev ]
 
 jobs:
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
+  # The suite is split into independent sections (scripts/ci/test_sections.sh)
+  # that run as parallel jobs. A test in a directory no section lists still runs
+  # in the `rest` section.
+  test-sections:
+    name: Tests (${{ matrix.section }})
+    timeout-minutes: 30
+    # Self-hosted when the repository variable CI_RUNS_ON is set (see
+    # docs/ci-runners.md); pull requests from forks always run on GitHub-hosted
+    # runners, never on our own machines.
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && fromJSON('"ubuntu-latest"') || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        section:
+          - core-data
+          - core-extensions
+          - core-theme
+          - core-ui
+          - features-workspace
+          - features-nosql
+          - features-app
+          - rest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.6'
+          flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
-      
+
       - name: Install Linux dependencies (plugins)
+        if: runner.environment == 'github-hosted'
+        # A stuck package mirror used to hold a job for tens of minutes.
+        timeout-minutes: 8
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libsecret-1-dev
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20"
+          sudo apt-get $APT update
+          # bubblewrap runs the extension sandbox tests; without it they skip.
+          sudo apt-get $APT install -y libsecret-1-dev bubblewrap
+          # Ubuntu 24.04 blocks unprivileged user namespaces for bwrap ("setting
+          # up uid map: Permission denied"). This relaxes it on the CI VM only.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # The live MySQL test in core-data reads 127.0.0.1:3306 with the querya
+      # user from the environment defaults; without a server it skips. The
+      # client has no TLS here, so the server uses mysql_native_password: MySQL
+      # 8's default caching_sha2_password needs a secure connection.
+      - name: Start MySQL for the live database test
+        if: matrix.section == 'core-data' && runner.environment == 'github-hosted'
+        timeout-minutes: 5
+        run: |
+          docker run -d --name mysql-live -p 3306:3306 \
+            -e MYSQL_ROOT_PASSWORD=root \
+            -e MYSQL_DATABASE=querya \
+            -e MYSQL_USER=querya \
+            -e MYSQL_PASSWORD=querya \
+            mysql:8.0 --default-authentication-plugin=mysql_native_password
+          for _ in $(seq 1 60); do
+            if docker exec mysql-live mysqladmin -uquerya -pquerya --silent ping 2>/dev/null; then
+              echo "MySQL is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs mysql-live
+          exit 1
 
       - name: Get dependencies
         run: flutter pub get
-      
-      - name: Run tests
-        run: flutter test --exclude-tags=golden
+
+      - name: Run tests (${{ matrix.section }})
+        run: |
+          set -euo pipefail
+          mapfile -t paths < <(./scripts/ci/test_sections.sh paths "${{ matrix.section }}")
+          if [ "${#paths[@]}" -eq 0 ]; then
+            echo "No tests in section ${{ matrix.section }}"
+            exit 0
+          fi
+          # Several runners share one machine, so cap the test processes each
+          # job starts.
+          flutter test --exclude-tags=golden \
+            --concurrency="${{ runner.environment == 'self-hosted' && '2' || '4' }}" \
+            "${paths[@]}"
+
+  # Single required check for the whole suite: passes only when every section did.
+  test:
+    name: Run Tests
+    if: always()
+    needs: [test-sections, test-coverage]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All test sections passed
+        run: |
+          echo "sections: ${{ needs.test-sections.result }}"
+          echo "coverage: ${{ needs.test-coverage.result }}"
+          [ "${{ needs.test-sections.result }}" = "success" ] && [ "${{ needs.test-coverage.result }}" = "success" ]
+
+  # Every test file must belong to exactly one section.
+  test-coverage:
+    name: Test sections cover all tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/ci/test_sections.sh check
 
   analyze:
     name: Code Analysis
-    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && fromJSON('"ubuntu-latest"') || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@v4
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.6'
+          flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
       
@@ -52,6 +136,21 @@ jobs:
       
       - name: Analyze code
         run: flutter analyze
+
+      - name: Test the benchmark scripts
+        run: |
+          python3 scripts/ci/test_bench_compare.py
+          python3 scripts/ci/test_app_bench_report.py
+
+      # packages/ is excluded above: the bridge is its own dependency-free
+      # package and must keep compiling to a single static binary.
+      - name: Analyze and build querya-mcp
+        run: |
+          cd packages/querya_mcp_bridge
+          dart pub get
+          dart analyze --fatal-infos
+          dart compile exe bin/querya_mcp.dart -o "$RUNNER_TEMP/querya-mcp"
+          "$RUNNER_TEMP/querya-mcp" --help | grep -q "Usage: querya-mcp"
 
   # Release smoke build: runs after tests + analyze only when the workflow was
   # triggered by a version tag (semver X.Y.Z or legacy v*), not on branch/PR pushes.
@@ -71,7 +170,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.6'
+          flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
 

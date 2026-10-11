@@ -1,10 +1,15 @@
 import 'dart:async';
 
+import 'package:querya_desktop/core/database/database_error_mapper.dart';
+import 'package:querya_desktop/core/database/querya_database_exception.dart';
 import 'package:querya_desktop/core/database/connection_pool_lock.dart';
 import 'package:querya_desktop/core/database/mysql_connection.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 
 /// Session policy for pooled connections: browse vs SQL editor (writes).
+/// Longest statement an MCP session may run; the server stops it after this.
+const Duration mcpStatementTimeout = Duration(seconds: 15);
+
 enum MysqlSessionMode {
   /// Tree catalog, stats, and Table Browser SELECT/COUNT.
   readOnly,
@@ -14,10 +19,17 @@ enum MysqlSessionMode {
 
   /// Table Browser Save (own TCP session so START TRANSACTION / SET / USE do not leak).
   tableWrite,
+  /// MCP clients: a read-only session of their own, so an agent never shares
+  /// the user's session. Statements are bounded by [statementTimeout].
+  mcp,
 }
 
 extension MysqlSessionModeReadOnly on MysqlSessionMode {
-  bool get isReadOnlySession => this == MysqlSessionMode.readOnly;
+  bool get isReadOnlySession => this == MysqlSessionMode.readOnly || this == MysqlSessionMode.mcp;
+
+  /// Server-side limit for every statement on this session, or null for none.
+  Duration? get statementTimeout =>
+      this == MysqlSessionMode.mcp ? mcpStatementTimeout : null;
 }
 
 typedef MysqlPoolConnectionFactory = Future<MysqlConnection> Function(
@@ -28,10 +40,10 @@ typedef MysqlPoolConnectionFactory = Future<MysqlConnection> Function(
 
 /// Lease for a pooled [MysqlConnection]. Call [release] when the UI is done.
 class MysqlLease {
-  MysqlLease._(this._pool, this._key, this.connection);
+  MysqlLease._(this._pool, this._entry, this.connection);
 
   final MysqlConnectionPool _pool;
-  final String _key;
+  final _PoolEntry _entry;
   final MysqlConnection connection;
 
   bool _released = false;
@@ -39,7 +51,7 @@ class MysqlLease {
   void release() {
     if (_released) return;
     _released = true;
-    _pool._release(_key);
+    _pool._release(_entry);
   }
 }
 
@@ -76,11 +88,8 @@ class MysqlConnectionPool {
       entry.idleTimer?.cancel();
       entry.idleTimer = null;
       entry.refs++;
-      if (!entry.connection.isConnected) {
-        await entry.connection.connect();
-        await entry.connection.setSessionReadOnly(mode.isReadOnlySession);
-      }
-      return MysqlLease._(this, k, entry.connection);
+      await _ensureConnected(entry, mode);
+      return MysqlLease._(this, entry, entry.connection);
     }
 
     try {
@@ -88,17 +97,20 @@ class MysqlConnectionPool {
         _evictIfNeededBeforeNewSlot();
         final conn =
             await createAndConnect(row, database: database, mode: mode);
-        _pool[k] = _PoolEntry(conn);
+        _pool[k] = _PoolEntry(conn, k);
         return conn;
       });
     } on StateError {
+      rethrow;
+    } on PoolExhaustedException {
       rethrow;
     } on MysqlConnectionException {
       rethrow;
     } catch (e, st) {
       Error.throwWithStackTrace(
         MysqlConnectionException(
-          'Failed to acquire MySQL connection for database "$database": $e',
+          'Failed to acquire MySQL connection for database "$database": '
+          '${describeDatabaseError(e, driver: DatabaseDriver.mysql)}',
           cause: e,
           stackTrace: st,
         ),
@@ -111,19 +123,18 @@ class MysqlConnectionPool {
     entry.idleTimer?.cancel();
     entry.idleTimer = null;
     entry.refs++;
-    if (!entry.connection.isConnected) {
-      await entry.connection.connect();
-      await entry.connection.setSessionReadOnly(mode.isReadOnlySession);
-    }
-    return MysqlLease._(this, k, entry.connection);
+    await _ensureConnected(entry, mode);
+    return MysqlLease._(this, entry, entry.connection);
   }
 
   void _evictIfNeededBeforeNewSlot() {
     while (_pool.length >= maxEntries) {
       final idle = _pool.entries.where((e) => e.value.refs == 0).toList();
       if (idle.isEmpty) {
-        throw StateError(
-          'MySQL connection pool exhausted: $maxEntries slots in use.',
+        throw PoolExhaustedException(
+          'The MySQL connection pool is full: $maxEntries sessions are in use',
+          remediationHint: 'Close tabs or connections you no longer use, '
+              'then try again',
         );
       }
       idle.sort((a, b) => a.value.lastUsed.compareTo(b.value.lastUsed));
@@ -138,18 +149,54 @@ class MysqlConnectionPool {
     unawaited(entry.connection.forceClose());
   }
 
-  void _release(String k) {
-    final entry = _pool[k];
-    if (entry == null) return;
+  /// Releases one lease on [entry]. A lease taken before an [interrupt] points
+  /// at an entry that is no longer in the pool: it must not touch the entry
+  /// that replaced it under the same key, so it does nothing.
+  /// Makes the entry's connection usable for a lease that was just counted.
+  /// When the reconnect fails the count is given back, so the entry can be
+  /// idle-disposed or evicted instead of staying "in use" for good (#1306).
+  Future<void> _ensureConnected(_PoolEntry entry, MysqlSessionMode mode) async {
+    if (entry.connection.isConnected) return;
+    try {
+      await _reconnect(entry, mode);
+    } catch (_) {
+      _release(entry);
+      rethrow;
+    }
+  }
+
+  /// Brings a dropped entry back with one reconnect and one session setting,
+  /// even when several callers ask at once; they all wait for the same attempt.
+  Future<void> _reconnect(_PoolEntry entry, MysqlSessionMode mode) {
+    final inFlight = entry.reconnecting;
+    if (inFlight != null) return inFlight;
+    final attempt = () async {
+      await entry.connection.connect();
+      await entry.connection.configureSession(
+        readOnly: mode.isReadOnlySession,
+        statementTimeout: mode.statementTimeout,
+      );
+    }();
+    entry.reconnecting = attempt;
+    return attempt.whenComplete(() {
+      if (identical(entry.reconnecting, attempt)) entry.reconnecting = null;
+    });
+  }
+
+  void _release(_PoolEntry entry) {
+    if (!identical(_pool[entry.key], entry)) return;
     entry.refs--;
+    assert(
+      entry.refs >= 0,
+      'pool entry ${entry.key} released more often than leased',
+    );
     if (entry.refs > 0) return;
     entry.idleTimer?.cancel();
     entry.idleTimer = Timer(idleDisposeDelay, () {
-      final e = _pool[k];
-      if (e == null || e.refs > 0) return;
-      e.idleTimer = null;
-      unawaited(e.connection.disconnect());
-      _pool.remove(k);
+      if (!identical(_pool[entry.key], entry) || entry.refs > 0) return;
+      entry.idleTimer = null;
+      unawaited(entry.connection.disconnect());
+      _pool.remove(entry.key);
     });
   }
 
@@ -192,9 +239,11 @@ class MysqlConnectionPool {
 }
 
 class _PoolEntry {
-  _PoolEntry(this.connection) : lastUsed = DateTime.now();
+  _PoolEntry(this.connection, this.key) : lastUsed = DateTime.now();
 
   final MysqlConnection connection;
+  final String key;
+  Future<void>? reconnecting;
   int refs = 0;
   Timer? idleTimer;
   DateTime lastUsed;

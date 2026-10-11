@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' as material;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:querya_desktop/core/database/table_mutation_engine.dart';
@@ -5,7 +7,7 @@ import 'package:querya_desktop/core/database/table_schema_meta.dart';
 import 'package:querya_desktop/core/theme/app_theme.dart';
 import 'package:querya_desktop/features/workspace/data_grid_staging_buffer.dart';
 import 'package:querya_desktop/features/workspace/table_view_staging.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' hide TextExtension;
 
 void main() {
   group('tableViewEditingEnabled', () {
@@ -502,11 +504,11 @@ void main() {
 
       bool? result;
       // Trigger confirmation asynchronously
-      confirmDiscardTableEditsIfDirty(
+      unawaited(confirmDiscardTableEditsIfDirty(
         context: ctx,
         buffer: buffer,
         tableTitle: 'public.users',
-      ).then((val) => result = val);
+      ).then((val) => result = val));
 
       await tester.pumpAndSettle();
       expect(find.text('Unsaved changes in "public.users"'), findsOneWidget);
@@ -544,11 +546,11 @@ void main() {
       expect(buffer.isDirty, isTrue);
 
       bool? result;
-      confirmDiscardTableEditsIfDirty(
+      unawaited(confirmDiscardTableEditsIfDirty(
         context: ctx,
         buffer: buffer,
         tableTitle: 'Query 1',
-      ).then((val) => result = val);
+      ).then((val) => result = val));
 
       await tester.pumpAndSettle();
       expect(find.text('Unsaved changes in "Query 1"'), findsOneWidget);

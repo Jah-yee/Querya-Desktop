@@ -1,14 +1,17 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:querya_desktop/core/security/connection_environment.dart';
+import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
 import 'package:querya_desktop/core/storage/app_data_root.dart';
 import 'package:querya_desktop/core/storage/connection_secrets_store.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 const _dbName = 'querya.db';
-const _dbVersion = 9;
+const _dbVersion = 13;
 
 /// `app_settings` key under which each profile database's random id is
 /// stored (see [LocalDb._ensureProfileId] and issue #986).
@@ -176,7 +179,53 @@ class LocalDb {
       CREATE INDEX idx_sql_query_history_lookup
       ON sql_query_history (connection_id, database_name, recorded_at DESC, id DESC)
     ''');
+    await _createMutationAuditTable(db);
+    await _createMcpActivityTable(db);
+    await _createErdLayoutsTable(db);
     ConnectionSecretsStore.profileId = await _ensureProfileId(db);
+  }
+
+  /// Local audit trail of executed data / schema changes (#1062). Not linked
+  /// to `connections` so entries outlive a deleted connection; the connection
+  /// name is stored as a snapshot.
+  Future<void> _createMutationAuditTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS mutation_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        connection_id INTEGER,
+        connection_name TEXT NOT NULL,
+        environment TEXT,
+        database_name TEXT,
+        sql_text TEXT NOT NULL,
+        rows_affected INTEGER,
+        source TEXT NOT NULL,
+        recorded_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_mutation_audit_recorded
+      ON mutation_audit (id DESC)
+    ''');
+  }
+
+  /// Calls made by MCP clients (#1136), newest kept, capped at
+  /// [kMcpActivityCap]. Connection name is a snapshot, like the audit.
+  Future<void> _createMcpActivityTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS mcp_activity (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recorded_at TEXT NOT NULL,
+        client TEXT NOT NULL,
+        tool TEXT NOT NULL,
+        connection_id INTEGER,
+        connection_name TEXT,
+        sql_text TEXT,
+        row_count INTEGER,
+        duration_ms INTEGER NOT NULL,
+        error TEXT,
+        refusal_rule TEXT
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -287,6 +336,59 @@ class LocalDb {
         await ConnectionSecretsStore.adoptLegacyKeysForConnection(id);
       }
     }
+    if (oldVersion < 10) {
+      await _createMutationAuditTable(db);
+    }
+    if (oldVersion < 11) {
+      await _createMcpActivityTable(db);
+    }
+    if (oldVersion >= 11 && oldVersion < 12) {
+      // The rule that refused a call, next to its error text.
+      await db.execute('ALTER TABLE mcp_activity ADD COLUMN refusal_rule TEXT');
+    }
+    if (oldVersion < 13) {
+      await _createErdLayoutsTable(db);
+    }
+  }
+
+  /// What the user arranged on an ER diagram (#1275), one row per connection
+  /// and scope (database / schema), removed with its connection.
+  Future<void> _createErdLayoutsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS erd_layouts (
+        connection_id INTEGER NOT NULL
+          REFERENCES connections(id) ON DELETE CASCADE,
+        scope TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (connection_id, scope)
+      )
+    ''');
+  }
+
+  Future<String?> readErdLayout(int connectionId, String scope) async {
+    final db = await _open();
+    final rows = await db.query(
+      'erd_layouts',
+      columns: ['payload'],
+      where: 'connection_id = ? AND scope = ?',
+      whereArgs: [connectionId, scope],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : rows.first['payload'] as String?;
+  }
+
+  Future<void> writeErdLayout(
+    int connectionId,
+    String scope,
+    String payload,
+  ) async {
+    final db = await _open();
+    await db.rawInsert(
+      'INSERT OR REPLACE INTO erd_layouts '
+      '(connection_id, scope, payload, updated_at) VALUES (?, ?, ?, ?)',
+      [connectionId, scope, payload, DateTime.now().toUtc().toIso8601String()],
+    );
   }
 
   Future<String?> getAppSetting(String key) async {
@@ -447,6 +549,99 @@ class LocalDb {
     );
   }
 
+  /// Appends one executed mutation to the audit trail and trims the table to
+  /// [kMutationAuditCap] rows. Never throws: auditing must not break a query.
+  Future<void> recordMutationAudit({
+    int? connectionId,
+    required String connectionName,
+    String? environment,
+    String? databaseName,
+    required String sqlText,
+    int? rowsAffected,
+    required MutationAuditSource source,
+  }) async {
+    final sql = sqlText.trim();
+    if (sql.isEmpty) return;
+    try {
+      final db = await _open();
+      await db.insert('mutation_audit', {
+        'connection_id': connectionId,
+        'connection_name': connectionName,
+        'environment': environment,
+        'database_name': _normalizeHistoryDatabaseName(databaseName),
+        'sql_text': sql,
+        'rows_affected': rowsAffected,
+        'source': source.storageValue,
+        'recorded_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      _mutationAuditInsertCount++;
+      if (_mutationAuditInsertCount >= 50) {
+        _mutationAuditInsertCount = 0;
+        await db.rawDelete(
+          'DELETE FROM mutation_audit WHERE id <= ('
+          'SELECT id FROM mutation_audit ORDER BY id DESC LIMIT 1 OFFSET ?)',
+          [kMutationAuditCap],
+        );
+      }
+    } catch (_) {
+      // Best effort.
+    }
+  }
+
+  var _mutationAuditInsertCount = 0;
+
+  /// Newest-first audit entries, optionally for one connection.
+  Future<List<MutationAuditEntry>> listMutationAudit({
+    int? connectionId,
+    int limit = 200,
+  }) async {
+    final db = await _open();
+    final rows = await db.query(
+      'mutation_audit',
+      where: connectionId == null ? null : 'connection_id = ?',
+      whereArgs: connectionId == null ? null : [connectionId],
+      orderBy: 'id DESC',
+      limit: limit,
+    );
+    return rows.map(MutationAuditEntry.fromMap).toList();
+  }
+
+  Future<void> clearMutationAudit() async {
+    final db = await _open();
+    await db.delete('mutation_audit');
+    _mutationAuditInsertCount = 0;
+  }
+
+  /// Appends one MCP tool call and keeps the newest [kMcpActivityCap].
+  /// Never throws: logging must not break a tool call.
+  Future<void> recordMcpActivity(McpActivityEntry entry) async {
+    try {
+      final db = await _open();
+      final map = entry.toMap()..remove('id');
+      await db.insert('mcp_activity', map);
+      await db.rawDelete(
+        'DELETE FROM mcp_activity WHERE id <= ('
+        'SELECT id FROM mcp_activity ORDER BY id DESC LIMIT 1 OFFSET ?)',
+        [kMcpActivityCap],
+      );
+    } catch (_) {
+      // Best effort.
+    }
+  }
+
+  /// Newest-first MCP tool calls.
+  Future<List<McpActivityEntry>> listMcpActivity({int limit = 200}) async {
+    final db = await _open();
+    final rows =
+        await db.query('mcp_activity', orderBy: 'id DESC', limit: limit);
+    return rows.map(McpActivityEntry.fromMap).toList();
+  }
+
+  Future<void> clearMcpActivity() async {
+    final db = await _open();
+    await db.delete('mcp_activity');
+  }
+
   Future<List<String>> getFolders() async {
     final db = await _open();
     final rows = await db.query('folders', orderBy: 'sort_order ASC, name ASC');
@@ -460,9 +655,33 @@ class LocalDb {
     await db.insert('folders', {'name': n});
   }
 
+  /// Removes the folder; its connections stay, without a folder.
+  ///
+  /// `connections.folder_id` is `ON DELETE CASCADE`, which would delete them
+  /// with it. They are detached first, so the cascade finds nothing: no schema
+  /// migration of the connections table is needed.
   Future<void> removeFolder(String name) async {
     final db = await _open();
-    await db.delete('folders', where: 'name = ?', whereArgs: [name]);
+    await db.transaction((txn) async {
+      await txn.rawUpdate(
+        'UPDATE connections SET folder_id = NULL WHERE folder_id IN '
+        '(SELECT id FROM folders WHERE name = ?)',
+        [name],
+      );
+      await txn.delete('folders', where: 'name = ?', whereArgs: [name]);
+    });
+  }
+
+  /// Moves a connection into the folder [folderId], or out of any folder when
+  /// it is null. Only the folder changes: secrets and settings are untouched.
+  Future<void> setConnectionFolder(int connectionId, int? folderId) async {
+    final db = await _open();
+    await db.update(
+      'connections',
+      {'folder_id': folderId},
+      where: 'id = ?',
+      whereArgs: [connectionId],
+    );
   }
 
   Future<void> clearFolders() async {
@@ -542,6 +761,15 @@ class LocalDb {
         password: row.password,
         connectionString: row.connectionString,
       );
+      if (row.sshSecrets != null) {
+        await ConnectionSecretsStore.writeSshSecretsForConnection(
+          id,
+          password: row.sshSecrets!.password,
+          privateKey: row.sshSecrets!.privateKey,
+          passphrase: row.sshSecrets!.passphrase,
+          jumpPassword: row.sshSecrets!.jumpPassword,
+        );
+      }
     } catch (e) {
       try {
         await ConnectionSecretsStore.deleteForConnection(id);
@@ -575,6 +803,8 @@ class LocalDb {
     final previousRow = ConnectionRow.fromMap(previousMaps.first);
     final previousSecrets =
         await ConnectionSecretsStore.readForConnection(row.id!);
+    final previousSsh =
+        await ConnectionSecretsStore.readSshSecretsForConnection(row.id!);
 
     await db.transaction((txn) async {
       final count = await txn.update(
@@ -594,6 +824,19 @@ class LocalDb {
         password: row.password,
         connectionString: row.connectionString,
       );
+      if (row.sshSecrets != null) {
+        await ConnectionSecretsStore.writeSshSecretsForConnection(
+          row.id!,
+          password: row.sshSecrets!.password,
+          privateKey: row.sshSecrets!.privateKey,
+          passphrase: row.sshSecrets!.passphrase,
+          jumpPassword: row.sshSecrets!.jumpPassword,
+        );
+      } else if (row.sshTunnelConfig?.enabled != true) {
+        // The tunnel was turned off: its password and key do not stay in the
+        // keyring (#1311).
+        await ConnectionSecretsStore.writeSshSecretsForConnection(row.id!);
+      }
     } catch (e) {
       await db.update(
         'connections',
@@ -606,6 +849,14 @@ class LocalDb {
           row.id!,
           password: previousSecrets.password,
           connectionString: previousSecrets.connectionString,
+        );
+        // The SSH secrets may be half written too (four keys, one by one).
+        await ConnectionSecretsStore.writeSshSecretsForConnection(
+          row.id!,
+          password: previousSsh.password,
+          privateKey: previousSsh.privateKey,
+          passphrase: previousSsh.passphrase,
+          jumpPassword: previousSsh.jumpPassword,
         );
       } catch (_) {
         // Best-effort restore of previous secrets; surface the original error.
@@ -627,12 +878,211 @@ class LocalDb {
     await db.delete('connections', where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Resolves the absolute path to `querya.db`.
+  Future<String> databasePath() async {
+    if (_cachedDbPath != null) return _cachedDbPath!;
+    final dir = await AppDataRoot.applicationSupportDirectory();
+    final sub = Directory(p.join(dir.path, 'querya_desktop'));
+    if (!await sub.exists()) await sub.create(recursive: true);
+    _cachedDbPath = p.join(sub.path, _dbName);
+    return _cachedDbPath!;
+  }
+
+  /// Explicitly opens the database or throws if opening/migrating fails.
+  Future<Database> open() => _open();
+
+  /// Removes stale WAL, SHM, and lock sidecars (e.g. after a process crash or freeze).
+  Future<void> removeWalAndLockFiles() async {
+    await close();
+    final dbPath = await databasePath();
+    final walFile = File('$dbPath-wal');
+    final shmFile = File('$dbPath-shm');
+    final lockFile = File('$dbPath-lock');
+    if (await walFile.exists()) {
+      try {
+        await walFile.delete();
+      } catch (_) {}
+    }
+    if (await shmFile.exists()) {
+      try {
+        await shmFile.delete();
+      } catch (_) {}
+    }
+    if (await lockFile.exists()) {
+      try {
+        await lockFile.delete();
+      } catch (_) {}
+    }
+  }
+
+  /// Creates a timestamped backup copy of `querya.db` (and any sidecar files)
+  /// in the same directory and returns the backup file path.
+  Future<String> backupDatabaseFile() async {
+    await close();
+    final dbPath = await databasePath();
+    final dbFile = File(dbPath);
+    if (!await dbFile.exists()) {
+      throw FileSystemException('Database file does not exist', dbPath);
+    }
+    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+    final backupPath = '$dbPath.corrupted.$timestamp.bak';
+    await dbFile.copy(backupPath);
+
+    final walFile = File('$dbPath-wal');
+    if (await walFile.exists()) {
+      try {
+        await walFile.copy('$backupPath-wal');
+      } catch (_) {}
+    }
+    return backupPath;
+  }
+
+  /// Resets the database file by creating a backup and removing the corrupted db
+  /// so a fresh schema can be created on the next launch.
+  Future<void> resetDatabaseFile() async {
+    await close();
+    final dbPath = await databasePath();
+    final dbFile = File(dbPath);
+    if (await dbFile.exists()) {
+      try {
+        await backupDatabaseFile();
+      } catch (_) {}
+      try {
+        await dbFile.delete();
+      } catch (_) {}
+    }
+    await removeWalAndLockFiles();
+  }
+
   Future<void> close() async {
     _openFuture = null;
     await _db?.close();
     _db = null;
     _cachedDbPath = null;
   }
+}
+
+/// Maximum rows kept in the mutation audit trail.
+const int kMutationAuditCap = 10000;
+
+/// Where an audited mutation was started.
+enum MutationAuditSource {
+  sqlEditor('sql_editor'),
+  tableEditor('table_editor');
+
+  const MutationAuditSource(this.storageValue);
+
+  final String storageValue;
+
+  static MutationAuditSource fromStorageValue(String? value) =>
+      values.firstWhere(
+        (s) => s.storageValue == value,
+        orElse: () => MutationAuditSource.sqlEditor,
+      );
+}
+
+/// One row of the local mutation audit trail.
+/// Rows kept in `mcp_activity`.
+const kMcpActivityCap = 200;
+
+/// One tool call made by an MCP client.
+class McpActivityEntry {
+  const McpActivityEntry({
+    this.id,
+    required this.recordedAt,
+    required this.client,
+    required this.tool,
+    this.connectionId,
+    this.connectionName,
+    this.sqlText,
+    this.rowCount,
+    required this.durationMs,
+    this.error,
+    this.refusalRule,
+  });
+
+  final int? id;
+
+  /// UTC ISO-8601.
+  final String recordedAt;
+  final String client;
+  final String tool;
+  final int? connectionId;
+  final String? connectionName;
+  final String? sqlText;
+  final int? rowCount;
+  final int durationMs;
+  final String? error;
+
+  /// The guard rule that refused the call (`read_only_only`, ...), when one did.
+  final String? refusalRule;
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'recorded_at': recordedAt,
+        'client': client,
+        'tool': tool,
+        'connection_id': connectionId,
+        'connection_name': connectionName,
+        'sql_text': sqlText,
+        'row_count': rowCount,
+        'duration_ms': durationMs,
+        'error': error,
+        'refusal_rule': refusalRule,
+      };
+
+  static McpActivityEntry fromMap(Map<String, Object?> m) => McpActivityEntry(
+        id: _sqliteInt(m['id']),
+        recordedAt: m['recorded_at'] as String,
+        client: m['client'] as String,
+        tool: m['tool'] as String,
+        connectionId: _sqliteInt(m['connection_id']),
+        connectionName: m['connection_name'] as String?,
+        sqlText: m['sql_text'] as String?,
+        rowCount: _sqliteInt(m['row_count']),
+        durationMs: _sqliteInt(m['duration_ms']) ?? 0,
+        error: m['error'] as String?,
+        refusalRule: m['refusal_rule'] as String?,
+      );
+}
+
+class MutationAuditEntry {
+  const MutationAuditEntry({
+    required this.id,
+    this.connectionId,
+    required this.connectionName,
+    this.environment,
+    this.databaseName,
+    required this.sqlText,
+    this.rowsAffected,
+    required this.source,
+    required this.recordedAt,
+  });
+
+  final int id;
+  final int? connectionId;
+  final String connectionName;
+
+  /// `development` / `staging` / `production` when the connection was tagged.
+  final String? environment;
+  final String? databaseName;
+  final String sqlText;
+  final int? rowsAffected;
+  final MutationAuditSource source;
+  final String recordedAt;
+
+  static MutationAuditEntry fromMap(Map<String, Object?> m) =>
+      MutationAuditEntry(
+        id: _sqliteInt(m['id'])!,
+        connectionId: _sqliteInt(m['connection_id']),
+        connectionName: m['connection_name'] as String,
+        environment: m['environment'] as String?,
+        databaseName: m['database_name'] as String?,
+        sqlText: m['sql_text'] as String,
+        rowsAffected: _sqliteInt(m['rows_affected']),
+        source: MutationAuditSource.fromStorageValue(m['source'] as String?),
+        recordedAt: m['recorded_at'] as String,
+      );
 }
 
 /// One row from [LocalDb.sql_query_history] (recent SQL, no secrets).
@@ -679,7 +1129,13 @@ class ConnectionRow {
     this.folderId,
     this.sortOrder = 0,
     required this.createdAt,
+    this.sshSecrets,
+    this.removeSavedPassword = false,
   });
+
+  /// Set by an edit form (never stored): the saved password is to be removed,
+  /// not kept because the password field was left blank (#1311).
+  final bool removeSavedPassword;
 
   final int? id;
   final String type;
@@ -692,6 +1148,7 @@ class ConnectionRow {
   final String? authSource;
   final bool useSSL;
   final String? connectionString;
+  final SshTunnelSecrets? sshSecrets;
 
   /// Package id of an installed extension driver (null for built-ins).
   final String? extensionId;
@@ -706,6 +1163,57 @@ class ConnectionRow {
   /// True when this row is backed by an installed extension driver.
   bool get isExtensionDriver =>
       extensionId != null && extensionId!.trim().isNotEmpty;
+
+  /// Returns the SSH tunnel config stored in [driverOptions], if any.
+  SshTunnelConfig? get sshTunnelConfig {
+    if (driverOptions == null || driverOptions!.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(driverOptions!);
+      if (decoded is Map<String, dynamic> && decoded.containsKey('ssh_tunnel')) {
+        final sshMap = decoded['ssh_tunnel'];
+        if (sshMap is Map<String, dynamic>) {
+          return SshTunnelConfig.fromMap(sshMap);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Environment tag stored in [driverOptions] (null when untagged).
+  ConnectionEnvironment? get environment =>
+      ConnectionEnvironment.fromDriverOptions(driverOptions);
+
+  /// Returns a copy of this row tagged with [environment] (null removes the tag).
+  ConnectionRow withEnvironment(ConnectionEnvironment? environment) {
+    final options =
+        ConnectionEnvironment.applyToDriverOptions(driverOptions, environment);
+    return copyWith(
+      driverOptions: options,
+      clearDriverOptions: options == null,
+    );
+  }
+
+  /// Returns a copy of this row with the given [sshTunnelConfig] encoded in [driverOptions].
+  ConnectionRow withSshTunnelConfig(SshTunnelConfig? config) {
+    Map<String, dynamic> opts = {};
+    if (driverOptions != null && driverOptions!.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(driverOptions!);
+        if (decoded is Map<String, dynamic>) {
+          opts = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {}
+    }
+    if (config == null || !config.enabled) {
+      opts.remove('ssh_tunnel');
+    } else {
+      opts['ssh_tunnel'] = config.toMap();
+    }
+    return copyWith(
+      driverOptions: opts.isEmpty ? null : jsonEncode(opts),
+      clearDriverOptions: opts.isEmpty,
+    );
+  }
 
   Map<String, Object?> toMap() => {
         'type': type,
@@ -780,8 +1288,12 @@ class ConnectionRow {
     int? folderId,
     int? sortOrder,
     String? createdAt,
+    SshTunnelSecrets? sshSecrets,
+    bool? removeSavedPassword,
     bool clearPassword = false,
     bool clearConnectionString = false,
+    bool clearSshSecrets = false,
+    bool clearDriverOptions = false,
   }) {
     return ConnectionRow(
       id: id ?? this.id,
@@ -798,10 +1310,14 @@ class ConnectionRow {
           ? null
           : (connectionString ?? this.connectionString),
       extensionId: extensionId ?? this.extensionId,
-      driverOptions: driverOptions ?? this.driverOptions,
+      driverOptions: clearDriverOptions
+          ? null
+          : (driverOptions ?? this.driverOptions),
       folderId: folderId ?? this.folderId,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
+      sshSecrets: clearSshSecrets ? null : (sshSecrets ?? this.sshSecrets),
+      removeSavedPassword: removeSavedPassword ?? this.removeSavedPassword,
     );
   }
 
@@ -813,12 +1329,14 @@ class ConnectionRow {
       connectionString != null && connectionString!.isNotEmpty;
 
   /// Whether any in-memory secret credentials are held.
-  bool get hasSecrets => hasPassword || hasConnectionString;
+  bool get hasSecrets =>
+      hasPassword || hasConnectionString || (sshSecrets != null && sshSecrets!.hasAny);
 
   /// Returns a clean copy of this [ConnectionRow] with all secret credentials
-  /// ([password] and [connectionString]) scrubbed to null.
+  /// ([password], [connectionString], and [sshSecrets]) scrubbed to null.
   ConnectionRow withoutSecrets() => copyWith(
         clearPassword: true,
         clearConnectionString: true,
+        clearSshSecrets: true,
       );
 }

@@ -23,14 +23,35 @@ class QueryaHighlightController extends TextEditingController {
   });
 
   final QueryaCodeLanguage language;
-  final Highlighter lightHighlighter;
-  final Highlighter darkHighlighter;
-  final String lightThemeConfig;
-  final String darkThemeConfig;
+  Highlighter lightHighlighter;
+  Highlighter darkHighlighter;
+  String lightThemeConfig;
+  String darkThemeConfig;
   final String grammarJson;
-  final Color wrapperColor;
+  Color wrapperColor;
+
+  /// Updates highlighters and theme configs when application theme changes.
+  void updateTheme({
+    required Highlighter lightHighlighter,
+    required Highlighter darkHighlighter,
+    required String lightThemeConfig,
+    required String darkThemeConfig,
+    required Color wrapperColor,
+  }) {
+    this.lightHighlighter = lightHighlighter;
+    this.darkHighlighter = darkHighlighter;
+    this.lightThemeConfig = lightThemeConfig;
+    this.darkThemeConfig = darkThemeConfig;
+    this.wrapperColor = wrapperColor;
+    _cachedSpan = null;
+    _cachedSegments = null;
+    _cachedText = null;
+    _cachedBrightness = null;
+    notifyListeners();
+  }
 
   TextSpan? _cachedSpan;
+  List<HighlightSegment>? _cachedSegments;
   String? _cachedText;
   Brightness? _cachedBrightness;
   int _highlightGeneration = 0;
@@ -58,6 +79,7 @@ class QueryaHighlightController extends TextEditingController {
       try {
         final span = highlighter.highlight(text);
         _cachedSpan = span;
+        _cachedSegments = flattenSpan(span);
         _cachedText = text;
         _cachedBrightness = brightness;
         _debounceTimer?.cancel();
@@ -75,6 +97,23 @@ class QueryaHighlightController extends TextEditingController {
     );
 
     if (_cachedSpan != null && _cachedText == text) {
+      return TextSpan(style: style, children: [_cachedSpan!]);
+    }
+
+    // Preserve syntax colors during active typing in documents >= 8KB instead
+    // of dropping to unhighlighted monochrome plain text while the background
+    // isolate highlighting is in flight (#1351).
+    if (_cachedSegments != null &&
+        _cachedText != null &&
+        _cachedBrightness == brightness) {
+      final patched = patchHighlightSegments(
+        oldText: _cachedText!,
+        oldSegments: _cachedSegments!,
+        newText: text,
+      );
+      _cachedSegments = patched;
+      _cachedText = text;
+      _cachedSpan = segmentsToTextSpan(patched, baseStyle: style);
       return TextSpan(style: style, children: [_cachedSpan!]);
     }
 
@@ -121,6 +160,7 @@ class QueryaHighlightController extends TextEditingController {
       ),
     ).then((segments) {
       if (generation != _highlightGeneration) return;
+      _cachedSegments = segments;
       _cachedSpan = segmentsToTextSpan(segments, baseStyle: style);
       _cachedText = text;
       _cachedBrightness = brightness;

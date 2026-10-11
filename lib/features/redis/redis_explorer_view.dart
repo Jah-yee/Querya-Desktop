@@ -7,11 +7,14 @@ import 'package:querya_desktop/core/database/redis_service.dart';
 import 'package:querya_desktop/core/motion/querya_switching_body.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn
+    hide TextExtension;
 
 import 'redis_keys_view.dart';
 import 'redis_key_editor.dart';
 import 'redis_view.dart';
+import 'redis_cli_workspace.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 // ─── Navigation path model ──────────────────────────────────────────────────
 
@@ -21,7 +24,7 @@ class _Crumb {
   final _Level level;
 }
 
-enum _Level { keys, key, stats }
+enum _Level { keys, key, stats, cli }
 
 // ─── Main explorer widget ───────────────────────────────────────────────────
 
@@ -33,11 +36,13 @@ class RedisExplorerView extends material.StatefulWidget {
     super.key,
     required this.connectionRow,
     required this.database,
+    this.initialKey,
     this.isReadOnly = false,
   });
 
   final ConnectionRow connectionRow;
   final int database;
+  final String? initialKey;
   final bool isReadOnly;
 
   @override
@@ -51,11 +56,14 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
 
   // View mode
   bool _showStats = false;
+  bool _showCli = false;
   int _refreshEpoch = 0;
 
   // Navigation state
   RedisBulkValue? _selectedKey;
   String? _selectedKeyType;
+  RedisBulkValue? _lastSelectedKey;
+  String? _lastSelectedKeyType;
 
   // Key used to reach _RedisKeyEditorState.canNavigateAway() from the explorer.
   RedisKeyEditorController? _keyEditorController;
@@ -63,6 +71,13 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialKey != null) {
+      final key = RedisBulkValue.utf8(widget.initialKey!);
+      _selectedKey = key;
+      _lastSelectedKey = key;
+      _selectedKeyType = 'string';
+      _keyEditorController = RedisKeyEditorController();
+    }
     _connect();
   }
 
@@ -73,8 +88,15 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
         oldWidget.database != widget.database) {
       _disconnectCurrent();
       _connect();
-    } else if (oldWidget.isReadOnly != widget.isReadOnly) {
-      unawaited(_connection?.applyClientReadOnly(widget.isReadOnly));
+    } else {
+      if (oldWidget.isReadOnly != widget.isReadOnly) {
+        unawaited(_connection?.applyClientReadOnly(widget.isReadOnly));
+      }
+      if (widget.initialKey != null &&
+          widget.initialKey != _selectedKey?.label) {
+        final key = RedisBulkValue.utf8(widget.initialKey!);
+        _navigateToKey(key, _selectedKeyType ?? 'string');
+      }
     }
   }
 
@@ -102,8 +124,10 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
     setState(() {
       _connecting = true;
       _error = null;
-      _selectedKey = null;
-      _selectedKeyType = null;
+      if (widget.initialKey == null) {
+        _selectedKey = null;
+        _selectedKeyType = null;
+      }
       _showStats = false;
     });
     try {
@@ -139,6 +163,8 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
     setState(() {
       _selectedKey = key;
       _selectedKeyType = type;
+      _lastSelectedKey = key;
+      _lastSelectedKeyType = type;
       _keyEditorController = RedisKeyEditorController();
     });
   }
@@ -159,6 +185,7 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
   void _onKeyRenamed(RedisBulkValue newKey) {
     setState(() {
       _selectedKey = newKey;
+      _lastSelectedKey = newKey;
       _keyEditorController = RedisKeyEditorController();
       _refreshEpoch++;
     });
@@ -176,13 +203,20 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
     }
     if (_showStats) {
       list.add(const _Crumb('Statistics', _Level.stats));
+    } else if (_showCli) {
+      list.add(const _Crumb('CLI Console', _Level.cli));
     }
     return list;
   }
 
   void _onCrumbTap(_Crumb crumb) {
-    if (_showStats && crumb.level != _Level.stats) {
-      setState(() => _showStats = false);
+    if ((_showStats || _showCli) &&
+        crumb.level != _Level.stats &&
+        crumb.level != _Level.cli) {
+      setState(() {
+        _showStats = false;
+        _showCli = false;
+      });
     }
     switch (crumb.level) {
       case _Level.keys:
@@ -190,6 +224,8 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
       case _Level.key:
         break;
       case _Level.stats:
+        break;
+      case _Level.cli:
         break;
     }
   }
@@ -202,18 +238,10 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
 
     // Loading state
     if (_connecting) {
-      return material.Center(
-        child: material.Column(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            const material.SizedBox(
-              width: 32,
-              height: 32,
-              child: material.CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const Gap(16),
-            const Text('Connecting...').muted().small(),
-          ],
+      return const material.Center(
+        child: QueryaSpinner(
+          size: QueryaSpinnerSize.lg,
+          label: 'Connecting...',
         ),
       );
     }
@@ -236,11 +264,11 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
                   style: material.TextStyle(
                       color: cs.mutedForeground, fontSize: 13)),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _connect,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -251,6 +279,15 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
     final conn = _connection;
     if (conn == null) return const material.SizedBox.shrink();
 
+    final int bodyIndex;
+    if (_showCli) {
+      bodyIndex = 2;
+    } else if (_showStats) {
+      bodyIndex = 1;
+    } else {
+      bodyIndex = 0;
+    }
+
     return material.Container(
       color: cs.background,
       child: material.Column(
@@ -260,22 +297,62 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
             crumbs: _crumbs,
             onCrumbTap: _onCrumbTap,
             onRefresh: () => setState(() => _refreshEpoch++),
-            onStats: () => setState(() => _showStats = !_showStats),
+            onStats: () => setState(() {
+              _showStats = !_showStats;
+              if (_showStats) _showCli = false;
+            }),
+            onCli: () => setState(() {
+              _showCli = !_showCli;
+              if (_showCli) _showStats = false;
+            }),
+            isCliActive: _showCli,
+            isStatsActive: _showStats,
             isReadOnly: widget.isReadOnly,
           ),
-          const Divider(height: 1),
-          // Content with fluid cross-fade morph between keys and stats
+          const QueryaDivider(height: 1),
+          // Content with fluid cross-fade morph between keys, stats and CLI
           material.Expanded(
             child: QueryaSwitchingBody(
               slide: material.Offset.zero,
-              index: _showStats ? 1 : 0,
+              index: bodyIndex,
               children: [
                 _buildContent(conn),
                 RedisView(
                   key: ValueKey('stats_${widget.connectionRow.id}'),
                   connectionRow: widget.connectionRow,
                   connection: conn,
+                  lastSelectedRedisDb: widget.database,
+                  lastSelectedRedisKey:
+                      (_selectedKey ?? _lastSelectedKey)?.label,
+                  onRestoreLastSelectedObject:
+                      (_selectedKey ?? _lastSelectedKey) != null
+                          ? () {
+                              setState(() {
+                                _showStats = false;
+                                _showCli = false;
+                                if (_selectedKey == null &&
+                                    _lastSelectedKey != null) {
+                                  _selectedKey = _lastSelectedKey;
+                                  _selectedKeyType = _lastSelectedKeyType;
+                                  _keyEditorController =
+                                      RedisKeyEditorController();
+                                }
+                              });
+                            }
+                          : () => setState(() => _showStats = false),
                   onBack: () => setState(() => _showStats = false),
+                  onCli: () => setState(() {
+                    _showStats = false;
+                    _showCli = true;
+                  }),
+                ),
+                RedisCliWorkspace(
+                  key: ValueKey(
+                      'cli_${widget.connectionRow.id}_${widget.database}'),
+                  connectionRow: widget.connectionRow,
+                  connection: conn,
+                  database: widget.database,
+                  onBack: () => setState(() => _showCli = false),
                 ),
               ],
             ),
@@ -324,6 +401,9 @@ class _BreadcrumbBar extends StatelessWidget {
     required this.onCrumbTap,
     required this.onRefresh,
     required this.onStats,
+    required this.onCli,
+    this.isCliActive = false,
+    this.isStatsActive = false,
     this.isReadOnly = false,
   });
 
@@ -331,6 +411,9 @@ class _BreadcrumbBar extends StatelessWidget {
   final void Function(_Crumb) onCrumbTap;
   final VoidCallback onRefresh;
   final VoidCallback onStats;
+  final VoidCallback onCli;
+  final bool isCliActive;
+  final bool isStatsActive;
   final bool isReadOnly;
 
   @override
@@ -386,14 +469,41 @@ class _BreadcrumbBar extends StatelessWidget {
           ),
           const Gap(8),
           material.Tooltip(
+            message: 'Redis CLI Console',
+            child: material.InkWell(
+              onTap: onCli,
+              borderRadius: material.BorderRadius.circular(6),
+              child: material.Container(
+                decoration: isCliActive
+                    ? material.BoxDecoration(
+                        color: cs.primary.withValues(alpha: 0.15),
+                        borderRadius: material.BorderRadius.circular(6),
+                      )
+                    : null,
+                padding: const material.EdgeInsets.all(6),
+                child: material.Icon(material.Icons.terminal_rounded,
+                    size: 18,
+                    color: isCliActive ? cs.primary : cs.mutedForeground),
+              ),
+            ),
+          ),
+          const Gap(4),
+          material.Tooltip(
             message: 'Statistics',
             child: material.InkWell(
               onTap: onStats,
               borderRadius: material.BorderRadius.circular(6),
-              child: material.Padding(
+              child: material.Container(
+                decoration: isStatsActive
+                    ? material.BoxDecoration(
+                        color: cs.primary.withValues(alpha: 0.15),
+                        borderRadius: material.BorderRadius.circular(6),
+                      )
+                    : null,
                 padding: const material.EdgeInsets.all(6),
                 child: material.Icon(material.Icons.bar_chart_rounded,
-                    size: 18, color: cs.mutedForeground),
+                    size: 18,
+                    color: isStatsActive ? cs.primary : cs.mutedForeground),
               ),
             ),
           ),

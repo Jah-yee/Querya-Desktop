@@ -52,6 +52,10 @@ fi
 cp "$ROOT/packaging/linux/querya_desktop.desktop" \
   "$PKG/usr/share/applications/${BINARY_NAME}.desktop"
 
+# Maintainer scripts: refresh desktop-menu and icon caches (#1057).
+install -m 0755 "$ROOT/packaging/linux/deb/postinst" "$PKG/DEBIAN/postinst"
+install -m 0755 "$ROOT/packaging/linux/deb/postrm" "$PKG/DEBIAN/postrm"
+
 # Rough installed size in KiB for the control file.
 INSTALLED_SIZE="$(du -sk "$PKG" | awk '{print $1}')"
 
@@ -64,7 +68,7 @@ Architecture: ${ARCH}
 Maintainer: QueryaHub <noreply@querya.app>
 Installed-Size: ${INSTALLED_SIZE}
 Depends: libgtk-3-0, libsecret-1-0, libglib2.0-0
-Recommends: libayatana-appindicator3-1
+Recommends: libayatana-appindicator3-1, bubblewrap
 Homepage: https://github.com/QueryaHub/Querya-Desktop
 Description: Querya Desktop database client
  Multi-database desktop client for PostgreSQL, MySQL, Redis, MongoDB,

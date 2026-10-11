@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart' as material;
 import 'package:path/path.dart' as p;
+import 'package:querya_desktop/core/security/connection_environment.dart';
+import 'package:querya_desktop/features/connections/environment_section.dart';
 import 'package:querya_desktop/core/extensions/extension_driver_session.dart';
 import 'package:querya_desktop/core/extensions/models/extension_contributions.dart';
 import 'package:querya_desktop/core/extensions/models/extension_manifest.dart';
@@ -12,6 +14,7 @@ import 'package:querya_desktop/core/sdui/sdui_form_schema.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/connections/connection_edit_secrets.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows an SDUI connection form for an installed extension driver.
 Future<ConnectionRow?> showExtensionConnectionForm(
@@ -58,6 +61,7 @@ class _ExtensionConnectionFormContentState
     extends material.State<_ExtensionConnectionFormContent> {
   final _nameController = material.TextEditingController();
   final _formKey = material.GlobalKey<SduiFormBuilderState>();
+  ConnectionEnvironment? _environment;
   SduiFormSchema? _schema;
   String? _loadError;
   var _loading = true;
@@ -74,6 +78,7 @@ class _ExtensionConnectionFormContentState
     final initial = widget.initial;
     if (initial != null) {
       _nameController.text = initial.name;
+      _environment = initial.environment;
       _initialValues = _sduiInitialValuesFromConnection(initial);
     } else {
       _nameController.text = widget.driver.displayName;
@@ -127,7 +132,7 @@ class _ExtensionConnectionFormContentState
       values: values,
       folderId: widget.folderId,
       initial: widget.initial,
-    );
+    ).withEnvironment(_environment);
     material.Navigator.of(context).pop(row);
   }
 
@@ -234,11 +239,16 @@ class _ExtensionConnectionFormContentState
                         placeholder: const Text('My ClickHouse'),
                       ),
                       const material.SizedBox(height: 16),
+                      EnvironmentSection(
+                        value: _environment,
+                        onChanged: (e) => setState(() => _environment = e),
+                      ),
+                      const material.SizedBox(height: 16),
                       if (_loading)
                         const material.Padding(
                           padding: material.EdgeInsets.all(24),
                           child: material.Center(
-                            child: material.CircularProgressIndicator(),
+                            child: QueryaSpinner(size: QueryaSpinnerSize.md),
                           ),
                         )
                       else if (_loadError != null)
@@ -269,49 +279,26 @@ class _ExtensionConnectionFormContentState
             ),
             material.FocusTraversalGroup(
               policy: material.WidgetOrderTraversalPolicy(),
-              child: material.Container(
-                padding: const material.EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                decoration: material.BoxDecoration(
-                  border: material.Border(
-                    top: material.BorderSide(
-                      color: theme.border.withValues(alpha: 0.3),
+              child: QueryaDialogActions(
+                secondary: [
+                  QueryaButton.secondary(
+                      label: 'Test Connection',
+                      icon: material.Icons.bolt_rounded,
+                      loading: _testing,
+                      size: QueryaControlSize.lg,
+                      onPressed: _schema == null || _testing ? null : _testConnection,
                     ),
-                  ),
-                ),
-                child: material.Row(
-                  children: [
-                    OutlineButton(
-                      onPressed:
-                          _schema == null || _testing ? null : _testConnection,
-                      leading: _testing
-                          ? const material.SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: material.CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const material.Icon(
-                              material.Icons.bolt_rounded,
-                              size: 16,
-                            ),
-                      child: const Text('Test Connection'),
-                    ),
-                    const Spacer(),
-                    GhostButton(
+                ],
+                cancel: QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.lg,
                     ),
-                    const material.SizedBox(width: 12),
-                    PrimaryButton(
+                primary: QueryaButton.primary(
+                      label: 'Save',
                       onPressed: _schema == null ? null : _save,
-                      child: const Text('Save'),
+                      size: QueryaControlSize.lg,
                     ),
-                  ],
-                ),
               ),
             ),
           ],
