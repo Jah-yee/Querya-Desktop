@@ -67,6 +67,7 @@ void main() {
     expect(find.text('Indexes: orders'), findsOneWidget);
     expect(find.text('2 indexes'), findsOneWidget);
 
+    // The toolbar button of the indexes view (still a shadcn PrimaryButton).
     await tester.tap(find.widgetWithText(PrimaryButton, 'Create Index'));
     await tester.pumpAndSettle();
     expect(find.text('Collection: orders'), findsOneWidget);
@@ -80,7 +81,7 @@ void main() {
     await tester.tap(find.text('Unique'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(PrimaryButton, 'Create Index').last);
+    await tester.tap(find.widgetWithText(QueryaButton, 'Create Index').last);
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 5));
 

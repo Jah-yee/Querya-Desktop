@@ -11,6 +11,7 @@ import 'package:querya_desktop/core/theme/theme_editor_draft.dart';
 import 'package:querya_desktop/core/theme/theme_editor_loader.dart';
 import 'package:querya_desktop/features/settings/theme_color_picker_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows the focused Theme Studio modal dialog with live token editing and real-time preview.
 Future<void> showThemeEditorDialog(material.BuildContext context) {
@@ -254,20 +255,21 @@ class _ThemeEditorDialogState extends material.State<ThemeEditorDialog> {
               ),
       ),
       actions: [
-        OutlineButton(
+        QueryaButton.secondary(
+          label: 'Reset from current',
           onPressed: _loading ? null : () => unawaited(_loadDraft()),
-          child: const material.Text('Reset from current'),
+          size: QueryaControlSize.lg,
         ),
         if (_draft != null)
-          OutlineButton(
+          QueryaButton.secondary(
+            label: _exporting ? 'Exporting…' : 'Export theme…',
             onPressed: _exporting ? null : () => unawaited(_exportDraft()),
-            child: material.Text(
-              _exporting ? 'Exporting…' : 'Export theme…',
-            ),
+            size: QueryaControlSize.lg,
           ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Done',
           onPressed: () => material.Navigator.of(context).pop(),
-          child: const material.Text('Done'),
+          size: QueryaControlSize.lg,
         ),
       ],
     );

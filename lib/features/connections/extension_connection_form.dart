@@ -14,6 +14,7 @@ import 'package:querya_desktop/core/sdui/sdui_form_schema.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/connections/connection_edit_secrets.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows an SDUI connection form for an installed extension driver.
 Future<ConnectionRow?> showExtensionConnectionForm(
@@ -292,28 +293,24 @@ class _ExtensionConnectionFormContentState
                 ),
                 child: material.Row(
                   children: [
-                    OutlineButton(
-                      onPressed:
-                          _schema == null || _testing ? null : _testConnection,
-                      leading: _testing
-                          ? const QueryaSpinner(
-                              size: QueryaSpinnerSize.sm,
-                            )
-                          : const material.Icon(
-                              material.Icons.bolt_rounded,
-                              size: 16,
-                            ),
-                      child: const Text('Test Connection'),
+                    QueryaButton.secondary(
+                      label: 'Test Connection',
+                      icon: material.Icons.bolt_rounded,
+                      loading: _testing,
+                      size: QueryaControlSize.lg,
+                      onPressed: _schema == null || _testing ? null : _testConnection,
                     ),
                     const Spacer(),
-                    GhostButton(
+                    QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.lg,
                     ),
                     const material.SizedBox(width: 12),
-                    PrimaryButton(
+                    QueryaButton.primary(
+                      label: 'Save',
                       onPressed: _schema == null ? null : _save,
-                      child: const Text('Save'),
+                      size: QueryaControlSize.lg,
                     ),
                   ],
                 ),

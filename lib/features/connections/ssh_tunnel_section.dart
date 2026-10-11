@@ -4,6 +4,7 @@ import 'package:querya_desktop/core/security/ssh_tunnel_config.dart';
 import 'package:querya_desktop/core/security/ssh_tunnel_manager.dart';
 import 'package:querya_desktop/features/connections/connection_edit_secrets.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Reusable UI section for configuring SSH Bastion / Jump Host tunneling
 /// in connection dialogs.
@@ -384,9 +385,10 @@ class _SshTunnelSectionState extends material.State<SshTunnelSection> {
                     ),
                   ),
                   const Gap(8),
-                  OutlineButton(
+                  QueryaButton.secondary(
+                    label: 'Browse…',
                     onPressed: _pickPrivateKeyFile,
-                    child: const Text('Browse…'),
+                    size: QueryaControlSize.lg,
                   ),
                 ],
               ),
@@ -440,24 +442,20 @@ class _SshTunnelSectionState extends material.State<SshTunnelSection> {
               runSpacing: 8,
               crossAxisAlignment: material.WrapCrossAlignment.center,
               children: [
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Test SSH Connection',
+                  icon: material.Icons.network_check_rounded,
+                  loading: _testing,
+                  size: QueryaControlSize.sm,
                   onPressed: _testing ? null : _testSsh,
-                  leading: _testing
-                      ? const QueryaSpinner(size: QueryaSpinnerSize.sm)
-                      : const material.Icon(
-                          material.Icons.network_check_rounded,
-                          size: 15,
-                        ),
-                  child: const Text('Test SSH Connection'),
                 ),
-                GhostButton(
-                  size: ButtonSize.small,
+                QueryaButton.ghost(
+                  label: _showAdvanced
+                      ? 'Hide Advanced ▲'
+                      : 'Advanced (Host Key & Keep-Alive) ▼',
                   onPressed: () =>
                       setState(() => _showAdvanced = !_showAdvanced),
-                  child: Text(_showAdvanced
-                      ? 'Hide Advanced ▲'
-                      : 'Advanced (Host Key & Keep-Alive) ▼'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),

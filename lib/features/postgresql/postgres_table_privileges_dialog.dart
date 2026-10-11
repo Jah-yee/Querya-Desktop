@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/database/postgres_connection.dart';
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/core/database/postgres_metadata.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows [information_schema.role_table_grants] for a table/view/matview.
 Future<void> showPostgresTablePrivilegesDialog({
@@ -140,15 +141,17 @@ class _PrivilegesDialogBodyState extends material.State<_PrivilegesDialogBody> {
                 child: material.Row(
                   mainAxisAlignment: material.MainAxisAlignment.end,
                   children: [
-                    OutlineButton(
+                    QueryaButton.ghost(
+                      label: 'Close',
                       onPressed: () => material.Navigator.of(context).pop(),
-                      child: const Text('Close'),
+                      size: QueryaControlSize.lg,
                     ),
                     if (!_loading && _error == null) ...[
                       const Gap(8),
-                      OutlineButton(
+                      QueryaButton.secondary(
+                        label: 'Reload',
                         onPressed: _load,
-                        child: const Text('Reload'),
+                        size: QueryaControlSize.lg,
                       ),
                     ],
                   ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Dialog for installing a theme from a public HTTPS URL.
 Future<ThemeRemoteInstallRequest?> showThemeRemoteInstallDialog(
@@ -129,13 +130,15 @@ class _ThemeRemoteInstallDialogState
         ),
       ),
       actions: [
-        OutlineButton(
+        QueryaButton.ghost(
+          label: 'Cancel',
           onPressed: () => material.Navigator.pop(context),
-          child: const material.Text('Cancel'),
+          size: QueryaControlSize.lg,
         ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Install',
           onPressed: _submit,
-          child: const material.Text('Install'),
+          size: QueryaControlSize.lg,
         ),
       ],
     );

@@ -7,6 +7,7 @@ import 'package:querya_desktop/core/storage/app_settings.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/theme/querya_typography.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows recent SQL for this connection + database; choosing a row replaces the editor text
 /// or prompts if the editor has uncommitted content.
@@ -119,14 +120,16 @@ class _SqlQueryHistoryDialogContentState
               material.Row(
                 mainAxisAlignment: material.MainAxisAlignment.end,
                 children: [
-                  GhostButton(
+                  QueryaButton.ghost(
+                    label: 'Cancel',
                     onPressed: () => material.Navigator.of(ctx).pop(false),
-                    child: const Text('Cancel'),
+                    size: QueryaControlSize.lg,
                   ),
                   const Gap(8),
-                  DestructiveButton(
+                  QueryaButton.destructive(
+                    label: 'Clear',
                     onPressed: () => material.Navigator.of(ctx).pop(true),
-                    child: const Text('Clear'),
+                    size: QueryaControlSize.lg,
                   ),
                 ],
               ),
@@ -217,25 +220,29 @@ class _SqlQueryHistoryDialogContentState
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    GhostButton(
+                    QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(ctx).pop(null),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.lg,
                     ),
-                    OutlineButton(
+                    QueryaButton.secondary(
+                      label: 'Copy to Clipboard',
                       onPressed: () => material.Navigator.of(ctx)
                           .pop(_HistoryApplyAction.copy),
-                      child: const Text('Copy to Clipboard'),
+                      size: QueryaControlSize.lg,
                     ),
                     if (widget.onOpenInNewTab != null)
-                      OutlineButton(
+                      QueryaButton.secondary(
+                        label: 'Open in New Tab',
                         onPressed: () => material.Navigator.of(ctx)
                             .pop(_HistoryApplyAction.openInNewTab),
-                        child: const Text('Open in New Tab'),
+                        size: QueryaControlSize.lg,
                       ),
-                    DestructiveButton(
+                    QueryaButton.destructive(
+                      label: 'Replace',
                       onPressed: () => material.Navigator.of(ctx)
                           .pop(_HistoryApplyAction.replace),
-                      child: const Text('Replace'),
+                      size: QueryaControlSize.lg,
                     ),
                   ],
                 ),
@@ -391,14 +398,16 @@ class _SqlQueryHistoryDialogContentState
               padding: const material.EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: material.Row(
                 children: [
-                  GhostButton(
+                  QueryaButton.ghost(
+                    label: 'Clear history',
                     onPressed: () => unawaited(_confirmClear()),
-                    child: const Text('Clear history'),
+                    size: QueryaControlSize.lg,
                   ),
                   const Spacer(),
-                  OutlineButton(
+                  QueryaButton.ghost(
+                    label: 'Close',
                     onPressed: () => material.Navigator.of(context).pop(),
-                    child: const Text('Close'),
+                    size: QueryaControlSize.lg,
                   ),
                 ],
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/database/mongodb_connection.dart';
 import 'package:querya_desktop/core/database/mongodb_service.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 class _IndexFieldDraft {
   _IndexFieldDraft({String field = '', dynamic direction = 1})
@@ -279,11 +280,11 @@ class _MongoCreateIndexDialogState
           ],
           material.Align(
             alignment: material.Alignment.centerLeft,
-            child: GhostButton(
+            child: QueryaButton.ghost(
+              label: 'Add Field (Compound)',
+              icon: material.Icons.add_rounded,
               onPressed: _addField,
-              size: ButtonSize.small,
-              leading: const material.Icon(material.Icons.add_rounded, size: 14),
-              child: const Text('Add Field (Compound)'),
+              size: QueryaControlSize.sm,
             ),
           ),
           const Gap(16),
@@ -371,16 +372,17 @@ class _MongoCreateIndexDialogState
         ],
       ),
       actions: [
-        OutlineButton(
+        QueryaButton.ghost(
+          label: 'Cancel',
           onPressed: () => material.Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          size: QueryaControlSize.lg,
         ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: _submitting ? 'Creating...' : 'Create Index',
+          icon: material.Icons.check_rounded,
+          loading: _submitting,
+          size: QueryaControlSize.lg,
           onPressed: _submitting ? null : _submit,
-          leading: _submitting
-              ? const QueryaSpinner(size: QueryaSpinnerSize.sm)
-              : const material.Icon(material.Icons.check_rounded, size: 16),
-          child: Text(_submitting ? 'Creating...' : 'Create Index'),
         ),
       ],
     );
