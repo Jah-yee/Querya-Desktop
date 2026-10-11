@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/widgets/querya_icon_button.dart';
 
 /// Overlay in the bottom-right corner of the diagram: zoom out, the current
@@ -36,7 +37,7 @@ class ErdZoomControls extends material.StatelessWidget {
               key: const material.ValueKey('erd_zoom_out'),
               icon: const material.Icon(material.Icons.remove_rounded),
               tooltip: 'Zoom out (Ctrl/Cmd+-)',
-              density: QueryaIconButtonDensity.dense,
+              size: QueryaControlSize.sm,
               onPressed: onZoomOut,
             ),
             material.SizedBox(
@@ -53,14 +54,14 @@ class ErdZoomControls extends material.StatelessWidget {
               key: const material.ValueKey('erd_zoom_in'),
               icon: const material.Icon(material.Icons.add_rounded),
               tooltip: 'Zoom in (Ctrl/Cmd++)',
-              density: QueryaIconButtonDensity.dense,
+              size: QueryaControlSize.sm,
               onPressed: onZoomIn,
             ),
             QueryaIconButton(
               key: const material.ValueKey('erd_fit'),
               icon: const material.Icon(material.Icons.fit_screen_rounded),
               tooltip: 'Fit to screen (Ctrl/Cmd+0)',
-              density: QueryaIconButtonDensity.dense,
+              size: QueryaControlSize.sm,
               onPressed: onFit,
             ),
           ],

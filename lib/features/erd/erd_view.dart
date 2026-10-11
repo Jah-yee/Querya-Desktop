@@ -42,7 +42,7 @@ import 'package:querya_desktop/core/export/svg_png.dart';
 import 'package:querya_desktop/core/storage/app_settings.dart';
 import 'package:querya_desktop/shared/widgets/app_toast.dart';
 import 'package:querya_desktop/features/workspace/sql_editor_chrome.dart';
-import 'package:querya_desktop/shared/widgets/querya_action_button.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 import 'package:querya_desktop/shared/widgets/querya_spinner.dart';
 import 'package:querya_desktop/shared/widgets/querya_tab_strip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -1693,7 +1693,7 @@ class _ErdViewState extends material.State<ErdView> {
             runSpacing: 8,
             crossAxisAlignment: material.WrapCrossAlignment.center,
             children: [
-              QueryaActionButton(
+              QueryaButton.secondary(
                 key: const material.ValueKey('erd_refresh'),
                 label: 'Refresh',
                 icon: material.Icons.refresh_rounded,
@@ -1728,7 +1728,7 @@ class _ErdViewState extends material.State<ErdView> {
                   _error == null &&
                   (_schema?.tables.isNotEmpty ?? false))
                 _viewsMenu(),
-              QueryaActionButton(
+              QueryaButton.secondary(
                 key: const material.ValueKey('erd_add_note'),
                 label: 'Note',
                 icon: material.Icons.sticky_note_2_outlined,
@@ -1736,7 +1736,7 @@ class _ErdViewState extends material.State<ErdView> {
                 onPressed: ready ? () => unawaited(_addNote()) : null,
               ),
               if (_marked.isNotEmpty)
-                QueryaActionButton(
+                QueryaButton.secondary(
                   key: const material.ValueKey('erd_group_marked'),
                   label: 'Group ${_marked.length} '
                       '${_marked.length == 1 ? 'table' : 'tables'}',
@@ -1745,13 +1745,13 @@ class _ErdViewState extends material.State<ErdView> {
                   onPressed: () => unawaited(_newGroup({..._marked})),
                 ),
               if (_hidden.isNotEmpty)
-                QueryaActionButton(
+                QueryaButton.secondary(
                   key: const material.ValueKey('erd_show_all'),
                   label: 'Show ${_hidden.length} hidden',
                   icon: material.Icons.visibility_outlined,
                   onPressed: _showAllTables,
                 ),
-              QueryaActionButton(
+              QueryaButton.secondary(
                 key: const material.ValueKey('erd_auto_layout'),
                 label: 'Auto layout',
                 icon: material.Icons.auto_fix_high_rounded,

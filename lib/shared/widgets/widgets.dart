@@ -20,10 +20,10 @@ export 'querya_dropdown.dart'
         QueryaDropdownTokens,
         kPreferencesLabelWidth;
 export 'connection_tree_loading_row.dart';
-export 'querya_action_button.dart';
 export 'querya_action_menu.dart' show QueryaActionMenuItem;
 export 'querya_badge.dart';
 export 'querya_button.dart';
+export 'querya_button_group.dart';
 export 'querya_dialog_actions.dart';
 export 'querya_menu_button.dart';
 export 'querya_split_button.dart';

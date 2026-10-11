@@ -269,7 +269,7 @@ class _MongoCreateIndexDialogState
                       material.Icons.remove_circle_outline_rounded,
                     ),
                     tooltip: 'Remove Field',
-                    density: QueryaIconButtonDensity.dense,
+                    size: QueryaControlSize.sm,
                     color: cs.destructive,
                     onPressed: () => _removeField(i),
                   ),

@@ -41,7 +41,7 @@ Anti-pattern: a bare `TextField` with a manual `Timer` for debouncing.
 ### `QueryaIconButton` / `QueryaToolbarButton`
 
 Compact toolbar buttons with `tooltip`, `isActive`, `isDestructive` and a
-`QueryaIconButtonDensity`.
+`size` (`QueryaControlSize`; without one the nearest `QueryaControlScope`).
 
 ```dart
 QueryaIconButton(
@@ -52,22 +52,6 @@ QueryaIconButton(
 ```
 
 Anti-pattern: `IconButton` without a tooltip, hard-coded `Color(0xFF…)` icons.
-
-### `QueryaActionButton`
-
-Labelled outline button for toolbars (SQL editor: Execute, Explain, Cancel,
-Begin / Commit / Rollback). Optional `icon`, `loading` (spinner instead of the
-icon, button disabled), `isDestructive`, `tooltip`; `onPressed: null` disables it.
-
-```dart
-QueryaActionButton(
-  label: 'Explain',
-  icon: Icons.account_tree_outlined,
-  onPressed: session.running ? null : () => explain(session),
-)
-```
-
-Anti-pattern: a hand-built `OutlineButton` with its own spinner / icon coloring.
 
 ### `QueryaSpinner`
 
@@ -216,9 +200,10 @@ Canonical labels and roles from the review:
 | shadcn `DestructiveButton` | `QueryaButton` `destructive` |
 | shadcn `SecondaryButton` | `QueryaButton` `secondary` |
 | shadcn `normal` / `small` size | `lg` (dialogs, forms) / `sm` or `md` (toolbars, by row) |
-| `QueryaActionButton` | `QueryaButton` `secondary`, `md` |
+| `QueryaActionButton` (removed) | `QueryaButton` `secondary`, `md` |
 | `QueryaActionMenu` trigger | `QueryaMenuButton` |
 | split "Execute" assembled by hand | `QueryaSplitButton` |
+| several related buttons side by side with gaps | `QueryaButtonGroup` |
 | shadcn / material `IconButton`, private `_TreeIconButton` | `QueryaIconButton` (with tooltip) |
 | `InkWell` / `GestureDetector` around an icon or text | `QueryaButton` or `QueryaIconButton` |
 | private `_ActionButton`, `_SmallActionButton`, `_ToolbarButton` | `QueryaButton` |

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/features/workspace/grid_groupings_engine.dart';
 import 'package:querya_desktop/features/workspace/result_grid_view.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
@@ -242,7 +243,7 @@ class _DataGridGroupingsViewState
                   },
                 ),
                 QueryaIconButton(
- density: QueryaIconButtonDensity.dense,
+                  size: QueryaControlSize.sm,
                   icon: material.Icon(
                     _sortAscending
                         ? material.Icons.arrow_upward_rounded
@@ -260,7 +261,7 @@ class _DataGridGroupingsViewState
                 material.Tooltip(
                   message: 'Copy Pivot CSV to Clipboard',
                   child: QueryaIconButton(
- density: QueryaIconButtonDensity.dense,
+                    size: QueryaControlSize.sm,
                     icon: const material.Icon(material.Icons.copy_rounded, size: 14),
                     color: cs.mutedForeground,
                     onPressed: _exportPivot,

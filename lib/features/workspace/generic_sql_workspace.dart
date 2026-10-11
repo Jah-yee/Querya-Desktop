@@ -1171,7 +1171,7 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
                     ? (index) => unawaited(closeTab(index))
                     : null,
                 trailing: widget.showDiagram
-                    ? QueryaActionButton(
+                    ? QueryaButton.secondary(
                         key: const material.ValueKey('open_diagram_tab'),
                         label: 'Diagram',
                         icon: material.Icons.account_tree_outlined,

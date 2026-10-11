@@ -305,7 +305,7 @@ class _MongoIndexesViewState extends material.State<MongoIndexesView> {
             QueryaIconButton(
               icon: const material.Icon(material.Icons.refresh_rounded),
               tooltip: 'Refresh Indexes',
-              density: QueryaIconButtonDensity.dense,
+              size: QueryaControlSize.sm,
               onPressed: _load,
             ),
             const Gap(8),
@@ -425,13 +425,13 @@ class _IndexCard extends material.StatelessWidget {
               const QueryaIconButton(
                 icon: material.Icon(material.Icons.lock_outline_rounded),
                 tooltip: 'Primary index _id_ cannot be deleted',
-                density: QueryaIconButtonDensity.standard,
+                size: QueryaControlSize.md,
               )
             else
               QueryaIconButton(
                 icon: const material.Icon(material.Icons.delete_outline_rounded),
                 tooltip: 'Drop Index',
-                density: QueryaIconButtonDensity.standard,
+                size: QueryaControlSize.md,
                 isDestructive: true,
                 onPressed: onDrop,
               ),
