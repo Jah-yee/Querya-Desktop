@@ -272,7 +272,7 @@ class _QueryaToolbarButtonState extends material.State<QueryaToolbarButton> {
             ),
             child: icon,
           ),
-          Gap(controlSize.scaledIconGap(context)),
+          material.SizedBox(width: controlSize.scaledIconGap(context)),
         ],
         material.Text(
           label,
