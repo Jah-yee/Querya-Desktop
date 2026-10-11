@@ -133,7 +133,7 @@ class PreferencesAboutSection extends StatelessWidget {
           runSpacing: 8,
           children: [
             QueryaButton.secondary(
-              label: 'Open App Data Folder',
+              label: 'Open app data folder',
               icon: material.Icons.folder_outlined,
               onPressed: () async {
                 final dir = await AppDataRoot.applicationSupportDirectory();
@@ -142,7 +142,7 @@ class PreferencesAboutSection extends StatelessWidget {
               size: QueryaControlSize.md,
             ),
             QueryaButton.secondary(
-              label: 'Open Themes Folder',
+              label: 'Open themes folder',
               icon: material.Icons.palette_outlined,
               onPressed: () async {
                 final dir = await ThemePaths.ensureUserThemesDirectory();
@@ -151,7 +151,7 @@ class PreferencesAboutSection extends StatelessWidget {
               size: QueryaControlSize.md,
             ),
             QueryaButton.secondary(
-              label: 'Open Extensions Folder',
+              label: 'Open extensions folder',
               icon: material.Icons.extension_outlined,
               onPressed: () async {
                 final dir = await ExtensionPaths.ensureExtensionsDirectory();
@@ -171,7 +171,7 @@ class PreferencesAboutSection extends StatelessWidget {
           runSpacing: 8,
           children: [
             QueryaButton.secondary(
-              label: 'GitHub Repository',
+              label: 'GitHub repository',
               icon: material.Icons.code_rounded,
               onPressed: () => launchUrlString(
                 githubRepoUrl,
@@ -180,7 +180,7 @@ class PreferencesAboutSection extends StatelessWidget {
               size: QueryaControlSize.md,
             ),
             QueryaButton.secondary(
-              label: 'Report an Issue',
+              label: 'Report an issue',
               icon: material.Icons.bug_report_outlined,
               onPressed: () => launchUrlString(
                 '$githubRepoUrl/issues',
