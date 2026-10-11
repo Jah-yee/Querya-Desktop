@@ -107,6 +107,30 @@ container). Pick one:
 
 The **Demo Playground** (a bundled SQLite database) needs none of this.
 
+## Headless modes
+
+"Headless" means no display and no window. There are three levels; the first
+two work today, the third is a recipe that is not wrapped in a script yet
+(tracked in [#1487](https://github.com/QueryaHub/Querya-Desktop/issues/1487)).
+
+| Level | What | Command |
+|-------|------|---------|
+| L0 | unit, widget, e2e and guard tests | `flutter test --exclude-tags=golden` |
+| L1 | an extension against a real database, no GUI | `querya-ext-tester ./ext --connect '{...}' --sandbox` (see *Testing an extension*) |
+| L2 | the real app under a virtual display, in portable mode | see below |
+
+L1 needs a tester built from 0.4.19 or newer: older ones exited 0 whatever the
+result.
+
+L2, by hand (untested in the container, it is the same recipe as a normal
+Linux run):
+
+```bash
+Xvfb :99 -screen 0 1280x800x24 &            # DISPLAY=:99 is already set
+QUERYA_PORTABLE=1 flutter run -d linux       # data goes to ./QueryaData of the bundle
+import -window root shot.png                # ImageMagick, if installed
+```
+
 ## Run the app in the container
 
 The container has no display of its own. Two ways:
