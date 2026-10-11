@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart' as material;
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/core/ui/querya_tooltip.dart';
@@ -90,7 +89,7 @@ class _QueryaIconButtonState extends material.State<QueryaIconButton> {
     final isDestructive = widget.isDestructive;
     final color = widget.color;
     final activeColor = widget.activeColor;
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.queryaTheme.colorScheme;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
     final radius = widget.borderRadius ??
         material.BorderRadius.circular(controlSize.scaledRadius(context));
@@ -236,7 +235,7 @@ class _QueryaToolbarButtonState extends material.State<QueryaToolbarButton> {
         QueryaControlSize.of(context);
     final isActive = widget.isActive;
     final isDestructive = widget.isDestructive;
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.queryaTheme.colorScheme;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
     final isEnabled = onPressed != null;
 
@@ -284,7 +283,7 @@ class _QueryaToolbarButtonState extends material.State<QueryaToolbarButton> {
           ),
         ),
         if (shortcutHint != null) ...[
-          const Gap(6),
+          const material.SizedBox(width: 6),
           material.Container(
             padding: const material.EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             decoration: material.BoxDecoration(

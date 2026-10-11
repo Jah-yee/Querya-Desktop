@@ -20,11 +20,8 @@ void main() {
     'lib/shared/widgets/querya_dialog_card.dart',
     'lib/shared/widgets/querya_dropdown.dart',
     'lib/shared/widgets/querya_empty_state.dart',
-    'lib/shared/widgets/querya_icon_button.dart',
     'lib/shared/widgets/querya_modal_dialog.dart',
-    'lib/shared/widgets/querya_search_field.dart',
     'lib/shared/widgets/querya_spinner.dart',
-    'lib/shared/widgets/querya_tab_strip.dart',
     'lib/shared/widgets/widgets.dart',
   };
 

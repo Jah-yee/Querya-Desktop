@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
@@ -33,10 +32,10 @@ class QueryaSearchField extends material.StatefulWidget {
   final String placeholder;
 
   /// Callback fired after debounce duration when input text changes.
-  final ValueChanged<String>? onChanged;
+  final material.ValueChanged<String>? onChanged;
 
   /// Callback fired immediately upon Enter / submit.
-  final ValueChanged<String>? onSubmitted;
+  final material.ValueChanged<String>? onSubmitted;
 
   /// Debounce delay. Set to [Duration.zero] for immediate invocation.
   final Duration debounceDuration;
@@ -136,7 +135,7 @@ class _QueryaSearchFieldState extends material.State<QueryaSearchField> {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.queryaTheme.colorScheme;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
     final controlSize = widget.size ?? QueryaControlSize.of(context);
     final fieldHeight = widget.height ?? controlSize.scaledHeight(context);
@@ -171,9 +170,9 @@ class _QueryaSearchFieldState extends material.State<QueryaSearchField> {
             ),
           ),
           material.Expanded(
-            child: CallbackShortcuts(
+            child: material.CallbackShortcuts(
               bindings: {
-                const SingleActivator(LogicalKeyboardKey.escape): () {
+                const material.SingleActivator(LogicalKeyboardKey.escape): () {
                   if (_hasText) {
                     _clear();
                   } else {

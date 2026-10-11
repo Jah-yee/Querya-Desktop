@@ -6,9 +6,9 @@ import 'package:querya_desktop/core/motion/querya_motion.dart';
 import 'package:querya_desktop/core/motion/querya_motion_context.dart';
 import 'package:querya_desktop/core/motion/querya_spring.dart';
 import 'package:querya_desktop/core/motion/querya_spring_controller.dart';
+import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/core/ui/querya_tooltip.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// A compact, keyboard-operable tab strip using Querya's motion and theme.
 ///
@@ -254,7 +254,7 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
 
   @override
   material.Widget build(material.BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final colors = context.queryaTheme.colorScheme;
     final controlSize = widget.size ??
         (widget.dense
             ? QueryaControlSize.sm
@@ -320,12 +320,22 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
                             children: [
                               // The tab's own node carries the label.
                               material.ExcludeSemantics(
-                                child: selected
-                                    ? Text(label).small().semiBold()
-                                    : Text(label).small().muted(),
+                                child: material.Text(
+                                  label,
+                                  style: material.TextStyle(
+                                    fontSize: 14,
+                                    height: 20 / 14,
+                                    fontWeight: selected
+                                        ? material.FontWeight.w600
+                                        : material.FontWeight.w400,
+                                    color: selected
+                                        ? colors.foreground
+                                        : colors.mutedForeground,
+                                  ),
+                                ),
                               ),
                               if (showClose) ...[
-                                const Gap(2),
+                                const material.SizedBox(width: 2),
                                 material.Tooltip(
                                   message: 'Close $label tab',
                                   waitDuration: kQueryaTooltipWait,
@@ -376,7 +386,7 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
           );
         }),
         if (widget.onAdd != null) ...[
-          const Gap(4),
+          const material.SizedBox(width: 4),
           material.MouseRegion(
             cursor: material.SystemMouseCursors.click,
             child: material.GestureDetector(
@@ -463,8 +473,8 @@ class _TabStripIndicator extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    return ListenableBuilder(
-      listenable: Listenable.merge([left, width]),
+    return material.ListenableBuilder(
+      listenable: material.Listenable.merge([left, width]),
       builder: (context, __) {
         final w = width.value;
         if (w <= 0) return const material.SizedBox.shrink();
