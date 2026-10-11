@@ -4,25 +4,22 @@ part of '../result_grid_view.dart';
 
 /// Pointer, drag and tap selection for [VirtualResultGrid].
 extension _GridPointerSelection on _VirtualResultGridState {
-  void _notifySelectionAndFocus() {
+  void _notifySelectionAndFocus({bool deferValues = false}) {
     if (widget.onSelectionValuesChanged != null) {
       if (_selection == null) {
+        _selectionValuesDebounce?.cancel();
         widget.onSelectionValuesChanged!(const []);
+      } else if (deferValues) {
+        // During active drag gestures, defer allocating the multi-cell
+        // String list until the pointer stops moving or the drag ends (#1348).
+        _selectionValuesDebounce?.cancel();
+        _selectionValuesDebounce = Timer(const Duration(milliseconds: 40), () {
+          if (!mounted) return;
+          _dispatchSelectionValues();
+        });
       } else {
-        final rows = _sortedRows;
-        final values = <String>[];
-        for (var r = _selection!.startRow; r <= _selection!.endRow; r++) {
-          if (r >= 0 && r < rows.length) {
-            for (var c = _selection!.startColumn;
-                c <= _selection!.endColumn;
-                c++) {
-              if (c >= 0 && c < rows[r].length) {
-                values.add(_maskedValue(c, rows[r][c]));
-              }
-            }
-          }
-        }
-        widget.onSelectionValuesChanged!(values);
+        _selectionValuesDebounce?.cancel();
+        _dispatchSelectionValues();
       }
     }
 
@@ -37,6 +34,24 @@ extension _GridPointerSelection on _VirtualResultGridState {
         widget.onCellFocused!(colName, val, modelRow);
       }
     }
+  }
+
+  void _dispatchSelectionValues() {
+    if (widget.onSelectionValuesChanged == null || _selection == null) return;
+    final rows = _sortedRows;
+    final values = <String>[];
+    for (var r = _selection!.startRow; r <= _selection!.endRow; r++) {
+      if (r >= 0 && r < rows.length) {
+        for (var c = _selection!.startColumn;
+            c <= _selection!.endColumn;
+            c++) {
+          if (c >= 0 && c < rows[r].length) {
+            values.add(_maskedValue(c, rows[r][c]));
+          }
+        }
+      }
+    }
+    widget.onSelectionValuesChanged!(values);
   }
 
   ResultGridCellCoordinate? _cellAtOffset({
@@ -127,7 +142,7 @@ extension _GridPointerSelection on _VirtualResultGridState {
           _focusNode.requestFocus();
           final modelRow = _toModelRowIndex(startCell.row);
           widget.onRowSelected?.call(modelRow);
-          _notifySelectionAndFocus();
+          _notifySelectionAndFocus(deferValues: true);
           setState(() {});
         }
         _startAutoScroll(rowHeight);
@@ -149,7 +164,7 @@ extension _GridPointerSelection on _VirtualResultGridState {
         });
         final modelRow = _toModelRowIndex(currentCell.row);
         widget.onRowSelected?.call(modelRow);
-        _notifySelectionAndFocus();
+        _notifySelectionAndFocus(deferValues: true);
       }
     }
   }
@@ -160,6 +175,7 @@ extension _GridPointerSelection on _VirtualResultGridState {
   }) {
     if (_isDragSelecting) {
       _hasJustDragSelected = true;
+      _notifySelectionAndFocus(deferValues: false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _hasJustDragSelected = false;
       });
@@ -197,6 +213,9 @@ extension _GridPointerSelection on _VirtualResultGridState {
   }
 
   void _onGridPointerCancel(PointerCancelEvent event) {
+    if (_isDragSelecting) {
+      _notifySelectionAndFocus(deferValues: false);
+    }
     _isPointerDown = false;
     _isDragSelecting = false;
     _stopAutoScroll();
@@ -288,7 +307,7 @@ extension _GridPointerSelection on _VirtualResultGridState {
       });
       final modelRow = _toModelRowIndex(currentCell.row);
       widget.onRowSelected?.call(modelRow);
-      _notifySelectionAndFocus();
+      _notifySelectionAndFocus(deferValues: true);
     }
   }
 

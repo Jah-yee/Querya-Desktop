@@ -12,16 +12,13 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const allowed = <String>{
     'lib/shared/widgets/app_toast.dart',
-    'lib/shared/widgets/connection_tree_loading_row.dart',
     'lib/shared/widgets/export_menu_button.dart',
     'lib/shared/widgets/querya_action_button.dart',
     'lib/shared/widgets/querya_action_menu.dart',
-    'lib/shared/widgets/querya_badge.dart',
     'lib/shared/widgets/querya_empty_state.dart',
     'lib/shared/widgets/querya_icon_button.dart',
     'lib/shared/widgets/querya_modal_dialog.dart',
     'lib/shared/widgets/querya_search_field.dart',
-    'lib/shared/widgets/querya_spinner.dart',
     'lib/shared/widgets/querya_tab_strip.dart',
     'lib/shared/widgets/widgets.dart',
   };
