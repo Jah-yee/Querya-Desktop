@@ -48,6 +48,7 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
   bool _wordWrap = true;
   bool _preserveCompact = false;
   Timer? _debounceTimer;
+  bool _isProgrammaticUpdate = false;
 
   static bool _isCompact(String input) {
     final trimmed = input.trim();
@@ -83,7 +84,19 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
     _validateContent();
   }
 
+  void _setControllerTextProgrammatically(String text) {
+    if (_controller.text == text) return;
+    _isProgrammaticUpdate = true;
+    try {
+      _controller.text = text;
+    } finally {
+      _isProgrammaticUpdate = false;
+      _debounceTimer?.cancel();
+    }
+  }
+
   void _onTextChanged() {
+    if (_isProgrammaticUpdate) return;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 150), () {
       if (mounted) {
@@ -96,10 +109,9 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
   void didUpdateWidget(covariant DataGridValuePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.cellValue != widget.cellValue) {
-      _debounceTimer?.cancel();
       _initialDetectedLanguage = _detectLanguage(widget.cellValue);
       _preserveCompact = _isCompact(widget.cellValue);
-      _controller.text = _formatInitialValue(widget.cellValue);
+      _setControllerTextProgrammatically(_formatInitialValue(widget.cellValue));
       _validateContent();
     }
   }
@@ -187,11 +199,13 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
       try {
         final parsed = jsonDecode(_controller.text);
         final pretty = const JsonEncoder.withIndent('  ').convert(parsed);
-        setState(() => _controller.text = pretty);
+        setState(() => _setControllerTextProgrammatically(pretty));
+        _validateContent();
       } catch (_) {}
     } else if (lang == ValuePanelLanguage.xml) {
       final pretty = XmlHtmlFormatter.format(_controller.text);
-      setState(() => _controller.text = pretty);
+      setState(() => _setControllerTextProgrammatically(pretty));
+      _validateContent();
     }
   }
 
@@ -202,16 +216,18 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
         final parsed = jsonDecode(_controller.text);
         final compact = jsonEncode(parsed);
         setState(() {
-          _controller.text = compact;
+          _setControllerTextProgrammatically(compact);
           _preserveCompact = true;
         });
+        _validateContent();
       } catch (_) {}
     } else if (lang == ValuePanelLanguage.xml) {
       final compact = XmlHtmlFormatter.minify(_controller.text);
       setState(() {
-        _controller.text = compact;
+        _setControllerTextProgrammatically(compact);
         _preserveCompact = true;
       });
+      _validateContent();
     }
   }
 

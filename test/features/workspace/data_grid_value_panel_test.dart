@@ -173,5 +173,42 @@ void main() {
       final button = tester.widget<material.ElevatedButton>(find.byType(material.ElevatedButton));
       expect(button.onPressed, isNull);
     });
+
+    testWidgets('didUpdateWidget validates immediately without scheduling redundant debounce', (tester) async {
+      await tester.pumpWidget(
+        queryaThemeTestShell(
+          child: material.Material(
+            child: DataGridValuePanel(
+              columnName: 'json_col',
+              cellValue: '{"valid":true}',
+              rowIndex: 0,
+              onClose: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Invalid JSON'), findsNothing);
+
+      // Change cellValue to invalid JSON via didUpdateWidget
+      await tester.pumpWidget(
+        queryaThemeTestShell(
+          child: material.Material(
+            child: DataGridValuePanel(
+              columnName: 'json_col',
+              cellValue: '{"invalid":,}',
+              rowIndex: 1,
+              onClose: () {},
+            ),
+          ),
+        ),
+      );
+      // Synchronous validation occurred immediately
+      await tester.pump();
+      expect(find.textContaining('Invalid JSON'), findsOneWidget);
+
+      // Verify no pending timer callback after pump
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
   });
 }
