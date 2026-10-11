@@ -605,4 +605,57 @@ void main() {
       expect(closed, [1]);
     });
   });
+
+  testWidgets('eliminates IntrinsicWidth when parent width is bounded (#1342)',
+      (tester) async {
+    await tester.pumpWidget(
+      stripShell(
+        child: material.Center(
+          child: material.SizedBox(
+            width: 400,
+            child: QueryaTabStrip(
+              labels: const ['Tab 1', 'Tab 2'],
+              selectedIndex: 0,
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(QueryaTabStrip),
+        matching: find.byType(material.IntrinsicWidth),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('uses IntrinsicWidth fallback when parent width is unconstrained (#1342)',
+      (tester) async {
+    await tester.pumpWidget(
+      stripShell(
+        child: material.Center(
+          child: material.UnconstrainedBox(
+            child: QueryaTabStrip(
+              labels: const ['Tab 1', 'Tab 2'],
+              selectedIndex: 0,
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(QueryaTabStrip),
+        matching: find.byType(material.IntrinsicWidth),
+      ),
+      findsOneWidget,
+    );
+  });
 }
