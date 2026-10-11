@@ -80,27 +80,11 @@ class _AboutDialogContentState extends material.State<_AboutDialogContent> {
               ],
             ),
           ),
-          material.Container(
-            padding: const material.EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 16,
-            ),
-            decoration: material.BoxDecoration(
-              border: material.Border(
-                top: material.BorderSide(
-                  color: theme.border.withValues(alpha: 0.3),
-                ),
-              ),
-            ),
-            child: material.Row(
-              mainAxisAlignment: material.MainAxisAlignment.end,
-              children: [
-                QueryaButton.primary(
-                  label: 'Close',
-                  onPressed: () => material.Navigator.of(context).pop(),
-                  size: QueryaControlSize.lg,
-                ),
-              ],
+          QueryaDialogActions(
+            cancel: QueryaButton.ghost(
+              label: 'Close',
+              onPressed: () => material.Navigator.of(context).pop(),
+              size: QueryaControlSize.lg,
             ),
           ),
         ],

@@ -409,31 +409,14 @@ class PreferencesDialogContentState
                 ),
 
                 // Footer Actions
-                material.Container(
-                  padding: const material.EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+                QueryaDialogActions(
+                  leading: const PreferencesHint(
+                    'Changes apply immediately and persist locally.',
                   ),
-                  decoration: material.BoxDecoration(
-                    border: material.Border(
-                      top: material.BorderSide(
-                        color: theme.border.withValues(alpha: 0.28),
-                      ),
-                    ),
-                  ),
-                  child: material.Row(
-                    children: [
-                      const material.Expanded(
-                        child: PreferencesHint(
-                          'Changes apply immediately and persist locally.',
-                        ),
-                      ),
-                      QueryaButton.secondary(
-                        label: 'Close',
-                        onPressed: () => material.Navigator.of(context).pop(),
-                        size: QueryaControlSize.lg,
-                      ),
-                    ],
+                  cancel: QueryaButton.ghost(
+                    label: 'Close',
+                    onPressed: () => material.Navigator.of(context).pop(),
+                    size: QueryaControlSize.lg,
                   ),
                 ),
               ],

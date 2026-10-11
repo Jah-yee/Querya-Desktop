@@ -233,7 +233,7 @@ class _ExtensionManagerContentState
                       ),
                     ),
                     const material.SizedBox(width: 16),
-                    QueryaButton.primary(
+                    QueryaButton.ghost(
                       label: 'Close',
                       onPressed: () => material.Navigator.of(context).pop(),
                       size: QueryaControlSize.lg,
