@@ -15,6 +15,7 @@ import 'package:querya_desktop/features/results/charts/chart_format.dart';
 import 'package:querya_desktop/features/results/charts/chart_svg.dart';
 import 'package:querya_desktop/shared/widgets/querya_action_menu.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Formats of the chart export menu.
 enum _ChartExport { png, svg, toggleTheme }
@@ -379,7 +380,8 @@ class _QuickChartViewState extends material.State<QuickChartView> {
                 ),
                 const material.SizedBox(width: 8),
               ],
-              QueryaActionMenu<_ChartExport>(
+              QueryaMenuButton<_ChartExport>(
+                key: const material.ValueKey('chart_export'),
                 items: const [
                   QueryaActionMenuItem(
                     value: _ChartExport.png,
@@ -406,22 +408,10 @@ class _QuickChartViewState extends material.State<QuickChartView> {
                     _exportSvg();
                   }
                 },
-                child: material.Padding(
-                  key: const material.ValueKey('chart_export'),
-                  padding: const material.EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
-                  child: material.Row(
-                    mainAxisSize: material.MainAxisSize.min,
-                    children: [
-                      material.Icon(material.Icons.file_download_outlined,
-                          size: 16, color: wb.mutedForeground),
-                      const material.SizedBox(width: 4),
-                      const Text('Export'),
-                      material.Icon(material.Icons.expand_more_rounded,
-                          size: 16, color: wb.mutedForeground),
-                    ],
-                  ),
-                ),
+                label: 'Export',
+                icon: material.Icons.file_download_outlined,
+                variant: QueryaButtonVariant.ghost,
+                size: QueryaControlSize.sm,
               ),
             ],
           ),
