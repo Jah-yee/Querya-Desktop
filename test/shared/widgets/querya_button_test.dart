@@ -243,6 +243,12 @@ void main() {
     final source =
         File('lib/shared/widgets/querya_button.dart').readAsStringSync();
 
-    expect(source.contains('shadcn_flutter'), isFalse);
+    // Only an import counts: the doc comment names the package.
+    expect(
+      RegExp(r'''^(import|export)\s+['"]package:shadcn_flutter/''',
+              multiLine: true)
+          .hasMatch(source),
+      isFalse,
+    );
   });
 }
