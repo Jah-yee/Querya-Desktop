@@ -500,14 +500,14 @@ class _ResultsTabState extends material.State<ResultsTab> {
                     const Gap(8),
 
                     ExportMenuButton(
-                      label: 'Export ▾',
+                      label: 'Export',
                       icon: material.Icons.copy_rounded,
                       isSave: false,
                       onSelected: (format) => unawaited(_copyAs(format)),
                     ),
                     const Gap(6),
                     ExportMenuButton(
-                      label: 'Save File ▾',
+                      label: 'Save File',
                       icon: material.Icons.download_rounded,
                       isSave: true,
                       onSelected: (format) {

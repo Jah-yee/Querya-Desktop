@@ -29,7 +29,7 @@ void main() {
   }
 
   Future<void> copyAs(WidgetTester tester, String menuLabel) async {
-    await tester.tap(find.text('Export ▾'));
+    await tester.tap(find.text('Export'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text(menuLabel));
