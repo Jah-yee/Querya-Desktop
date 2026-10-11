@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:querya_desktop/core/layout/ui_scale.dart';
 import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/widgets/querya_dropdown_tokens.dart';
-import 'package:querya_desktop/shared/widgets/querya_icon_button.dart';
 
 void main() {
   group('QueryaControlSize', () {
