@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
 import 'package:querya_desktop/core/editor/querya_code_editor.dart';
 import 'package:querya_desktop/core/editor/querya_code_language.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/widgets/querya_dropdown.dart';
 import 'package:querya_desktop/shared/widgets/querya_icon_button.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -316,7 +317,7 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
                   ).small().semiBold(),
                 ),
                 QueryaIconButton(
-                  density: QueryaIconButtonDensity.dense,
+                  size: QueryaControlSize.sm,
                   icon: const material.Icon(material.Icons.close, size: 14),
                   color: cs.mutedForeground,
                   onPressed: widget.onClose,
@@ -378,7 +379,7 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
                 ],
                 const material.Spacer(),
                 QueryaIconButton(
-                  density: QueryaIconButtonDensity.dense,
+                  size: QueryaControlSize.sm,
                   icon: material.Icon(
                     _wordWrap ? material.Icons.wrap_text : material.Icons.notes,
                     size: 14,
@@ -389,7 +390,7 @@ class _DataGridValuePanelState extends material.State<DataGridValuePanel> {
                   onPressed: () => setState(() => _wordWrap = !_wordWrap),
                 ),
                 QueryaIconButton(
-                  density: QueryaIconButtonDensity.dense,
+                  size: QueryaControlSize.sm,
                   icon: const material.Icon(material.Icons.copy_rounded, size: 14),
                   color: cs.mutedForeground,
                   onPressed: () {

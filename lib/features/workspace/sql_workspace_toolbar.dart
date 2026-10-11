@@ -186,7 +186,7 @@ class SqlWorkspaceToolbar extends StatelessWidget {
               ),
               if (delegate.supportsExplain) ...[
                 const material.SizedBox(width: 8),
-                QueryaActionButton(
+                QueryaButton.secondary(
                   key: const material.ValueKey('explain_query'),
                   label: 'Explain',
                   icon: material.Icons.account_tree_outlined,
@@ -197,12 +197,12 @@ class SqlWorkspaceToolbar extends StatelessWidget {
               ],
               if (session.running && delegate.supportsCancel) ...[
                 const material.SizedBox(width: 8),
-                QueryaActionButton(
+                QueryaButton.secondary(
                   key: const material.ValueKey('cancel_query'),
                   label: 'Cancel',
                   icon: material.Icons.stop_rounded,
                   compact: compact,
-                  isDestructive: true,
+                  tone: QueryaButtonTone.destructive,
                   tooltip: 'Interrupt the running query',
                   onPressed: onCancel,
                 ),
@@ -244,13 +244,13 @@ class SqlWorkspaceToolbar extends StatelessWidget {
                 _txBadge(),
                 if (txOpen == true) ...[
                   const material.SizedBox(width: 8),
-                  QueryaActionButton(
+                  QueryaButton.secondary(
                     label: 'Commit',
                     onPressed:
                         session.running ? null : () => onRunTxCommand('COMMIT'),
                   ),
                   const material.SizedBox(width: 4),
-                  QueryaActionButton(
+                  QueryaButton.secondary(
                     label: 'Rollback',
                     onPressed: session.running
                         ? null

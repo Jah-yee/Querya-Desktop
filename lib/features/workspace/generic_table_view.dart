@@ -158,13 +158,13 @@ class GenericTableViewState extends material.State<GenericTableView> {
           child: material.Row(
             children: [
               for (final d in const [1, 2])
-                QueryaActionButton(
+                QueryaButton.secondary(
                   key: material.ValueKey('relations_depth_$d'),
                   label: 'Depth $d',
                   onPressed: () => setState(() => _relationsDepth = d),
                 ),
               const material.Spacer(),
-              QueryaActionButton(
+              QueryaButton.secondary(
                 key: const material.ValueKey('relations_open_diagram'),
                 label: 'Open full diagram',
                 onPressed: widget.onOpenFullDiagram == null ? null : openFull,

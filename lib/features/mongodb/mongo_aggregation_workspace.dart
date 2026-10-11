@@ -618,19 +618,19 @@ class _StageCardState extends material.State<_StageCard> {
                   QueryaIconButton(
                     icon: const material.Icon(material.Icons.arrow_upward_rounded),
                     tooltip: 'Move Up',
-                    density: QueryaIconButtonDensity.dense,
+                    size: QueryaControlSize.sm,
                     onPressed: widget.isFirst ? null : widget.onMoveUp,
                   ),
                   QueryaIconButton(
                     icon: const material.Icon(material.Icons.arrow_downward_rounded),
                     tooltip: 'Move Down',
-                    density: QueryaIconButtonDensity.dense,
+                    size: QueryaControlSize.sm,
                     onPressed: widget.isLast ? null : widget.onMoveDown,
                   ),
                   QueryaIconButton(
                     icon: const material.Icon(material.Icons.delete_outline_rounded),
                     tooltip: 'Delete Stage',
-                    density: QueryaIconButtonDensity.dense,
+                    size: QueryaControlSize.sm,
                     isDestructive: true,
                     onPressed: widget.onDelete,
                   ),

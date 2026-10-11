@@ -3,31 +3,14 @@ import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/core/ui/querya_tooltip.dart';
 
-/// Legacy names of the control sizes: [dense] is [QueryaControlSize.sm] and
-/// [standard] is [QueryaControlSize.md]. New code passes a [QueryaControlSize].
-enum QueryaIconButtonDensity {
-  /// [QueryaControlSize.sm]: dense trees, tab bars, data grid calc bars.
-  dense(QueryaControlSize.sm),
-
-  /// [QueryaControlSize.md]: top toolbars and header chrome.
-  standard(QueryaControlSize.md);
-
-  const QueryaIconButtonDensity(this.controlSize);
-
-  final QueryaControlSize controlSize;
-
-  double get boxSize => controlSize.height;
-  double get iconSize => controlSize.iconSize;
-}
-
-/// Standard icon button with density presets, hover/active states, and built-in tooltip.
+/// Standard icon button sized by [QueryaControlSize], with hover / active
+/// states and a built-in tooltip.
 class QueryaIconButton extends material.StatefulWidget {
   const QueryaIconButton({
     super.key,
     required this.icon,
     this.tooltip,
     this.onPressed,
-    this.density,
     this.size,
     this.isActive = false,
     this.isDestructive = false,
@@ -44,9 +27,6 @@ class QueryaIconButton extends material.StatefulWidget {
 
   /// Callback when pressed. If null, the button is disabled.
   final material.VoidCallback? onPressed;
-
-  /// Legacy size name; [size] wins when both are set.
-  final QueryaIconButtonDensity? density;
 
   /// Control size. Without one the button takes the nearest
   /// [QueryaControlScope], then [QueryaControlSize.md].
@@ -81,7 +61,6 @@ class _QueryaIconButtonState extends material.State<QueryaIconButton> {
     final tooltip = widget.tooltip;
     final onPressed = widget.onPressed;
     final controlSize = widget.size ??
-        widget.density?.controlSize ??
         QueryaControlSize.of(context);
     final boxSize = controlSize.scaledHeight(context);
     final iconSize = controlSize.scaledIconSize(context);
@@ -194,7 +173,6 @@ class QueryaToolbarButton extends material.StatefulWidget {
     this.tooltip,
     this.shortcutHint,
     this.onPressed,
-    this.density,
     this.size,
     this.isActive = false,
     this.isDestructive = false,
@@ -205,9 +183,6 @@ class QueryaToolbarButton extends material.StatefulWidget {
   final String? tooltip;
   final String? shortcutHint;
   final material.VoidCallback? onPressed;
-
-  /// Legacy size name; [size] wins when both are set.
-  final QueryaIconButtonDensity? density;
 
   /// Control size; see [QueryaIconButton.size].
   final QueryaControlSize? size;
@@ -231,7 +206,6 @@ class _QueryaToolbarButtonState extends material.State<QueryaToolbarButton> {
     final shortcutHint = widget.shortcutHint;
     final onPressed = widget.onPressed;
     final controlSize = widget.size ??
-        widget.density?.controlSize ??
         QueryaControlSize.of(context);
     final isActive = widget.isActive;
     final isDestructive = widget.isDestructive;

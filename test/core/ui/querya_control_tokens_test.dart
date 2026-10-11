@@ -27,13 +27,6 @@ void main() {
       }
     });
 
-    test('legacy density names map to sm and md', () {
-      expect(QueryaIconButtonDensity.dense.controlSize, QueryaControlSize.sm);
-      expect(QueryaIconButtonDensity.standard.controlSize, QueryaControlSize.md);
-      expect(QueryaIconButtonDensity.dense.boxSize, 28);
-      expect(QueryaIconButtonDensity.standard.boxSize, 32);
-    });
-
     test('the dropdown tokens are built from the scale', () {
       expect(QueryaDropdownTokens.triggerHeight, QueryaControlSize.lg.height);
       expect(

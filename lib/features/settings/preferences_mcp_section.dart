@@ -253,14 +253,14 @@ class PreferencesMcpSectionState
           runSpacing: 8,
           children: [
             for (final kind in McpClientKind.values)
-              QueryaActionButton(
+              QueryaButton.secondary(
                 key: material.ValueKey('mcp_copy_${kind.name}'),
                 label: 'Copy ${kind.label} config',
                 icon: material.Icons.copy_rounded,
                 size: QueryaControlSize.sm,
                 onPressed: () => unawaited(_copy(kind)),
               ),
-            QueryaActionButton(
+            QueryaButton.secondary(
               key: const material.ValueKey('mcp_regenerate'),
               label: 'Regenerate token',
               icon: material.Icons.key_rounded,
@@ -283,7 +283,7 @@ class PreferencesMcpSectionState
           children: [
             const Text('Recent calls').semiBold().small().foreground(),
             const material.Spacer(),
-            QueryaActionButton(
+            QueryaButton.secondary(
               key: const material.ValueKey('mcp_clear_log'),
               label: 'Clear',
               size: QueryaControlSize.sm,

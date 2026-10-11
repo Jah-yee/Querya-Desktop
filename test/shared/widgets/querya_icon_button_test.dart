@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 
 import '../../support/querya_theme_test_shell.dart';
@@ -26,12 +27,12 @@ void main() {
       expect(pressed, isTrue);
     });
 
-    testWidgets('respects dense density preset (28px)', (tester) async {
+    testWidgets('respects sm size (28px)', (tester) async {
       await tester.pumpWidget(
         queryaThemeTestShell(
           child: const QueryaIconButton(
             icon: material.Icon(material.Icons.refresh),
-            density: QueryaIconButtonDensity.dense,
+            size: QueryaControlSize.sm,
           ),
         ),
       );
@@ -47,12 +48,12 @@ void main() {
       expect(box.height, 28);
     });
 
-    testWidgets('respects standard density preset (32px)', (tester) async {
+    testWidgets('respects md size (32px)', (tester) async {
       await tester.pumpWidget(
         queryaThemeTestShell(
           child: const QueryaIconButton(
             icon: material.Icon(material.Icons.refresh),
-            density: QueryaIconButtonDensity.standard,
+            size: QueryaControlSize.md,
           ),
         ),
       );

@@ -376,7 +376,7 @@ class _MongoQueryWorkspaceState extends material.State<MongoQueryWorkspace> {
             QueryaIconButton(
               icon: const material.Icon(material.Icons.history_rounded),
               tooltip: 'Query History',
-              density: QueryaIconButtonDensity.dense,
+              size: QueryaControlSize.sm,
               onPressed: _showHistory,
             ),
             const Gap(8),
