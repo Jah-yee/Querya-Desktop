@@ -88,6 +88,10 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
   var _closingWithExit = false;
   var _exitGeneration = 0;
 
+  /// Keys the trigger so the open menu can be at least as wide as it (#1444).
+  final material.GlobalKey _triggerKey = material.GlobalKey();
+  double _menuMinWidth = 0;
+
   @override
   void initState() {
     super.initState();
@@ -359,6 +363,8 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
         _exitGeneration++;
         _closingWithExit = false;
         _menuOpen.value = true;
+        final width = _triggerKey.currentContext?.size?.width ?? 0;
+        if (width != _menuMinWidth) setState(() => _menuMinWidth = width);
       },
       onClose: () {
         // Outside-tap / focus loss: overlay already gone — snap state only.
@@ -380,6 +386,9 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
         ),
         shadowColor: const material.WidgetStatePropertyAll(
           QueryaDropdownTokens.menuShadowColor,
+        ),
+        minimumSize: material.WidgetStatePropertyAll(
+          material.Size(_menuMinWidth, 0),
         ),
         maximumSize: material.WidgetStatePropertyAll(
           material.Size(double.infinity, effectiveMaxHeight),
@@ -412,10 +421,11 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
           label: label,
           fieldWidth: fieldWidth,
         );
+        final keyed = material.KeyedSubtree(key: _triggerKey, child: trigger);
         if (widget.expandToParent) {
-          return material.SizedBox(width: double.infinity, child: trigger);
+          return material.SizedBox(width: double.infinity, child: keyed);
         }
-        return trigger;
+        return keyed;
       },
     );
 
