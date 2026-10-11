@@ -161,9 +161,12 @@ class _RedisConnectionTileState extends State<_RedisConnectionTile> {
         ...widget.moveItems,
         MenuButton(
           leading: material.Icon(material.Icons.delete_outline_rounded,
-              size: 18, color: theme.colorScheme.mutedForeground),
+              size: 18, color: theme.colorScheme.destructive),
           onPressed: (_) => widget.onRemove(),
-          child: const Text('Remove connection'),
+          child: Text(
+            'Remove connection',
+            style: material.TextStyle(color: theme.colorScheme.destructive),
+          ),
         ),
       ],
       child: material.Padding(
