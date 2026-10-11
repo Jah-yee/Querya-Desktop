@@ -427,34 +427,43 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
       ),
     );
 
-    return material.IntrinsicWidth(
-      child: material.Listener(
-        onPointerSignal: (signal) {
-          if (signal is PointerScrollEvent &&
-              _effectiveScrollController.hasClients) {
-            if (signal.scrollDelta.dy != 0 && signal.scrollDelta.dx == 0) {
-              final target = (_effectiveScrollController.offset +
-                      signal.scrollDelta.dy)
-                  .clamp(
-                0.0,
-                _effectiveScrollController.position.maxScrollExtent,
-              );
-              if (target != _effectiveScrollController.offset) {
-                _effectiveScrollController.jumpTo(target);
-              }
+    final scrollableStrip = material.Listener(
+      onPointerSignal: (signal) {
+        if (signal is PointerScrollEvent &&
+            _effectiveScrollController.hasClients) {
+          if (signal.scrollDelta.dy != 0 && signal.scrollDelta.dx == 0) {
+            final target = (_effectiveScrollController.offset +
+                    signal.scrollDelta.dy)
+                .clamp(
+              0.0,
+              _effectiveScrollController.position.maxScrollExtent,
+            );
+            if (target != _effectiveScrollController.offset) {
+              _effectiveScrollController.jumpTo(target);
             }
           }
-        },
-        child: material.ScrollConfiguration(
-          behavior:
-              const material.ScrollBehavior().copyWith(scrollbars: false),
-          child: material.SingleChildScrollView(
-            controller: _effectiveScrollController,
-            scrollDirection: material.Axis.horizontal,
-            child: stripContent,
-          ),
+        }
+      },
+      child: material.ScrollConfiguration(
+        behavior:
+            const material.ScrollBehavior().copyWith(scrollbars: false),
+        child: material.SingleChildScrollView(
+          controller: _effectiveScrollController,
+          scrollDirection: material.Axis.horizontal,
+          child: stripContent,
         ),
       ),
+    );
+
+    return material.LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.hasBoundedWidth) {
+          return scrollableStrip;
+        }
+        return material.IntrinsicWidth(
+          child: scrollableStrip,
+        );
+      },
     );
   }
 }
