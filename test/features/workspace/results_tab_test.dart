@@ -1122,7 +1122,7 @@ void main() {
       buffer.dispose();
     });
 
-    testWidgets('ResultsTab renders Export ▾ button with file export options', (tester) async {
+    testWidgets('ResultsTab renders Export button with file export options', (tester) async {
       final rows = [
         ['1', 'Alice'],
       ];
@@ -1143,8 +1143,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Export ▾'), findsOneWidget);
-      expect(find.text('Save File ▾'), findsOneWidget);
+      expect(find.text('Export'), findsOneWidget);
+      expect(find.text('Save File'), findsOneWidget);
     });
 
     testWidgets('ResultsTab toggles filter bar and closes it when close button or Escape is triggered', (tester) async {

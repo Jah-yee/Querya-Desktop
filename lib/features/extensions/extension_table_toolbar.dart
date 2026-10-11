@@ -149,7 +149,7 @@ class ExtensionTableToolbar extends material.StatelessWidget {
                         if (onCopyFormat != null) ...[
                           const Gap(4),
                           ExportMenuButton(
-                            label: 'Copy ▾',
+                            label: 'Copy',
                             icon: material.Icons.copy_rounded,
                             isSave: false,
                             onSelected: onCopyFormat!,
@@ -158,7 +158,7 @@ class ExtensionTableToolbar extends material.StatelessWidget {
                         if (onSaveFormat != null) ...[
                           const Gap(4),
                           ExportMenuButton(
-                            label: 'Export ▾',
+                            label: 'Export',
                             icon: material.Icons.file_download_outlined,
                             isSave: true,
                             onSelected: onSaveFormat!,
