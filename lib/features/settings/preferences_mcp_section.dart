@@ -10,6 +10,7 @@ import 'package:querya_desktop/core/security/connection_environment.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/settings/preferences_controls.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Preferences → MCP Server (#1136): enable the in-app MCP server, choose the
 /// connections AI clients may read, copy client configs, see recent calls.
@@ -256,14 +257,14 @@ class PreferencesMcpSectionState
                 key: material.ValueKey('mcp_copy_${kind.name}'),
                 label: 'Copy ${kind.label} config',
                 icon: material.Icons.copy_rounded,
-                size: ButtonSize.small,
+                size: QueryaControlSize.sm,
                 onPressed: () => unawaited(_copy(kind)),
               ),
             QueryaActionButton(
               key: const material.ValueKey('mcp_regenerate'),
               label: 'Regenerate token',
               icon: material.Icons.key_rounded,
-              size: ButtonSize.small,
+              size: QueryaControlSize.sm,
               tooltip: 'Disconnects connected clients; they reconnect on '
                   'their next start.',
               onPressed: _enabled && !_busy ? () => unawaited(_regenerate()) : null,
@@ -285,7 +286,7 @@ class PreferencesMcpSectionState
             QueryaActionButton(
               key: const material.ValueKey('mcp_clear_log'),
               label: 'Clear',
-              size: ButtonSize.small,
+              size: QueryaControlSize.sm,
               onPressed: _activity.isEmpty ? null : () => unawaited(_clearLog()),
             ),
           ],

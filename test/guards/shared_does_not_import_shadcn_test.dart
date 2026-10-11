@@ -13,7 +13,6 @@ void main() {
   const allowed = <String>{
     'lib/shared/widgets/app_toast.dart',
     'lib/shared/widgets/export_menu_button.dart',
-    'lib/shared/widgets/querya_action_button.dart',
     'lib/shared/widgets/querya_action_menu.dart',
     'lib/shared/widgets/widgets.dart',
   };
