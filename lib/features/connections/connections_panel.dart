@@ -485,6 +485,7 @@ class ConnectionsPanel extends StatefulWidget {
     this.onSqliteObjectSelected,
     this.onSqliteOpenSqlWorkspace,
     this.onExtensionObjectSelected,
+    this.onConnectionRemoved,
 
     /// When true, [initState] does not call [_loadData]. Widget tests that seed
     /// SQLite in setUp should call [ConnectionsPanelState.reloadConnectionsFromDb]
@@ -564,6 +565,10 @@ class ConnectionsPanel extends StatefulWidget {
     String database,
     String name,
   )? onExtensionObjectSelected;
+
+  /// Called after a connection was removed, so the shell can leave its
+  /// workspace if it was the open one.
+  final void Function(int connectionId)? onConnectionRemoved;
 
   final bool skipInitialDbLoadForTest;
 
@@ -802,9 +807,31 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
     );
   }
 
+  /// Asks first: removing a connection deletes its saved settings and
+  /// password and closes its sessions. The database itself is not touched.
   Future<void> _removeConnection(int id) async {
+    String? name;
+    for (final c in _connections) {
+      if (c.id == id) {
+        name = c.name;
+        break;
+      }
+    }
+    final confirmed = await QueryaConfirmDialog.show(
+      context: context,
+      title: 'Remove connection?',
+      message: name == null || name.isEmpty
+          ? 'The connection and its saved password are removed from Querya. '
+              'The database itself is not changed.'
+          : '"$name" and its saved password are removed from Querya. '
+              'The database itself is not changed.',
+      confirmLabel: 'Remove',
+      isDestructive: true,
+    );
+    if (confirmed != true || !mounted) return;
     await _closeSessionsOf(id);
     await LocalDb.instance.removeConnection(id);
+    widget.onConnectionRemoved?.call(id);
     await _loadData();
   }
 
