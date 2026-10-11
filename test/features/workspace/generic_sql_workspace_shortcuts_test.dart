@@ -15,7 +15,7 @@ import 'package:querya_desktop/features/settings/preferences_shortcuts_section.d
 import 'package:querya_desktop/features/workspace/generic_sql_workspace.dart';
 import 'package:querya_desktop/features/workspace/results_tab.dart' show formatResultElapsed;
 import 'package:querya_desktop/features/workspace/sql_execution_delegate.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart' show OutlineButton;
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 
 import '../../support/fake_sql_execution_delegate.dart';
 import '../../support/local_db_test_support.dart';
@@ -98,7 +98,7 @@ void main() {
       initialSql: 'SELECT n FROM t',
     );
 
-    await tester.tap(find.widgetWithText(OutlineButton, 'Execute (F5)'));
+    await tester.tap(find.widgetWithText(QueryaButton, 'Execute (F5)'));
     await settle(tester);
 
     expect(delegate.executed, ['SELECT n FROM t']);
@@ -390,7 +390,7 @@ void main() {
     await pumpWorkspace(tester, delegate, initialSql: 'SELECT n FROM t');
     expect(find.byKey(const material.ValueKey('result_elapsed')), findsNothing);
 
-    await tester.tap(find.widgetWithText(OutlineButton, 'Execute (F5)'));
+    await tester.tap(find.widgetWithText(QueryaButton, 'Execute (F5)'));
     await settle(tester);
 
     expect(find.byKey(const material.ValueKey('result_elapsed')), findsOneWidget);

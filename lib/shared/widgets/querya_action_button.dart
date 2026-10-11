@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart' as material;
-import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/core/ui/querya_tooltip.dart';
-import 'package:querya_desktop/shared/widgets/querya_spinner.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 
-/// Labelled outline button for toolbars: optional leading icon, a [loading]
-/// state with a spinner, and a destructive tone.
+/// Labelled toolbar button: optional leading icon, a [loading] state and a
+/// destructive tone. A thin wrapper over [QueryaButton.secondary]; new code
+/// uses [QueryaButton] directly (epic #1331).
 ///
-/// While [loading] the button is disabled and shows a [QueryaSpinner] in place
-/// of [icon]. Icon and spinner follow the workbench accent, or the destructive
-/// color when [isDestructive] is set.
+/// While [loading] the button is disabled and shows a spinner in place of
+/// [icon]. With [isDestructive] the label and icon use the workbench
+/// destructive colour.
 class QueryaActionButton extends material.StatelessWidget {
   const QueryaActionButton({
     super.key,
@@ -19,7 +19,7 @@ class QueryaActionButton extends material.StatelessWidget {
     this.loading = false,
     this.isDestructive = false,
     this.tooltip,
-    this.size = ButtonSize.normal,
+    this.size,
     this.compact = false,
   });
 
@@ -32,12 +32,14 @@ class QueryaActionButton extends material.StatelessWidget {
   /// Shows a spinner instead of [icon] and disables the button.
   final bool loading;
 
-  /// Uses the destructive color for the icon and the label.
+  /// Uses the destructive colour for the icon and the label.
   final bool isDestructive;
 
   /// Shown on hover after [kQueryaTooltipWait].
   final String? tooltip;
-  final ButtonSize size;
+
+  /// Control size; without one the nearest `QueryaControlScope`, then `md`.
+  final QueryaControlSize? size;
 
   /// Hides the label and keeps the icon (narrow toolbars). The label becomes
   /// the tooltip when none is set. Without an [icon], [compact] has no effect.
@@ -45,39 +47,17 @@ class QueryaActionButton extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final workbench = context.workbench;
-    final tone = isDestructive ? workbench.destructive : workbench.accent;
-    final enabled = onPressed != null && !loading;
-
-    material.Widget? leading;
-    if (loading) {
-      leading = QueryaSpinner(size: QueryaSpinnerSize.sm, color: tone);
-    } else if (icon != null) {
-      leading = material.Icon(icon, size: 18, color: tone);
-    }
-
-    final iconOnly = compact && leading != null;
-    material.Widget button = OutlineButton(
+    return QueryaButton.secondary(
+      label: label,
+      icon: icon,
+      onPressed: onPressed,
+      loading: loading,
+      tooltip: tooltip,
       size: size,
-      onPressed: enabled ? onPressed : null,
-      leading: leading,
-      child: iconOnly
-          ? const material.SizedBox.shrink()
-          : isDestructive
-              ? Text(label, style: material.TextStyle(color: tone))
-              : Text(label),
+      compact: compact,
+      tone: isDestructive
+          ? QueryaButtonTone.destructive
+          : QueryaButtonTone.normal,
     );
-
-    final hint = (tooltip != null && tooltip!.isNotEmpty)
-        ? tooltip!
-        : (iconOnly ? label : null);
-    if (hint != null) {
-      button = material.Tooltip(
-        message: hint,
-        waitDuration: kQueryaTooltipWait,
-        child: button,
-      );
-    }
-    return button;
   }
 }

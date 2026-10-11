@@ -27,7 +27,7 @@ void main() {
         child: const QueryaActionButton(label: 'Begin'),
       ));
 
-      final button = tester.widget<OutlineButton>(find.byType(OutlineButton));
+      final button = tester.widget<QueryaButton>(find.byType(QueryaButton));
       expect(button.onPressed, isNull);
     });
 
