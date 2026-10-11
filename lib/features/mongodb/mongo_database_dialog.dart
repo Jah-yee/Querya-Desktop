@@ -86,28 +86,19 @@ class _CreateMongoDBDialogContentState
               ],
             ),
           ),
-          const QueryaDivider(height: 1),
-          material.Container(
-            padding: const material.EdgeInsets.symmetric(
-                horizontal: 24, vertical: 16),
-            child: material.Row(
-              mainAxisAlignment: material.MainAxisAlignment.end,
-              children: [
-                QueryaButton.ghost(
+          ListenableBuilder(
+            listenable: _nameController,
+            builder: (context, __) => QueryaDialogActions(
+              cancel: QueryaButton.ghost(
                   label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
                   size: QueryaControlSize.lg,
                 ),
-                const Gap(12),
-                ListenableBuilder(
-                  listenable: _nameController,
-                  builder: (context, __) => QueryaButton.primary(
+              primary: QueryaButton.primary(
                     label: 'Create',
                     onPressed: _formValid ? _save : null,
                     size: QueryaControlSize.lg,
                   ),
-                ),
-              ],
             ),
           ),
         ],

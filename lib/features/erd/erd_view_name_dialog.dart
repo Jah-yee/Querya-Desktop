@@ -87,34 +87,20 @@ class _ErdViewNameDialogState extends material.State<_ErdViewNameDialog> {
               ],
             ),
           ),
-          material.Container(
-            padding: const material.EdgeInsets.symmetric(
-                horizontal: 24, vertical: 16),
-            decoration: material.BoxDecoration(
-              border: material.Border(
-                top: material.BorderSide(
-                    color: theme.border.withValues(alpha: 0.3)),
-              ),
-            ),
-            child: material.Row(
-              mainAxisAlignment: material.MainAxisAlignment.end,
-              children: [
-                QueryaButton.ghost(
+          ListenableBuilder(
+            listenable: _name,
+            builder: (context, _) => QueryaDialogActions(
+              cancel: QueryaButton.ghost(
                   label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
                   size: QueryaControlSize.lg,
                 ),
-                const material.SizedBox(width: 12),
-                ListenableBuilder(
-                  listenable: _name,
-                  builder: (context, _) => QueryaButton.primary(
+              primary: QueryaButton.primary(
                     key: const material.ValueKey('erd_view_submit'),
                     label: widget.action,
                     onPressed: _name.text.trim().isEmpty ? null : _submit,
                     size: QueryaControlSize.lg,
                   ),
-                ),
-              ],
             ),
           ),
         ],

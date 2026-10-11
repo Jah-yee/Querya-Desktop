@@ -89,35 +89,21 @@ class _NewFolderDialogContentState
               ],
             ),
           ),
-          material.Container(
-            padding: const material.EdgeInsets.symmetric(
-                horizontal: 24, vertical: 16),
-            decoration: material.BoxDecoration(
-              border: material.Border(
-                top: material.BorderSide(
-                    color: theme.border.withValues(alpha: 0.3)),
-              ),
-            ),
-            child: material.Row(
-              mainAxisAlignment: material.MainAxisAlignment.end,
-              children: [
-                QueryaButton.ghost(
+          ListenableBuilder(
+            listenable: _nameController,
+            builder: (context, __) => QueryaDialogActions(
+              cancel: QueryaButton.ghost(
                   label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
                   size: QueryaControlSize.lg,
                 ),
-                const material.SizedBox(width: 12),
-                ListenableBuilder(
-                  listenable: _nameController,
-                  builder: (context, __) => QueryaButton.primary(
+              primary: QueryaButton.primary(
                     label: 'Create',
                     onPressed: _name.isEmpty
                         ? null
                         : () => material.Navigator.of(context).pop(_name),
                     size: QueryaControlSize.lg,
                   ),
-                ),
-              ],
             ),
           ),
         ],
