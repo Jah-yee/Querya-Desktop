@@ -279,6 +279,7 @@ class _ResultsTabState extends material.State<ResultsTab> {
           padding: const material.EdgeInsets.all(32),
           child: material.Column(
             mainAxisAlignment: material.MainAxisAlignment.center,
+            mainAxisSize: material.MainAxisSize.min,
             children: [
               material.Icon(
                 material.Icons.error_outline_rounded,
@@ -288,11 +289,15 @@ class _ResultsTabState extends material.State<ResultsTab> {
               const Gap(16),
               const Text('Query Error').large().semiBold(),
               const Gap(8),
-              VirtualSelectableTextView(
-                text: widget.errorMessage!,
-                style: material.TextStyle(
-                  color: Theme.of(context).colorScheme.mutedForeground,
-                  fontSize: 13,
+              // A long driver message scrolls inside the space left, instead
+              // of pushing the column past the pane.
+              material.Flexible(
+                child: VirtualSelectableTextView(
+                  text: widget.errorMessage!,
+                  style: material.TextStyle(
+                    color: Theme.of(context).colorScheme.mutedForeground,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               if (widget.errorAction != null) ...[
