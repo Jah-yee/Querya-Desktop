@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **In-app update of a package install (AUR, `.deb`, `.rpm`)** — the updater no longer downloads a zip and quits when the app lives in `/opt/querya-desktop` (owned by root): the update dialog says how to update it (`yay -Syu querya-desktop`, `apt`, `dnf`) with a *Copy update command* button, or offers the release page for any other folder the user cannot write. If an in-place replace fails anyway, the app is started again and the reason is logged to `~/.local/state/querya-update.log`, instead of staying closed.
+
 Everything merged to `dev` since 0.4.18: the NoSQL workbench, SSH tunnelling and Production safeguards, the ER diagram, charts and plans, the MCP server, a rebuilt SQL workspace toolbar, a UI kit, and a round of session and connection correctness fixes.
 
 ### Added
