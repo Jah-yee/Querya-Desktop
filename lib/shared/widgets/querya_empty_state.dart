@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 
 /// Standard empty state placeholder for lists, search results, tabs, and query outputs.
 class QueryaEmptyState extends material.StatelessWidget {
@@ -38,7 +39,7 @@ class QueryaEmptyState extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.colors;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
 
     final iconColor = (workbench?.mutedForeground ?? cs.mutedForeground).withValues(alpha: 0.6);
@@ -70,10 +71,10 @@ class QueryaEmptyState extends material.StatelessWidget {
 
     material.Widget? actionWidget = action;
     if (actionWidget == null && actionLabel != null && onAction != null) {
-      actionWidget = OutlineButton(
-        size: compact ? ButtonSize.small : ButtonSize.normal,
+      actionWidget = QueryaButton.secondary(
+        label: actionLabel!,
+        size: compact ? QueryaControlSize.sm : QueryaControlSize.lg,
         onPressed: onAction,
-        child: Text(actionLabel!),
       );
     }
 
@@ -86,7 +87,7 @@ class QueryaEmptyState extends material.StatelessWidget {
           children: [
             if (iconWidget != null) ...[
               iconWidget,
-              Gap(compact ? 10 : 16),
+              material.SizedBox(height: compact ? 10 : 16),
             ],
             material.Text(
               title,
@@ -98,7 +99,7 @@ class QueryaEmptyState extends material.StatelessWidget {
               ),
             ),
             if (description != null && description!.isNotEmpty) ...[
-              Gap(compact ? 4 : 6),
+              material.SizedBox(height: compact ? 4 : 6),
               material.ConstrainedBox(
                 constraints: const material.BoxConstraints(maxWidth: 360),
                 child: material.Text(
@@ -113,7 +114,7 @@ class QueryaEmptyState extends material.StatelessWidget {
               ),
             ],
             if (actionWidget != null) ...[
-              Gap(compact ? 12 : 20),
+              material.SizedBox(height: compact ? 12 : 20),
               actionWidget,
             ],
           ],
