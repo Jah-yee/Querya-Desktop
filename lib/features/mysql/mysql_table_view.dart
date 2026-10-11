@@ -14,6 +14,7 @@ import 'package:querya_desktop/features/mysql/mysql_sql_editor_dialog.dart';
 import 'package:querya_desktop/features/mysql/mysql_table_utils.dart';
 import 'package:querya_desktop/features/workspace/workspace.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _defaultLimit = 200;
 
@@ -357,14 +358,11 @@ class _MysqlTableViewState extends material.State<MysqlTableView> {
               if (widget.onNavigateHome != null) ...[
                 material.Tooltip(
                   message: 'Return to server overview',
-                  child: OutlineButton(
-                    size: ButtonSize.small,
+                  child: QueryaButton.secondary(
+                    label: 'Server',
+                    icon: material.Icons.dns_outlined,
                     onPressed: () => unawaited(state.navigateHome()),
-                    leading: const material.Icon(
-                      material.Icons.dns_outlined,
-                      size: 14,
-                    ),
-                    child: const Text('Server'),
+                    size: QueryaControlSize.sm,
                   ),
                 ),
                 const Gap(10),
@@ -427,62 +425,47 @@ class _MysqlTableViewState extends material.State<MysqlTableView> {
                               state.buildEditModeButton(),
                               const Gap(4),
                             ],
-                            OutlineButton(
-                              size: ButtonSize.small,
+                            QueryaButton.secondary(
+                              label: 'SQL',
+                              icon: material.Icons.code_rounded,
                               onPressed: () => _openSqlEditor(ctx, state),
-                              leading: const material.Icon(
-                                material.Icons.code_rounded,
-                                size: 15,
-                              ),
-                              child: const Text('SQL'),
+                              size: QueryaControlSize.sm,
                             ),
                             if (state.customSqlActive) ...[
                               const Gap(4),
-                              OutlineButton(
-                                size: ButtonSize.small,
+                              QueryaButton.secondary(
+                                label: 'Browse',
+                                icon: material.Icons.table_chart_rounded,
                                 onPressed: () => unawaited(state.exitCustomMode()),
-                                leading: const material.Icon(
-                                  material.Icons.table_chart_rounded,
-                                  size: 15,
-                                ),
-                                child: const Text('Browse'),
+                                size: QueryaControlSize.sm,
                               ),
                             ],
                             const Gap(4),
-                            OutlineButton(
-                              size: ButtonSize.small,
+                            QueryaButton.secondary(
+                              label: 'Prev',
+                              icon: material.Icons.chevron_left_rounded,
                               onPressed: (!state.canGoPrevious || state.isLoading)
                                   ? null
                                   : state.goToPreviousPage,
-                              leading: const material.Icon(
-                                material.Icons.chevron_left_rounded,
-                                size: 16,
-                              ),
-                              child: const Text('Prev'),
+                              size: QueryaControlSize.sm,
                             ),
                             const Gap(4),
-                            OutlineButton(
-                              size: ButtonSize.small,
+                            QueryaButton.secondary(
+                              label: 'Next',
+                              icon: material.Icons.chevron_right_rounded,
                               onPressed: (!state.canGoNext || state.isLoading)
                                   ? null
                                   : state.goToNextPage,
-                              leading: const material.Icon(
-                                material.Icons.chevron_right_rounded,
-                                size: 16,
-                              ),
-                              child: const Text('Next'),
+                              size: QueryaControlSize.sm,
                             ),
                             const Gap(8),
-                            OutlineButton(
-                              size: ButtonSize.small,
+                            QueryaButton.secondary(
+                              label: 'Refresh',
+                              icon: material.Icons.refresh_rounded,
                               onPressed: state.isLoading
                                   ? null
                                   : () => unawaited(state.refresh()),
-                              leading: const material.Icon(
-                                material.Icons.refresh_rounded,
-                                size: 14,
-                              ),
-                              child: const Text('Refresh'),
+                              size: QueryaControlSize.sm,
                             ),
                           ],
                         ),

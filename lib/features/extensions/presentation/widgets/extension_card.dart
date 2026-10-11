@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/extensions/extension_support.dart';
 import 'package:querya_desktop/core/extensions/models/extension_manifest.dart';
 import 'package:querya_desktop/core/extensions/models/extension_type.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 class ExtensionCard extends material.StatelessWidget {
   const ExtensionCard({
@@ -104,9 +105,10 @@ class ExtensionCard extends material.StatelessWidget {
               if (isInstalled && hasUpdate && !isInstalling)
                 material.Padding(
                   padding: const material.EdgeInsets.only(bottom: 8.0),
-                  child: PrimaryButton(
+                  child: QueryaButton.primary(
+                    label: 'Update',
                     onPressed: onUpdate,
-                    child: const Text('Update'),
+                    size: QueryaControlSize.md,
                   ),
                 ),
               if (isInstalling)
@@ -132,22 +134,25 @@ class ExtensionCard extends material.StatelessWidget {
                   ],
                 )
               else if (isInstalled)
-                SecondaryButton(
+                QueryaButton.secondary(
+                  label: 'Uninstall',
                   onPressed: onUninstall,
-                  child: const Text('Uninstall'),
+                  size: QueryaControlSize.md,
                 )
               else if (isPreview)
                 const material.Tooltip(
                   message: ExtensionSupport.databaseDriverPreviewNotice,
-                  child: OutlineButton(
+                  child: QueryaButton.secondary(
+                    label: 'Preview',
                     onPressed: null,
-                    child: Text('Preview'),
+                    size: QueryaControlSize.md,
                   ),
                 )
               else
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Install',
                   onPressed: onInstall,
-                  child: const Text('Install'),
+                  size: QueryaControlSize.md,
                 ),
             ],
           ),

@@ -16,6 +16,7 @@ import 'package:querya_desktop/features/workspace/results_tab.dart';
 import 'package:querya_desktop/features/workspace/table_data_delegate.dart';
 import 'package:querya_desktop/features/workspace/table_view_staging.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Reusable database table browser supporting:
 /// - Pagination (LIMIT/OFFSET) and row counts
@@ -695,14 +696,11 @@ class GenericTableViewState extends material.State<GenericTableView> {
           if (widget.onNavigateHome != null) ...[
             material.Tooltip(
               message: 'Return to overview',
-              child: OutlineButton(
-                size: ButtonSize.small,
+              child: QueryaButton.secondary(
+                label: 'Overview',
+                icon: material.Icons.dns_outlined,
                 onPressed: () => unawaited(navigateHome()),
-                leading: const material.Icon(
-                  material.Icons.dns_outlined,
-                  size: 14,
-                ),
-                child: const Text('Overview'),
+                size: QueryaControlSize.sm,
               ),
             ),
             const Gap(10),
@@ -767,45 +765,33 @@ class GenericTableViewState extends material.State<GenericTableView> {
                           const Gap(4),
                         ],
                         if (_customSqlActive) ...[
-                          OutlineButton(
-                            size: ButtonSize.small,
+                          QueryaButton.secondary(
+                            label: 'Browse',
+                            icon: material.Icons.table_chart_rounded,
                             onPressed: _loading ? null : () => unawaited(exitCustomMode()),
-                            leading: const material.Icon(
-                              material.Icons.table_chart_rounded,
-                              size: 15,
-                            ),
-                            child: const Text('Browse'),
+                            size: QueryaControlSize.sm,
                           ),
                           const Gap(4),
                         ],
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Prev',
+                          icon: material.Icons.chevron_left_rounded,
                           onPressed: (!canGoPrevious || _loading) ? null : goToPreviousPage,
-                          leading: const material.Icon(
-                            material.Icons.chevron_left_rounded,
-                            size: 16,
-                          ),
-                          child: const Text('Prev'),
+                          size: QueryaControlSize.sm,
                         ),
                         const Gap(4),
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Next',
+                          icon: material.Icons.chevron_right_rounded,
                           onPressed: (!canGoNext || _loading) ? null : goToNextPage,
-                          leading: const material.Icon(
-                            material.Icons.chevron_right_rounded,
-                            size: 16,
-                          ),
-                          child: const Text('Next'),
+                          size: QueryaControlSize.sm,
                         ),
                         const Gap(8),
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Refresh',
+                          icon: material.Icons.refresh_rounded,
                           onPressed: _loading ? null : () => unawaited(refresh()),
-                          leading: const material.Icon(
-                            material.Icons.refresh_rounded,
-                            size: 14,
-                          ),
-                          child: const Text('Refresh'),
+                          size: QueryaControlSize.sm,
                         ),
                       ],
                     ),

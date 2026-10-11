@@ -8,6 +8,7 @@ import 'package:querya_desktop/core/market/marketplace_repository.dart';
 import 'package:querya_desktop/core/platform/open_directory.dart';
 import 'package:querya_desktop/features/settings/preferences_controls.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Preferences section for sideloading extensions from local archives (#316).
 class PreferencesExtensionsSection extends material.StatefulWidget {
@@ -109,15 +110,15 @@ class PreferencesExtensionsSectionState
           spacing: 8,
           runSpacing: 8,
           children: [
-            OutlineButton(
+            QueryaButton.secondary(
+              label: _installing ? 'Installing…' : 'Install from file…',
               onPressed: busy ? null : () => unawaited(_installFromFile()),
-              child: Text(_installing ? 'Installing…' : 'Install from file…'),
+              size: QueryaControlSize.md,
             ),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: _openingFolder ? 'Opening…' : 'Open extensions folder',
               onPressed: busy ? null : () => unawaited(_openExtensionsFolder()),
-              child: Text(
-                _openingFolder ? 'Opening…' : 'Open extensions folder',
-              ),
+              size: QueryaControlSize.md,
             ),
           ],
         ),
