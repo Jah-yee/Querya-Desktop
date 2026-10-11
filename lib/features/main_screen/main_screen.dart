@@ -1754,6 +1754,12 @@ class _ConnectionsPanelSlotState extends State<_ConnectionsPanelSlot> {
       onSqliteObjectSelected: widget.onSqliteObjectSelected,
       onSqliteOpenSqlWorkspace: widget.onSqliteOpenSqlWorkspace,
       onExtensionObjectSelected: widget.onExtensionObjectSelected,
+      onConnectionRemoved: (id) {
+        // The open workspace belonged to the removed connection: go home.
+        if (widget.workspace.value.activeConnection?.id != id) return;
+        widget.workspace.value = MainScreenWorkspaceState.empty;
+        QueryaShellStatus.instance.clear();
+      },
     );
   }
 }
