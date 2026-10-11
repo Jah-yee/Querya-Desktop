@@ -22,7 +22,7 @@ class QueryaDialogCard extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final theme = context.queryaTheme.colorScheme;
+    final theme = context.colors;
     const radius = QueryaControlMetrics.surfaceRadius;
     final borderRadius = material.BorderRadius.circular(radius);
     final textStyle = material.DefaultTextStyle.of(context).style;

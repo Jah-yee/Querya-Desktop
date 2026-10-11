@@ -340,7 +340,7 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = context.queryaTheme.colorScheme;
+    final cs = context.colors;
     final label = _labelFor(widget.value);
     final fieldWidth = widget.expandToParent
         ? null
