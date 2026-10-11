@@ -17,6 +17,7 @@ import 'package:querya_desktop/features/workspace/grid_selection_calc_engine.dar
 import 'package:querya_desktop/features/workspace/result_grid_view.dart';
 import 'package:querya_desktop/shared/services/data_export_service.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 enum ResultViewMode {
   grid,
@@ -665,9 +666,10 @@ Future<void> _showSaveFileErrorDialog(material.BuildContext context) {
             const Gap(20),
             material.Align(
               alignment: material.Alignment.centerRight,
-              child: PrimaryButton(
+              child: QueryaButton.primary(
+                label: 'OK',
                 onPressed: () => material.Navigator.of(ctx).pop(),
-                child: const Text('OK'),
+                size: QueryaControlSize.md,
               ),
             ),
           ],

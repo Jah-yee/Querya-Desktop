@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/database/redis_bulk.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Editor for a Redis hash: HSET add bar plus a field/value list.
 class RedisHashEditor extends material.StatefulWidget {
@@ -66,7 +67,8 @@ class _RedisHashEditorState extends material.State<RedisHashEditor> {
                 ),
               ),
               const Gap(8),
-              PrimaryButton(
+              QueryaButton.primary(
+                label: 'HSET',
                 onPressed: () {
                   final f = _fieldController.text.trim();
                   final v = _valueController.text;
@@ -75,8 +77,7 @@ class _RedisHashEditorState extends material.State<RedisHashEditor> {
                   _fieldController.clear();
                   _valueController.clear();
                 },
-                size: ButtonSize.small,
-                child: const Text('HSET'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ),

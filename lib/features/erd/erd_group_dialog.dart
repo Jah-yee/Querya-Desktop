@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Name and note of a diagram group (#1282), as the user typed them.
 typedef ErdGroupText = ({String name, String? note});
@@ -116,17 +117,19 @@ class _ErdGroupDialogState extends material.State<_ErdGroupDialog> {
             child: material.Row(
               mainAxisAlignment: material.MainAxisAlignment.end,
               children: [
-                GhostButton(
+                QueryaButton.ghost(
+                  label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  size: QueryaControlSize.lg,
                 ),
                 const material.SizedBox(width: 12),
                 ListenableBuilder(
                   listenable: _name,
-                  builder: (context, _) => PrimaryButton(
+                  builder: (context, _) => QueryaButton.primary(
                     key: const material.ValueKey('erd_group_submit'),
+                    label: widget.action,
                     onPressed: _name.text.trim().isEmpty ? null : _submit,
-                    child: Text(widget.action),
+                    size: QueryaControlSize.lg,
                   ),
                 ),
               ],

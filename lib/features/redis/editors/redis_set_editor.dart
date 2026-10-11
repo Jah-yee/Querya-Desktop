@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/database/redis_bulk.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Editor for a Redis set: SADD add bar plus a member list.
 class RedisSetEditor extends material.StatefulWidget {
@@ -57,15 +58,15 @@ class _RedisSetEditorState extends material.State<RedisSetEditor> {
                 ),
               ),
               const Gap(8),
-              PrimaryButton(
+              QueryaButton.primary(
+                label: 'SADD',
                 onPressed: () {
                   final v = _valueController.text.trim();
                   if (v.isEmpty) return;
                   widget.onAdd(v);
                   _valueController.clear();
                 },
-                size: ButtonSize.small,
-                child: const Text('SADD'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ),

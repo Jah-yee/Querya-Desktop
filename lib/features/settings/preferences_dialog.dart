@@ -14,6 +14,7 @@ import 'package:querya_desktop/features/settings/preferences_mcp_section.dart';
 import 'package:querya_desktop/features/settings/preferences_shortcuts_section.dart';
 import 'package:querya_desktop/features/settings/sql_statement_timeout_dropdown.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 export 'preferences_category.dart';
 
@@ -427,9 +428,10 @@ class PreferencesDialogContentState
                           'Changes apply immediately and persist locally.',
                         ),
                       ),
-                      PrimaryButton(
+                      QueryaButton.primary(
+                        label: 'Close',
                         onPressed: () => material.Navigator.of(context).pop(),
-                        child: const Text('Close'),
+                        size: QueryaControlSize.lg,
                       ),
                     ],
                   ),

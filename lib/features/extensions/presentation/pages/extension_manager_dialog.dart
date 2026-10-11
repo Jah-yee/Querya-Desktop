@@ -12,6 +12,7 @@ import 'package:querya_desktop/core/motion/querya_cross_fade_stack.dart';
 import 'package:querya_desktop/features/extensions/presentation/widgets/extension_card.dart';
 import 'package:querya_desktop/features/extensions/presentation/widgets/extension_sideload_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Pause after the last keystroke before the marketplace is queried.
 const kMarketplaceSearchDebounce = Duration(milliseconds: 250);
@@ -232,9 +233,10 @@ class _ExtensionManagerContentState
                       ),
                     ),
                     const material.SizedBox(width: 16),
-                    PrimaryButton(
+                    QueryaButton.primary(
+                      label: 'Close',
                       onPressed: () => material.Navigator.of(context).pop(),
-                      child: const Text('Close'),
+                      size: QueryaControlSize.lg,
                     ),
                   ],
                 ),
@@ -283,11 +285,10 @@ class _ExtensionManagerContentState
           padding: const material.EdgeInsets.fromLTRB(24, 16, 24, 0),
           child: material.Row(
             children: [
-              OutlineButton(
+              QueryaButton.secondary(
+                label: _sideloading ? 'Installing…' : 'Install from file…',
                 onPressed: _sideloading ? null : _installFromLocalFile,
-                child: Text(
-                  _sideloading ? 'Installing…' : 'Install from file…',
-                ),
+                size: QueryaControlSize.lg,
               ),
               const material.SizedBox(width: 12),
               material.Expanded(

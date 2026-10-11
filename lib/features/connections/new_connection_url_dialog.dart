@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/connections/connection_url_parser.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows a dialog to create a new database connection from a URI.
 /// Returns the ConnectionRow or null if cancelled.
@@ -208,14 +209,16 @@ class _NewConnectionUrlDialogContentState
                 child: material.Row(
                   mainAxisAlignment: material.MainAxisAlignment.end,
                   children: [
-                    GhostButton(
+                    QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.lg,
                     ),
                     const material.SizedBox(width: 12),
-                    PrimaryButton(
+                    QueryaButton.primary(
+                      label: 'Create',
                       onPressed: _validateAndSubmit,
-                      child: const Text('Create'),
+                      size: QueryaControlSize.lg,
                     ),
                   ],
                 ),

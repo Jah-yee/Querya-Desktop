@@ -356,31 +356,19 @@ class _SqlQueryHistoryDialogContentState
                                     ),
                                   ),
                                   const Gap(8),
-                                  material.Tooltip(
-                                    message: 'Copy to clipboard',
-                                    child: IconButton.ghost(
-                                      density: ButtonDensity.compact,
-                                      onPressed: () =>
-                                          unawaited(_copyToClipboard(e.sqlText)),
-                                      icon: const material.Icon(
-                                        material.Icons.copy_rounded,
-                                        size: 15,
-                                      ),
-                                    ),
+                                  QueryaButton.icon(
+                                    icon: material.Icons.copy_rounded,
+                                    tooltip: 'Copy to clipboard',
+                                    size: QueryaControlSize.sm,
+                                    onPressed: () => unawaited(_copyToClipboard(e.sqlText)),
                                   ),
                                   if (widget.onOpenInNewTab != null) ...[
                                     const Gap(4),
-                                    material.Tooltip(
-                                      message: 'Open in new tab',
-                                      child: IconButton.ghost(
-                                        density: ButtonDensity.compact,
-                                        onPressed: () =>
-                                            _openInNewTab(e.sqlText),
-                                        icon: const material.Icon(
-                                          material.Icons.open_in_new_rounded,
-                                          size: 15,
-                                        ),
-                                      ),
+                                    QueryaButton.icon(
+                                      icon: material.Icons.open_in_new_rounded,
+                                      tooltip: 'Open in new tab',
+                                      size: QueryaControlSize.sm,
+                                      onPressed: () => _openInNewTab(e.sqlText),
                                     ),
                                   ],
                                 ],

@@ -4,6 +4,7 @@ import 'package:querya_desktop/core/database/redis_info.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows all Redis databases (db0–dbN) with key counts.
 class RedisDatabasesView extends material.StatefulWidget {
@@ -119,9 +120,10 @@ class _RedisDatabasesViewState extends material.State<RedisDatabasesView> {
                   style:
                       material.TextStyle(color: cs.destructive, fontSize: 13)),
               const Gap(16),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
                 onPressed: _load,
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),

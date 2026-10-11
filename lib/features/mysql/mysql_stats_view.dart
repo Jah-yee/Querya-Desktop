@@ -10,6 +10,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/querya_sparkline.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _pollInterval = Duration(seconds: 5);
 const _summaryChipHeight = 88.0;
@@ -200,11 +201,11 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
                     material.TextStyle(color: cs.mutedForeground, fontSize: 13),
               ),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _load,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -299,11 +300,11 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
             ],
           ),
         ),
-        OutlineButton(
+        QueryaButton.secondary(
+          label: 'Refresh',
+          icon: material.Icons.refresh_rounded,
           onPressed: _load,
-          leading:
-              const material.Icon(material.Icons.refresh_rounded, size: 18),
-          child: const Text('Refresh'),
+          size: QueryaControlSize.md,
         ),
       ],
     );

@@ -6,6 +6,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/widgets/virtual_selectable_text_view.dart';
 import 'package:querya_desktop/features/workspace/sql_editor_chrome.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Displays MySQL routine DDL (`SHOW CREATE PROCEDURE` / `SHOW CREATE FUNCTION`).
 class MysqlRoutineView extends material.StatefulWidget {
@@ -153,14 +154,11 @@ class _MysqlRoutineViewState extends material.State<MysqlRoutineView> {
                     .semiBold()
                     .small(),
               ),
-              OutlineButton(
-                size: ButtonSize.small,
+              QueryaButton.secondary(
+                label: 'Refresh',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _loading ? null : _loadRoutine,
-                leading: const material.Icon(
-                  material.Icons.refresh_rounded,
-                  size: 14,
-                ),
-                child: const Text('Refresh'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ),

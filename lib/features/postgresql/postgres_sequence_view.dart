@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/database/postgres_connection.dart';
 import 'package:querya_desktop/core/database/postgres_service.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows [pg_sequences] metadata, current value, and generated DDL.
 class PostgresSequenceView extends material.StatefulWidget {
@@ -144,11 +145,11 @@ class _PostgresSequenceViewState extends material.State<PostgresSequenceView> {
                       color: cs.mutedForeground, fontSize: 13),
                 ),
                 const Gap(24),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Retry',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _connectAndLoad,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 18),
-                  child: const Text('Retry'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),
@@ -189,12 +190,11 @@ class _PostgresSequenceViewState extends material.State<PostgresSequenceView> {
                     overflow: material.TextOverflow.ellipsis,
                   ),
                 ),
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Refresh',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _connectAndLoad,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 14),
-                  child: const Text('Refresh'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),

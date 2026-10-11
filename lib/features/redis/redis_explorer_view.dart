@@ -13,6 +13,7 @@ import 'redis_keys_view.dart';
 import 'redis_key_editor.dart';
 import 'redis_view.dart';
 import 'redis_cli_workspace.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 // ─── Navigation path model ──────────────────────────────────────────────────
 
@@ -262,11 +263,11 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
                   style: material.TextStyle(
                       color: cs.mutedForeground, fontSize: 13)),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _connect,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),

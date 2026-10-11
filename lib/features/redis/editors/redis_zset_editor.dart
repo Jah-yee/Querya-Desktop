@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/database/redis_bulk.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Editor for a Redis sorted set: ZADD add bar plus a scored member list.
 class RedisZsetEditor extends material.StatefulWidget {
@@ -67,7 +68,8 @@ class _RedisZsetEditorState extends material.State<RedisZsetEditor> {
                 ),
               ),
               const Gap(8),
-              PrimaryButton(
+              QueryaButton.primary(
+                label: 'ZADD',
                 onPressed: () {
                   final m = _memberController.text.trim();
                   final s = double.tryParse(_scoreController.text.trim());
@@ -76,8 +78,7 @@ class _RedisZsetEditorState extends material.State<RedisZsetEditor> {
                   _memberController.clear();
                   _scoreController.clear();
                 },
-                size: ButtonSize.small,
-                child: const Text('ZADD'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ),

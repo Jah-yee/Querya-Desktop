@@ -8,6 +8,7 @@ import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/core/motion/querya_hover_surface.dart';
 import 'package:querya_desktop/features/connections/driver_icon.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 export 'package:querya_desktop/core/database/connection_type.dart';
 export 'package:querya_desktop/core/database/connection_type_choice.dart';
@@ -237,16 +238,18 @@ class _NewConnectionDialogContentState
                     child: material.Row(
                       mainAxisAlignment: material.MainAxisAlignment.end,
                       children: [
-                        GhostButton(
+                        QueryaButton.ghost(
+                          label: 'Cancel',
                           onPressed: () => material.Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
+                          size: QueryaControlSize.lg,
                         ),
                         const material.SizedBox(width: 12),
-                        PrimaryButton(
+                        QueryaButton.primary(
+                          label: 'Next',
                           onPressed: _selected == null
                               ? null
                               : () => material.Navigator.of(context).pop(_selected),
-                          child: const Text('Next'),
+                          size: QueryaControlSize.lg,
                         ),
                       ],
                     ),

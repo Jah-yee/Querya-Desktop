@@ -6,6 +6,7 @@ import 'package:querya_desktop/core/editor/querya_code_language.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/workspace/sql_editor_chrome.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows [pg_get_functiondef] for each overload of a PostgreSQL function.
 class PostgresRoutineView extends material.StatefulWidget {
@@ -159,11 +160,11 @@ class _PostgresRoutineViewState extends material.State<PostgresRoutineView> {
                     style: material.TextStyle(
                         color: cs.mutedForeground, fontSize: 13)),
                 const Gap(24),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Retry',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _connectAndLoad,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 18),
-                  child: const Text('Retry'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),
@@ -202,12 +203,11 @@ class _PostgresRoutineViewState extends material.State<PostgresRoutineView> {
                     overflow: material.TextOverflow.ellipsis,
                   ),
                 ),
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Refresh',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: _connectAndLoad,
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 14),
-                  child: const Text('Refresh'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),

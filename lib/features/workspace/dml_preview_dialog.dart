@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
 import 'package:querya_desktop/core/database/table_mutation_engine.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Opens the DML Preview and Confirmation dialog before executing staged changes.
 ///
@@ -314,18 +315,17 @@ class _DmlPreviewDialogState extends material.State<_DmlPreviewDialog> {
               material.Row(
                 mainAxisAlignment: material.MainAxisAlignment.end,
                 children: [
-                  OutlineButton(
+                  QueryaButton.ghost(
+                    label: 'Cancel',
                     onPressed: () => material.Navigator.of(context).pop(false),
-                    child: const Text('Cancel'),
+                    size: QueryaControlSize.lg,
                   ),
                   const Gap(8),
-                  PrimaryButton(
+                  QueryaButton.primary(
+                    label: 'Apply Changes',
+                    icon: material.Icons.save_outlined,
                     onPressed: () => material.Navigator.of(context).pop(true),
-                    leading: const material.Icon(
-                      material.Icons.save_outlined,
-                      size: 16,
-                    ),
-                    child: const Text('Apply Changes'),
+                    size: QueryaControlSize.lg,
                   ),
                 ],
               ),

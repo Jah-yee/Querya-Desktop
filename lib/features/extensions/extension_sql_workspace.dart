@@ -7,6 +7,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/extensions/extension_driver_recovery_banner.dart';
 import 'package:querya_desktop/features/workspace/workspace.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Table/view selected in the sidebar tree of an extension connection.
 typedef ExtensionSelectedObject = ({String database, String name});
@@ -216,7 +217,6 @@ class _ExtensionSqlWorkspaceState extends material.State<ExtensionSqlWorkspace> 
 
   @override
   material.Widget build(material.BuildContext context) {
-    final accent = context.workbench.accent;
     return GenericSqlWorkspace(
       key: _workspaceKey,
       connectionRow: widget.connectionRow,
@@ -241,41 +241,31 @@ class _ExtensionSqlWorkspaceState extends material.State<ExtensionSqlWorkspace> 
         return material.Row(
           mainAxisSize: material.MainAxisSize.min,
           children: [
-            IconButton.ghost(
+            QueryaButton.icon(
+              icon: material.Icons.restart_alt_rounded,
+              tooltip: 'Restart driver',
+              loading: _restartingDriver,
+              size: QueryaControlSize.md,
               onPressed: session.running || _restartingDriver
                   ? null
                   : () => unawaited(_restartDriver()),
-              icon: _restartingDriver
-                  ? QueryaSpinner(
-                      size: QueryaSpinnerSize.sm,
-                      color: accent,
-                    )
-                  : material.Icon(
-                      material.Icons.restart_alt_rounded,
-                      size: 18,
-                      color: accent,
-                    ),
             ),
             const Gap(4),
-            IconButton.ghost(
+            QueryaButton.icon(
+              icon: material.Icons.folder_open_rounded,
+              tooltip: 'Open .sql file',
+              size: QueryaControlSize.md,
               onPressed: session.running
                   ? null
                   : () => unawaited(_workspaceKey.currentState?.openSqlFile()),
-              icon: material.Icon(
-                material.Icons.folder_open_rounded,
-                size: 18,
-                color: accent,
-              ),
             ),
             const Gap(4),
-            IconButton.ghost(
+            QueryaButton.icon(
+              icon: material.Icons.save_outlined,
+              tooltip: 'Save .sql file',
+              size: QueryaControlSize.md,
               onPressed: () =>
                   unawaited(_workspaceKey.currentState?.saveSqlFile()),
-              icon: material.Icon(
-                material.Icons.save_outlined,
-                size: 18,
-                color: accent,
-              ),
             ),
           ],
         );

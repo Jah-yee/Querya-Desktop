@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/features/workspace/sql_query_tab_session.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Lightweight query tab strip rendered above the SQL editor workspace.
 class SqlQueryTabBar extends material.StatelessWidget {
@@ -91,13 +92,15 @@ Future<bool?> showUnsavedTabChangesDialog({
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    OutlineButton(
+                    QueryaButton.ghost(
+                      label: 'Cancel',
                       onPressed: () => material.Navigator.of(ctx).pop(false),
-                      child: const Text('Cancel'),
+                      size: QueryaControlSize.md,
                     ),
-                    DestructiveButton(
+                    QueryaButton.destructive(
+                      label: 'Discard & Close',
                       onPressed: () => material.Navigator.of(ctx).pop(true),
-                      child: const Text('Discard & Close'),
+                      size: QueryaControlSize.md,
                     ),
                   ],
                 ),

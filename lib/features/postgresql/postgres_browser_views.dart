@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/database/postgres_service.dart';
 import 'package:querya_desktop/core/database/postgres_metadata.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 String _formatBytes(int? b) {
   if (b == null) return '—';
@@ -832,12 +833,11 @@ material.Widget _browserToolbar(
         material.Expanded(
           child: Text(title).semiBold().small(),
         ),
-        OutlineButton(
-          size: ButtonSize.small,
+        QueryaButton.secondary(
+          label: 'Refresh',
+          icon: material.Icons.refresh_rounded,
           onPressed: onRefresh,
-          leading:
-              const material.Icon(material.Icons.refresh_rounded, size: 14),
-          child: const Text('Refresh'),
+          size: QueryaControlSize.sm,
         ),
       ],
     ),

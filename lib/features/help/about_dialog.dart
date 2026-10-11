@@ -4,6 +4,7 @@ import 'package:querya_desktop/core/app/external_link.dart';
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/core/ui/querya_icons.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows the About Querya dialog.
 Future<void> showAboutDialog(material.BuildContext context) {
@@ -71,9 +72,10 @@ class _AboutDialogContentState extends material.State<_AboutDialogContent> {
                   'Licensed under the MIT License.',
                 ).small(),
                 const material.SizedBox(height: 16),
-                GhostButton(
+                QueryaButton.ghost(
+                  label: 'View repository',
                   onPressed: () => launchRepositoryUrl(),
-                  child: const Text('View repository'),
+                  size: QueryaControlSize.lg,
                 ),
               ],
             ),
@@ -93,9 +95,10 @@ class _AboutDialogContentState extends material.State<_AboutDialogContent> {
             child: material.Row(
               mainAxisAlignment: material.MainAxisAlignment.end,
               children: [
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Close',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Close'),
+                  size: QueryaControlSize.lg,
                 ),
               ],
             ),
