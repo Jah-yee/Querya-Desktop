@@ -39,6 +39,8 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   final _focusNode = FocusNode();
   final _scroll = material.ScrollController();
   var _selected = 0;
+  List<QueryaCommand> _cachedHits = const [];
+  String _cachedQuery = '';
 
   /// Set by keyboard navigation: the list moves under a still pointer, and the
   /// hover that causes must not take the selection back. Cleared as soon as
@@ -51,18 +53,30 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() {
-      setState(() => _selected = 0);
-      if (_scroll.hasClients) _scroll.jumpTo(0);
-    });
+    _updateHits();
+    _controller.addListener(_onQueryChanged);
+    QueryaCommandRegistry.instance.addListener(_onRegistryChanged);
   }
 
   @override
   void dispose() {
+    QueryaCommandRegistry.instance.removeListener(_onRegistryChanged);
+    _controller.removeListener(_onQueryChanged);
     _scroll.dispose();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    _updateHits();
+    setState(() => _selected = 0);
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  void _onRegistryChanged() {
+    if (!mounted) return;
+    setState(_updateHits);
   }
 
   bool get _objectPrefix {
@@ -73,10 +87,23 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
   String get _objectQuery =>
       _objectPrefix ? _controller.text.substring(1) : '';
 
-  List<QueryaCommand> get _hits {
-    if (_objectPrefix) return const [];
+  void _updateHits() {
+    if (_objectPrefix) {
+      _cachedHits = const [];
+      _cachedQuery = _controller.text;
+      return;
+    }
+    final q = _controller.text;
     final ctx = widget.hostContext.mounted ? widget.hostContext : context;
-    return QueryaCommandRegistry.instance.search(_controller.text, context: ctx);
+    _cachedHits = QueryaCommandRegistry.instance.search(q, context: ctx);
+    _cachedQuery = q;
+  }
+
+  List<QueryaCommand> get _hits {
+    if (_cachedQuery != _controller.text) {
+      _updateHits();
+    }
+    return _cachedHits;
   }
 
   void _openQuickSwitcher() {
@@ -201,9 +228,11 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
                             child: material.InkWell(
                             key: ValueKey(command.id),
                             onTap: () => _run(command),
-                            onHover: (_) {
+                            onHover: (hovered) {
                               if (_ignoreHover) return;
-                              setState(() => _selected = index);
+                              if (hovered && _selected != index) {
+                                setState(() => _selected = index);
+                              }
                             },
                             borderRadius: BorderRadius.circular(6),
                             child: DecoratedBox(

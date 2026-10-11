@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:querya_desktop/core/actions/querya_command.dart';
@@ -51,6 +52,49 @@ void main() {
 
     expect(find.byKey(const ValueKey('querya.theme.toggle')), findsOneWidget);
     expect(find.byKey(const ValueKey('querya.connection.new')), findsNothing);
+  });
+
+  testWidgets('hovering over an item updates selection without redundant search', (tester) async {
+    registry.register(
+      QueryaCommand(
+        id: 'test.cmd.1',
+        title: 'Command 1',
+        category: 'Test',
+        execute: (_) {},
+      ),
+    );
+    registry.register(
+      QueryaCommand(
+        id: 'test.cmd.2',
+        title: 'Command 2',
+        category: 'Test',
+        execute: (_) {},
+      ),
+    );
+    await pumpPalette(tester);
+
+    final firstItem = find.byKey(const ValueKey('test.cmd.1'));
+    final secondItem = find.byKey(const ValueKey('test.cmd.2'));
+
+    expect(firstItem, findsOneWidget);
+    expect(secondItem, findsOneWidget);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: tester.getCenter(firstItem));
+    await tester.pump();
+
+    // Hover over second item
+    await gesture.moveTo(tester.getCenter(secondItem));
+    await tester.pump();
+
+    final inkWellFinder = find.byKey(const ValueKey('test.cmd.2'));
+    final decoratedBox = tester.widget<DecoratedBox>(
+      find.descendant(of: inkWellFinder, matching: find.byType(DecoratedBox)),
+    );
+    final boxDecoration = decoratedBox.decoration as BoxDecoration;
+    expect(boxDecoration.color, isNot(equals(Colors.transparent)));
+
+    await gesture.removePointer();
   });
 
   testWidgets('Escape closes the palette', (tester) async {

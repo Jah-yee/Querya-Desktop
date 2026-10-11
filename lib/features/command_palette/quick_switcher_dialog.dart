@@ -266,9 +266,11 @@ class _QuickSwitcherDialogState extends State<QuickSwitcherDialog> {
           child: material.InkWell(
           key: ValueKey(object.id),
           onTap: () => _open(object),
-          onHover: (_) {
+          onHover: (hovered) {
             if (_ignoreHover) return;
-            setState(() => _selected = index);
+            if (hovered && _selected != index) {
+              setState(() => _selected = index);
+            }
           },
           borderRadius: BorderRadius.circular(6),
           child: DecoratedBox(
