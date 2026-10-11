@@ -32,7 +32,13 @@ Options:
   -h, --help                show this help
 ''';
 
-Future<int> main(List<String> args) async {
+/// The exit code is set through `exitCode`: a Dart `main` cannot return one
+/// (the `Future<int>` it used to return was ignored, so a failed run exited 0).
+Future<void> main(List<String> args) async {
+  exitCode = await _run(args);
+}
+
+Future<int> _run(List<String> args) async {
   String? dir;
   var target = '0.5.0';
   String? connect;
