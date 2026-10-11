@@ -771,44 +771,29 @@ class _PostgresConnectionFormContentState
             // Footer — Wrap avoids overflow on narrow viewports (e.g. in tests)
             material.FocusTraversalGroup(
               policy: material.WidgetOrderTraversalPolicy(),
-              child: material.Container(
-                padding: const material.EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 16),
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: _formValidNotifier.listenable,
-                  builder: (context, formValid, _) {
-                    return material.Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      alignment: material.WrapAlignment.spaceBetween,
-                      children: [
-                        QueryaButton.secondary(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _formValidNotifier.listenable,
+                builder: (context, formValid, _) => QueryaDialogActions(
+                  secondary: [
+                    QueryaButton.secondary(
                           label: 'Test Connection',
                           icon: material.Icons.link_rounded,
                           loading: _isTesting,
                           size: QueryaControlSize.lg,
                           onPressed: formValid && !_isTesting ? _testConnection : null,
                         ),
-                        material.Row(
-                          mainAxisSize: material.MainAxisSize.min,
-                          children: [
-                            QueryaButton.ghost(
+                  ],
+                  cancel: QueryaButton.ghost(
                               label: 'Cancel',
                               onPressed: () =>
                                   material.Navigator.of(context).pop(),
                               size: QueryaControlSize.lg,
                             ),
-                            const Gap(12),
-                            QueryaButton.primary(
+                  primary: QueryaButton.primary(
                               label: 'Save',
                               onPressed: formValid ? _save : null,
                               size: QueryaControlSize.lg,
                             ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
                 ),
               ),
             ),
