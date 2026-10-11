@@ -63,6 +63,7 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
   material.TextEditingController? _internalController;
   QueryaEditorTheme? _lastEditorTheme;
   int _lastTokenColorsHash = 0;
+  String? _lastText;
 
   material.TextEditingController get _effectiveController =>
       widget.controller ?? _internalController!;
@@ -76,11 +77,24 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
 
   void _initControllerIfNeeded() {
     if (widget.controller == null) {
-      _internalController = material.TextEditingController();
+      _internalController = _createInternalController();
     }
   }
 
+  material.TextEditingController _createInternalController({
+    String? text,
+  }) {
+    if (!widget.enableHighlighting) {
+      return material.TextEditingController(text: text);
+    }
+    return SyntaxHighlightService.createHighlightController(
+      language: widget.language,
+      text: text,
+    );
+  }
+
   void _attachListener() {
+    _lastText = _effectiveController.text;
     _effectiveController.addListener(_onTextChanged);
   }
 
@@ -89,7 +103,10 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
   }
 
   void _onTextChanged() {
-    widget.onChanged?.call(_effectiveController.text);
+    final currentText = _effectiveController.text;
+    if (currentText == _lastText) return;
+    _lastText = currentText;
+    widget.onChanged?.call(currentText);
   }
 
   void _syncThemeIfNeeded(
@@ -139,14 +156,36 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
   @override
   void didUpdateWidget(QueryaCodeEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
+    final controllerChanged = oldWidget.controller != widget.controller;
+    final languageChanged = oldWidget.language != widget.language;
+    final highlightingChanged =
+        oldWidget.enableHighlighting != widget.enableHighlighting;
+
+    if (controllerChanged) {
       _detachListener(oldWidget.controller ?? _internalController);
       if (oldWidget.controller == null && widget.controller != null) {
         _internalController?.dispose();
         _internalController = null;
       } else if (widget.controller == null && _internalController == null) {
-        _internalController = material.TextEditingController();
+        _internalController = _createInternalController();
       }
+      _lastEditorTheme = null;
+      _lastTokenColorsHash = 0;
+      _attachListener();
+      _syncThemeIfNeeded(
+        context.queryaTheme,
+        transitioning: QueryaThemeScope.isTransitioning(context),
+      );
+    } else if (widget.controller == null &&
+        (languageChanged || highlightingChanged)) {
+      final oldController = _internalController!;
+      final currentText = oldController.text;
+      final currentSelection = oldController.selection;
+      _detachListener(oldController);
+      oldController.dispose();
+      _internalController = _createInternalController(
+        text: currentText,
+      )..selection = currentSelection;
       _lastEditorTheme = null;
       _lastTokenColorsHash = 0;
       _attachListener();
@@ -209,7 +248,6 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
           contentPadding:
               widget.contentPadding ?? const material.EdgeInsets.all(12),
         ),
-        onChanged: widget.onChanged,
       );
     }
 
@@ -222,7 +260,6 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
       expands: widget.expands,
       style: style,
       placeholder: placeholder,
-      onChanged: widget.onChanged,
     );
   }
 }
