@@ -135,7 +135,7 @@ class _QueryaSearchFieldState extends material.State<QueryaSearchField> {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = context.queryaTheme.colorScheme;
+    final cs = context.colors;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
     final controlSize = widget.size ?? QueryaControlSize.of(context);
     final fieldHeight = widget.height ?? controlSize.scaledHeight(context);

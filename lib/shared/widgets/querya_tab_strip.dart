@@ -254,7 +254,7 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
 
   @override
   material.Widget build(material.BuildContext context) {
-    final colors = context.queryaTheme.colorScheme;
+    final colors = context.colors;
     final controlSize = widget.size ??
         (widget.dense
             ? QueryaControlSize.sm

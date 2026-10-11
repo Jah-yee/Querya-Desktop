@@ -89,7 +89,7 @@ class _QueryaIconButtonState extends material.State<QueryaIconButton> {
     final isDestructive = widget.isDestructive;
     final color = widget.color;
     final activeColor = widget.activeColor;
-    final cs = context.queryaTheme.colorScheme;
+    final cs = context.colors;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
     final radius = widget.borderRadius ??
         material.BorderRadius.circular(controlSize.scaledRadius(context));
@@ -235,7 +235,7 @@ class _QueryaToolbarButtonState extends material.State<QueryaToolbarButton> {
         QueryaControlSize.of(context);
     final isActive = widget.isActive;
     final isDestructive = widget.isDestructive;
-    final cs = context.queryaTheme.colorScheme;
+    final cs = context.colors;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
     final isEnabled = onPressed != null;
 
