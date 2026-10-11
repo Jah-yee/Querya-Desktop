@@ -5,6 +5,7 @@ import 'package:querya_desktop/core/editor/querya_code_language.dart';
 import 'package:querya_desktop/features/postgresql/postgres_table_utils.dart';
 import 'package:querya_desktop/features/workspace/sql_editor_chrome.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Dialog to view/edit SQL and run it.
 /// [initialSql] — text shown when opening; [browseSql] — "Reset" restores table browse query.
@@ -139,24 +140,27 @@ class _PostgresSqlEditorDialogState
               child: material.Row(
                 mainAxisAlignment: material.MainAxisAlignment.end,
                 children: [
-                  OutlineButton(
+                  QueryaButton.ghost(
+                    label: 'Cancel',
                     onPressed: () => material.Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    size: QueryaControlSize.lg,
                   ),
                   const Gap(8),
-                  OutlineButton(
+                  QueryaButton.secondary(
+                    label: 'Reset',
                     onPressed: () {
                       setState(() {
                         _error = null;
                         _controller.text = widget.browseSql;
                       });
                     },
-                    child: const Text('Reset'),
+                    size: QueryaControlSize.lg,
                   ),
                   const Gap(8),
-                  PrimaryButton(
+                  QueryaButton.primary(
+                    label: 'Run',
                     onPressed: _submit,
-                    child: const Text('Run'),
+                    size: QueryaControlSize.lg,
                   ),
                 ],
               ),

@@ -7,6 +7,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/theme/theme_controller.dart';
 import 'package:querya_desktop/core/ui/querya_icons.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Disaster recovery UI launched when LocalDb fails to open or migrate on startup.
 /// Allows the user to inspect the error, retry, remove stale locks, backup the database,
@@ -215,21 +216,25 @@ class _QueryaStartupRecoveryAppState
                         spacing: 12,
                         runSpacing: 12,
                         children: [
-                          PrimaryButton(
+                          QueryaButton.primary(
+                            label: 'Retry Opening',
                             onPressed: _isBusy ? null : _handleRetry,
-                            child: const Text('Retry Opening'),
+                            size: QueryaControlSize.lg,
                           ),
-                          OutlineButton(
+                          QueryaButton.secondary(
+                            label: 'Unlock Database (Clear WAL)',
                             onPressed: _isBusy ? null : _handleUnlockWal,
-                            child: const Text('Unlock Database (Clear WAL)'),
+                            size: QueryaControlSize.lg,
                           ),
-                          OutlineButton(
+                          QueryaButton.secondary(
+                            label: 'Export / Backup querya.db',
                             onPressed: _isBusy ? null : _handleBackup,
-                            child: const Text('Export / Backup querya.db'),
+                            size: QueryaControlSize.lg,
                           ),
-                          GhostButton(
+                          QueryaButton.ghost(
+                            label: 'Start in Safe Mode',
                             onPressed: _isBusy ? null : _handleSafeMode,
-                            child: const Text('Start in Safe Mode'),
+                            size: QueryaControlSize.lg,
                           ),
                         ],
                       ),

@@ -10,6 +10,7 @@ import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/form_validity_notifier.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows SQLite connection form dialog.
 /// Returns ConnectionRow if saved, null if cancelled.
@@ -282,9 +283,10 @@ class _SqliteConnectionFormContentState
                               ),
                             ),
                             const Gap(10),
-                            OutlineButton(
+                            QueryaButton.secondary(
+                              label: 'Browse…',
                               onPressed: _pickFile,
-                              child: const Text('Browse…'),
+                              size: QueryaControlSize.lg,
                             ),
                           ],
                         ),
@@ -394,44 +396,27 @@ class _SqliteConnectionFormContentState
                         runSpacing: 8,
                         alignment: material.WrapAlignment.spaceBetween,
                         children: [
-                          OutlineButton(
-                            onPressed:
-                                formValid && !_isTesting ? _testConnection : null,
-                            leading: _isTesting
-                                ? QueryaSpinner(
-                                    customDimension: 18,
-                                    strokeWidth: 2,
-                                    color: theme.primary,
-                                  )
-                                : material.Icon(
-                                    material.Icons.link_rounded,
-                                    size: 18,
-                                    color: formValid
-                                        ? theme.primary
-                                        : theme.mutedForeground,
-                                  ),
-                            child: Text(
-                              'Test Connection',
-                              style: material.TextStyle(
-                                fontWeight: material.FontWeight.w500,
-                                color: formValid
-                                    ? theme.primary
-                                    : theme.mutedForeground,
-                              ),
-                            ),
+                          QueryaButton.secondary(
+                            label: 'Test Connection',
+                            icon: material.Icons.link_rounded,
+                            loading: _isTesting,
+                            size: QueryaControlSize.lg,
+                            onPressed: formValid && !_isTesting ? _testConnection : null,
                           ),
                           material.Row(
                             mainAxisSize: material.MainAxisSize.min,
                             children: [
-                              GhostButton(
+                              QueryaButton.ghost(
+                                label: 'Cancel',
                                 onPressed: () =>
                                     material.Navigator.of(context).pop(),
-                                child: const Text('Cancel'),
+                                size: QueryaControlSize.lg,
                               ),
                               const Gap(12),
-                              PrimaryButton(
+                              QueryaButton.primary(
+                                label: 'Save',
                                 onPressed: formValid ? _save : null,
-                                child: const Text('Save'),
+                                size: QueryaControlSize.lg,
                               ),
                             ],
                           ),
