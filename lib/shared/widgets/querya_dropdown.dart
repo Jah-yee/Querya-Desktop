@@ -304,7 +304,7 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
       onFocusChange: (f) => setState(() => _triggerFocused = f),
       onKeyEvent: (node, event) {
         if (!widget.enabled || event is! KeyDownEvent) {
-          return KeyEventResult.ignored;
+          return material.KeyEventResult.ignored;
         }
         final k = event.logicalKey;
         if (k == LogicalKeyboardKey.enter ||
@@ -312,10 +312,10 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
             k == LogicalKeyboardKey.arrowDown) {
           if (!controller.isOpen) {
             controller.open();
-            return KeyEventResult.handled;
+            return material.KeyEventResult.handled;
           }
         }
-        return KeyEventResult.ignored;
+        return material.KeyEventResult.ignored;
       },
       child: material.GestureDetector(
         behavior: material.HitTestBehavior.opaque,
