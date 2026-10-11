@@ -99,7 +99,13 @@ void main() {
         ),
       );
 
-      expect(find.byType(DestructiveButton), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is QueryaButton && w.variant == QueryaButtonVariant.destructive,
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Drop'), findsOneWidget);
     });
   });
