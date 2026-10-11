@@ -52,12 +52,14 @@ enum QueryaButtonTone {
 ///   keyboard focus.
 /// - The label never wraps: it ellipsizes.
 class QueryaButton extends material.StatefulWidget {
-  const QueryaButton._({
+  /// The general constructor the named ones build on: pick the [variant]
+  /// yourself (for compositions that take it as a parameter).
+  const QueryaButton({
     super.key,
     required this.variant,
-    required this.label,
-    required this.icon,
-    required this.onPressed,
+    this.label,
+    this.icon,
+    this.onPressed,
     this.trailing,
     this.shortcutHint,
     this.loading = false,
@@ -68,6 +70,7 @@ class QueryaButton extends material.StatefulWidget {
     this.semanticLabel,
     this.size,
     this.tone = QueryaButtonTone.normal,
+    this.borderRadius,
   }) : assert(
           label != null || icon != null,
           'A QueryaButton needs a label, an icon, or both',
@@ -87,7 +90,7 @@ class QueryaButton extends material.StatefulWidget {
     bool autofocus = false,
     String? semanticLabel,
     QueryaControlSize? size,
-  }) : this._(
+  }) : this(
           key: key,
           variant: QueryaButtonVariant.primary,
           label: label,
@@ -119,7 +122,7 @@ class QueryaButton extends material.StatefulWidget {
     String? semanticLabel,
     QueryaControlSize? size,
     QueryaButtonTone tone = QueryaButtonTone.normal,
-  }) : this._(
+  }) : this(
           key: key,
           variant: QueryaButtonVariant.secondary,
           label: label,
@@ -153,7 +156,7 @@ class QueryaButton extends material.StatefulWidget {
     String? semanticLabel,
     QueryaControlSize? size,
     QueryaButtonTone tone = QueryaButtonTone.normal,
-  }) : this._(
+  }) : this(
           key: key,
           variant: QueryaButtonVariant.ghost,
           label: label,
@@ -185,7 +188,7 @@ class QueryaButton extends material.StatefulWidget {
     bool autofocus = false,
     String? semanticLabel,
     QueryaControlSize? size,
-  }) : this._(
+  }) : this(
           key: key,
           variant: QueryaButtonVariant.destructive,
           label: label,
@@ -212,7 +215,7 @@ class QueryaButton extends material.StatefulWidget {
     bool autofocus = false,
     QueryaControlSize? size,
     QueryaButtonTone tone = QueryaButtonTone.normal,
-  }) : this._(
+  }) : this(
           key: key,
           variant: QueryaButtonVariant.ghost,
           label: null,
@@ -265,6 +268,10 @@ class QueryaButton extends material.StatefulWidget {
 
   /// See [QueryaButtonTone]; ignored by the filled variants.
   final QueryaButtonTone tone;
+
+  /// Overrides the corner radius of the control size; a segment of a split
+  /// button squares its inner corners with it.
+  final material.BorderRadius? borderRadius;
 
   @override
   material.State<QueryaButton> createState() => _QueryaButtonState();
@@ -407,6 +414,12 @@ class _QueryaButtonState extends material.State<QueryaButton> {
       children: children,
     );
 
+    // A trailing icon takes the button's colour and size.
+    content = material.IconTheme(
+      data: material.IconThemeData(color: foreground, size: iconSize),
+      child: content,
+    );
+
     // Loading without an icon: keep the label's width, spinner on top.
     if (w.loading && w.icon == null) {
       content = material.Stack(
@@ -419,7 +432,8 @@ class _QueryaButtonState extends material.State<QueryaButton> {
     }
 
     final height = size.scaledHeight(context);
-    final radius = material.BorderRadius.circular(size.scaledRadius(context));
+    final radius = w.borderRadius ??
+        material.BorderRadius.circular(size.scaledRadius(context));
     final ring = scheme.ring;
 
     material.Widget button = material.AnimatedContainer(
