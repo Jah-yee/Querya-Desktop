@@ -59,7 +59,7 @@ class QueryaSplitButton<T> extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final wb = context.workbench;
+    final wb = context.workbenchOrDefault;
     final controlSize = size ?? QueryaControlSize.of(context);
     final radius =
         material.BorderRadius.circular(controlSize.scaledRadius(context));

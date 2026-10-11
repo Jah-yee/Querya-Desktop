@@ -104,7 +104,7 @@ class QueryaDialogActions extends material.StatelessWidget {
       return true;
     }());
 
-    final wb = context.workbench;
+    final wb = context.workbenchOrDefault;
     final gap = context.scaled(8);
     final buttons = <material.Widget>[
       if (cancel != null) cancel!,

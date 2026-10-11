@@ -301,8 +301,8 @@ class _QueryaButtonState extends material.State<QueryaButton> {
   @override
   material.Widget build(material.BuildContext context) {
     final w = widget;
-    final wb = context.workbench;
-    final scheme = context.queryaTheme.colorScheme;
+    final wb = context.workbenchOrDefault;
+    final scheme = context.colors;
     final size = w.size ?? QueryaControlSize.of(context);
     final enabled = _enabled;
     final hasLabel = w.label != null;
