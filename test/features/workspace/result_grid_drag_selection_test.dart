@@ -54,6 +54,59 @@ void main() {
       expect(selectedValues, ['1', 'Alice', '2', 'Bob']);
     });
 
+    testWidgets('does not eagerly allocate and dispatch selection values on every intermediate drag move', (tester) async {
+      var notifications = 0;
+      List<String>? lastValues;
+
+      await tester.pumpWidget(
+        _testShell(
+          child: material.SizedBox(
+            width: 800,
+            height: 400,
+            child: VirtualResultGrid(
+              columns: const ['id', 'name', 'role'],
+              rows: const [
+                ['1', 'Alice', 'Admin'],
+                ['2', 'Bob', 'User'],
+                ['3', 'Charlie', 'Manager'],
+              ],
+              onSelectionValuesChanged: (vals) {
+                notifications++;
+                lastValues = vals;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final startPos = tester.getCenter(find.text('1'));
+      final cellAlice = tester.getCenter(find.text('Alice'));
+      final cellBob = tester.getCenter(find.text('Bob'));
+
+      final gesture = await tester.startGesture(startPos, kind: PointerDeviceKind.mouse);
+      await tester.pump();
+      final initialNotifications = notifications;
+
+      // Move across Alice without releasing pointer or waiting for debounce
+      await gesture.moveTo(cellAlice);
+      await tester.pump();
+
+      // Move across Bob without releasing pointer
+      await gesture.moveTo(cellBob);
+      await tester.pump();
+
+      // Intermediate drag-move steps must not trigger synchronous value list extractions (#1348)
+      expect(notifications, equals(initialNotifications));
+
+      // Releasing pointer flushes final selection values immediately
+      await gesture.up();
+      await tester.pump();
+
+      expect(notifications, greaterThan(initialNotifications));
+      expect(lastValues, ['1', 'Alice', '2', 'Bob']);
+    });
+
     testWidgets('supports reverse drag selection (bottom-right to top-left)', (tester) async {
       List<String>? selectedValues;
 
