@@ -21,8 +21,12 @@ export 'querya_dropdown.dart'
         kPreferencesLabelWidth;
 export 'connection_tree_loading_row.dart';
 export 'querya_action_button.dart';
+export 'querya_action_menu.dart' show QueryaActionMenuItem;
 export 'querya_badge.dart';
 export 'querya_button.dart';
+export 'querya_dialog_actions.dart';
+export 'querya_menu_button.dart';
+export 'querya_split_button.dart';
 export 'querya_empty_state.dart';
 export 'querya_icon_button.dart';
 export 'querya_modal_dialog.dart';

@@ -60,6 +60,16 @@ extension QueryaThemeContext on BuildContext {
 
   QueryaWorkbenchTheme get workbench => queryaTheme.workbench;
 
+  /// The workbench tokens of the nearest [QueryaThemeScope], or the defaults
+  /// for the ambient brightness when there is none (a widget under a bare app,
+  /// as in tests). Kit controls use this so they never assert on a missing
+  /// scope.
+  QueryaWorkbenchTheme get workbenchOrDefault =>
+      QueryaThemeScope.maybeOf(this)?.workbench ??
+      (colors.brightness == Brightness.light
+          ? QueryaWorkbenchTheme.lightDefault
+          : QueryaWorkbenchTheme.darkDefault);
+
   QueryaEditorTheme get editorTheme => queryaTheme.editor;
 
   QueryaSemanticPalette get semanticPalette =>
