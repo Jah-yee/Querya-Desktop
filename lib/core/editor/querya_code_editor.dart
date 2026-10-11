@@ -214,6 +214,13 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
     );
   }
 
+  /// A filling editor starts at the top, like every code editor; an
+  /// explicit [QueryaCodeEditor.textAlignVertical] still wins. (The field's own
+  /// default centres the text of a field that expands.)
+  material.TextAlignVertical? get _verticalAlignment =>
+      widget.textAlignVertical ??
+      (widget.expands ? material.TextAlignVertical.top : null);
+
   Widget? _resolvedPlaceholder() {
     if (widget.placeholder != null) return widget.placeholder;
     return switch (widget.language) {
@@ -241,7 +248,7 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
         maxLines: widget.expands ? null : widget.maxLines,
         expands: widget.expands,
         style: style,
-        textAlignVertical: widget.textAlignVertical,
+        textAlignVertical: _verticalAlignment,
         decoration: material.InputDecoration(
           border: material.InputBorder.none,
           hintText: widget.hintText,
@@ -259,6 +266,7 @@ class _QueryaCodeEditorState extends State<QueryaCodeEditor> {
       maxLines: widget.expands ? null : widget.maxLines,
       expands: widget.expands,
       style: style,
+      textAlignVertical: _verticalAlignment,
       placeholder: placeholder,
     );
   }
