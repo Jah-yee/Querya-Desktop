@@ -663,7 +663,10 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
               'Statement ${failedAt + 1} of ${texts.length} failed (line $line): $failure';
           session.running = false;
         });
-        QueryaShellStatus.instance.endBusy();
+        QueryaShellStatus.instance.reportQueryFailure(
+          duration: sw.elapsed,
+          message: 'Statement ${failedAt + 1} of ${texts.length} failed',
+        );
         return;
       }
 
@@ -749,7 +752,10 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
           session.error = statementTimeoutText(e);
           session.running = false;
         });
-        QueryaShellStatus.instance.endBusy();
+        QueryaShellStatus.instance.reportQueryFailure(
+          duration: sw.elapsed,
+          message: 'Query timed out',
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -758,7 +764,7 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
           session.error = e.toString();
           session.running = false;
         });
-        QueryaShellStatus.instance.endBusy();
+        QueryaShellStatus.instance.reportQueryFailure(duration: sw.elapsed);
       }
     } finally {
       // Autocommit: after a read that succeeded while no transaction is known
@@ -869,6 +875,7 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
           session.error = e.toString();
           session.running = false;
         });
+        QueryaShellStatus.instance.reportQueryFailure(message: 'Explain failed');
       }
     } finally {
       QueryaShellStatus.instance.endBusy();
