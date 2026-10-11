@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
 import 'package:querya_desktop/core/editor/querya_code_editor.dart';
 import 'package:querya_desktop/core/editor/querya_code_language.dart';
+import 'package:querya_desktop/core/editor/syntax_highlight_service.dart';
 import 'package:querya_desktop/features/mongodb/mongo_ejson.dart';
 import 'package:querya_desktop/shared/widgets/app_toast.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -27,7 +28,8 @@ class _MongoDocumentsJsonViewState extends State<MongoDocumentsJsonView> {
   @override
   void initState() {
     super.initState();
-    _controller = material.TextEditingController(
+    _controller = SyntaxHighlightService.createHighlightController(
+      language: QueryaCodeLanguage.json,
       text: mongoDocumentsToEjson(widget.documents),
     );
   }
