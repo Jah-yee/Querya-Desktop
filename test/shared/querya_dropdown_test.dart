@@ -46,6 +46,46 @@ void main() {
       expect(box.height, QueryaDropdownTokens.triggerHeight);
     });
 
+    testWidgets('the open menu is at least as wide as the trigger',
+        (tester) async {
+      await tester.pumpWidget(
+        queryaThemeTestShell(
+          child: material.Scaffold(
+            body: material.Align(
+              alignment: material.Alignment.topLeft,
+              child: QueryaDropdown<int>(
+                value: 1,
+                width: 320,
+                items: const [
+                  QueryaDropdownItem(value: 1, label: 'One'),
+                  QueryaDropdownItem(value: 2, label: 'Two'),
+                ],
+                onSelected: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final triggerWidth = tester.getSize(find.byType(QueryaDropdown<int>)).width;
+      expect(triggerWidth, 320);
+
+      await tester.tap(find.text('One'));
+      await tester.pumpAndSettle();
+
+      final surfaces = find.ancestor(
+        of: find.text('Two'),
+        matching: find.byType(material.Material),
+      );
+      final widest = surfaces
+          .evaluate()
+          .map((e) => tester.getSize(find.byWidget(e.widget)).width)
+          .reduce((a, b) => a > b ? a : b);
+
+      expect(widest, greaterThanOrEqualTo(triggerWidth));
+    });
+
     testWidgets('opens menu and reports selection', (tester) async {
       int? picked;
       await tester.pumpWidget(
