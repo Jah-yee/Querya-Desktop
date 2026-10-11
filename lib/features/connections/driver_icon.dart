@@ -75,7 +75,6 @@ class DriverIconImage extends StatelessWidget {
     );
 
     final file = File(path);
-    if (!file.existsSync()) return fallback;
 
     if (path.toLowerCase().endsWith('.svg')) {
       return SvgPicture.file(
