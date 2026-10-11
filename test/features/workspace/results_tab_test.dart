@@ -540,6 +540,43 @@ void main() {
       );
     });
 
+    testWidgets('a long error scrolls inside a short pane without overflow',
+        (tester) async {
+      final longError = [
+        for (var i = 0; i < 40; i++)
+          'SqliteException(1): while preparing statement, no such table, '
+              'line $i of the driver message',
+      ].join('\n');
+      await tester.pumpWidget(
+        resultsShell(
+          child: material.Scaffold(
+            body: material.Center(
+              child: material.SizedBox(
+                width: 600,
+                height: 300,
+                child: ResultsTab(
+                  isLoading: false,
+                  errorMessage: longError,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const material.ValueKey('results_mode_error')),
+        findsOneWidget,
+      );
+      final pane = tester.getRect(find.byType(ResultsTab));
+      final error = tester.getRect(
+        find.byKey(const material.ValueKey('results_mode_error')),
+      );
+      expect(error.bottom, lessThanOrEqualTo(pane.bottom));
+    });
+
     testWidgets('shows idle / loading / error / grid mode keys', (tester) async {
       await tester.pumpWidget(
         resultsShell(
