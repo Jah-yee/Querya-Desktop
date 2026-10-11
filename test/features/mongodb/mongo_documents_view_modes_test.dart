@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mongo_dart/mongo_dart.dart' show ObjectId;
+import 'package:querya_desktop/core/editor/querya_code_editor.dart';
+import 'package:querya_desktop/core/editor/querya_highlight_controller.dart';
+import 'package:querya_desktop/core/editor/syntax_highlight_service.dart';
 import 'package:querya_desktop/features/mongodb/mongo_document_tree_view.dart';
 import 'package:querya_desktop/features/mongodb/mongo_documents_json_view.dart';
 import 'package:querya_desktop/features/mongodb/mongo_documents_table_view.dart';
@@ -202,6 +205,26 @@ void main() {
       expect(find.byType(MongoDocumentsJsonView), findsOneWidget);
       expect(find.text('Copy JSON'), findsOneWidget);
       expect(find.text('1 documents (Extended JSON)'), findsOneWidget);
+    });
+
+    testWidgets('uses QueryaHighlightController when syntax highlighting is initialized', (tester) async {
+      await SyntaxHighlightService.ensureInitialized();
+      final docs = [
+        {'field': 'value'}
+      ];
+
+      await tester.pumpWidget(
+        queryaThemeTestShell(
+          child: MongoDocumentsJsonView(
+            documents: docs,
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final editor = tester.widget<QueryaCodeEditor>(find.byType(QueryaCodeEditor));
+      expect(editor.controller, isA<QueryaHighlightController>());
     });
   });
 }
