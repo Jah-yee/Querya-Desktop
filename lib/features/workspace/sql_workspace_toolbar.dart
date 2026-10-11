@@ -5,7 +5,6 @@ import 'package:querya_desktop/features/settings/preferences_dialog.dart';
 import 'package:querya_desktop/features/settings/sql_statement_timeout_dropdown.dart';
 import 'package:querya_desktop/features/workspace/sql_execution_delegate.dart';
 import 'package:querya_desktop/features/workspace/sql_query_tab_session.dart';
-import 'package:querya_desktop/shared/widgets/querya_action_menu.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 
 /// Choices for the session options dropdown.
