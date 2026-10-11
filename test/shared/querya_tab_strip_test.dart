@@ -112,6 +112,43 @@ void main() {
     );
   });
 
+  testWidgets('a clicked tab has no focus ring until a key is pressed',
+      (tester) async {
+    var selected = 0;
+    await tester.pumpWidget(
+      stripShell(
+        child: material.StatefulBuilder(
+          builder: (context, setState) => QueryaTabStrip(
+            labels: const ['Server', 'SQL', 'History'],
+            selectedIndex: selected,
+            onSelected: (index) => setState(() => selected = index),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    material.Color ringOf(String label) {
+      final tab = tester.widget<material.AnimatedContainer>(
+        find.byKey(material.ValueKey('querya_tab_$label')),
+      );
+      final decoration = tab.decoration! as material.BoxDecoration;
+      return (decoration.border! as material.Border).top.color;
+    }
+
+    await tester.tap(find.byKey(const material.ValueKey('querya_tab_SQL')));
+    await tester.pumpAndSettle();
+
+    expect(selected, 1);
+    expect(ringOf('SQL'), material.Colors.transparent);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+
+    expect(selected, 2);
+    expect(ringOf('History'), isNot(material.Colors.transparent));
+  });
+
   testWidgets('renders sliding indicator under selected tab', (tester) async {
     await pumpSettledStrip(
       tester,

@@ -56,6 +56,10 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
     with material.TickerProviderStateMixin {
   late List<material.FocusNode> _focusNodes;
   late List<bool> _focused;
+
+  /// The tab whose focus came from a click: it takes focus (so arrow keys
+  /// work) but draws no ring until a key is pressed (#1438).
+  int? _pointerFocusedIndex;
   late List<material.GlobalKey> _tabKeys;
   final material.GlobalKey _stripKey = material.GlobalKey();
 
@@ -186,6 +190,9 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
 
   material.KeyEventResult _onKeyEvent(int index, KeyEvent event) {
     if (event is! KeyDownEvent) return material.KeyEventResult.ignored;
+    if (_pointerFocusedIndex != null) {
+      setState(() => _pointerFocusedIndex = null);
+    }
 
     // Delete / Backspace close the focused tab, as the close button does.
     if (event.logicalKey == LogicalKeyboardKey.delete ||
@@ -267,7 +274,8 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
       children: [
         ...List.generate(widget.labels.length, (index) {
           final selected = widget.selectedIndex == index;
-          final focused = _focused[index];
+          final focused =
+              _focused[index] && _pointerFocusedIndex != index;
           final label = widget.labels[index];
           final showClose = _canCloseAt(index);
           return material.Padding(
@@ -276,8 +284,12 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
               key: _tabKeys[index],
               child: material.Focus(
                 focusNode: _focusNodes[index],
-                onFocusChange: (value) =>
-                    setState(() => _focused[index] = value),
+                onFocusChange: (value) => setState(() {
+                  _focused[index] = value;
+                  if (!value && _pointerFocusedIndex == index) {
+                    _pointerFocusedIndex = null;
+                  }
+                }),
                 onKeyEvent: (_, event) => _onKeyEvent(index, event),
                 child: material.Semantics(
                   button: true,
@@ -289,7 +301,10 @@ class QueryaTabStripState extends material.State<QueryaTabStrip>
                       child: material.GestureDetector(
                         excludeFromSemantics: true,
                         behavior: material.HitTestBehavior.opaque,
-                        onTap: () => _selectAndFocus(index),
+                        onTap: () {
+                          _pointerFocusedIndex = index;
+                          _selectAndFocus(index);
+                        },
                         child: material.AnimatedContainer(
                           key: material.ValueKey('querya_tab_$label'),
                           duration: context.motionDuration(QueryaMotion.fast),
