@@ -15,6 +15,7 @@ import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart'
 import 'package:querya_desktop/features/workspace/grid_cell_popover_inspector.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _defaultLimit = 25;
 
@@ -466,16 +467,16 @@ class _MongoDocumentsViewState extends material.State<MongoDocumentsView> {
             ),
           ),
           const Gap(8),
-          OutlineButton(
+          QueryaButton.secondary(
+            label: 'Apply',
             onPressed: _applyFilter,
-            size: ButtonSize.small,
-            child: const Text('Apply'),
+            size: QueryaControlSize.sm,
           ),
           const Gap(4),
-          GhostButton(
+          QueryaButton.ghost(
+            label: 'Clear',
             onPressed: _clearFilter,
-            size: ButtonSize.small,
-            child: const Text('Clear'),
+            size: QueryaControlSize.sm,
           ),
           const Gap(12),
           // View Mode Switcher
@@ -532,46 +533,37 @@ class _MongoDocumentsViewState extends material.State<MongoDocumentsView> {
           ),
           if (widget.onOpenAggregation != null) ...[
             const Gap(8),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Aggregation',
+              icon: material.Icons.auto_awesome_motion_rounded,
               onPressed: widget.onOpenAggregation,
-              size: ButtonSize.small,
-              leading: const material.Icon(
-                material.Icons.auto_awesome_motion_rounded,
-                size: 14,
-              ),
-              child: const Text('Aggregation'),
+              size: QueryaControlSize.sm,
             ),
           ],
           if (widget.onOpenIndexes != null) ...[
             const Gap(8),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Indexes',
+              icon: material.Icons.layers_outlined,
               onPressed: widget.onOpenIndexes,
-              size: ButtonSize.small,
-              leading: const material.Icon(
-                material.Icons.layers_outlined,
-                size: 14,
-              ),
-              child: const Text('Indexes'),
+              size: QueryaControlSize.sm,
             ),
           ],
           if (widget.onOpenQueryConsole != null) ...[
             const Gap(8),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Console',
+              icon: material.Icons.terminal_rounded,
               onPressed: widget.onOpenQueryConsole,
-              size: ButtonSize.small,
-              leading: const material.Icon(
-                material.Icons.terminal_rounded,
-                size: 14,
-              ),
-              child: const Text('Console'),
+              size: QueryaControlSize.sm,
             ),
           ],
           const Gap(12),
-          PrimaryButton(
+          QueryaButton.primary(
+            label: 'Add Document',
+            icon: material.Icons.add_rounded,
             onPressed: _addDocument,
-            size: ButtonSize.small,
-            leading: const material.Icon(material.Icons.add_rounded, size: 16),
-            child: const Text('Add Document'),
+            size: QueryaControlSize.sm,
           ),
         ],
       ),

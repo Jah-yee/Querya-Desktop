@@ -123,7 +123,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Click "Run Query"
-      await tester.tap(find.widgetWithText(PrimaryButton, 'Run Query (Ctrl+Enter)'));
+      await tester.tap(find.widgetWithText(QueryaButton, 'Run Query (Ctrl+Enter)'));
       await tester.pumpAndSettle();
 
       expect(fakeExecutor.lastExecutedCommand, isNotNull);
@@ -162,7 +162,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(PrimaryButton, 'Run Query (Ctrl+Enter)'));
+      await tester.tap(find.widgetWithText(QueryaButton, 'Run Query (Ctrl+Enter)'));
       await tester.pumpAndSettle();
 
       expect(find.text('Query Error'), findsOneWidget);

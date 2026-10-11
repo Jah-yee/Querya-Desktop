@@ -5,6 +5,8 @@ import 'package:querya_desktop/features/mongodb/mongo_ejson.dart';
 import 'package:querya_desktop/features/workspace/result_grid_view.dart';
 import 'package:querya_desktop/shared/widgets/app_toast.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 
 /// Precomputed column and cell model for [MongoDocumentsTableView].
 class MongoTableGridData {
@@ -201,36 +203,27 @@ class _MongoDocumentsTableViewState extends State<MongoDocumentsTableView> {
                 ],
                 const Spacer(),
                 if (widget.onDocumentTap != null) ...[
-                  OutlineButton(
+                  QueryaButton.secondary(
+                    label: 'View Document',
+                    icon: material.Icons.open_in_new_rounded,
                     onPressed: () => widget.onDocumentTap!(selectedDoc),
-                    size: ButtonSize.small,
-                    leading: const material.Icon(
-                      material.Icons.open_in_new_rounded,
-                      size: 13,
-                    ),
-                    child: const Text('View Document'),
+                    size: QueryaControlSize.sm,
                   ),
                   const Gap(6),
                 ],
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Copy JSON',
+                  icon: material.Icons.copy_rounded,
                   onPressed: () => _copySelectedDocJson(selectedDoc),
-                  size: ButtonSize.small,
-                  leading: const material.Icon(
-                    material.Icons.copy_rounded,
-                    size: 13,
-                  ),
-                  child: const Text('Copy JSON'),
+                  size: QueryaControlSize.sm,
                 ),
                 if (widget.onDeleteDocument != null) ...[
                   const Gap(6),
-                  DestructiveButton(
+                  QueryaButton.destructive(
+                    label: 'Delete',
+                    icon: material.Icons.delete_outline_rounded,
                     onPressed: () => widget.onDeleteDocument!(selectedDoc),
-                    size: ButtonSize.small,
-                    leading: const material.Icon(
-                      material.Icons.delete_outline_rounded,
-                      size: 13,
-                    ),
-                    child: const Text('Delete'),
+                    size: QueryaControlSize.sm,
                   ),
                 ],
               ] else ...[

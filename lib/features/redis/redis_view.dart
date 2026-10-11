@@ -10,6 +10,7 @@ import 'package:querya_desktop/core/database/redis_service.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _pollInterval = Duration(seconds: 3);
 const _summaryChipHeight = 88.0;
@@ -268,11 +269,11 @@ class _RedisViewState extends material.State<RedisView> {
                     style: material.TextStyle(
                         color: cs.mutedForeground, fontSize: 13)),
                 const Gap(24),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Retry',
+                  icon: material.Icons.refresh_rounded,
                   onPressed: () => unawaited(_load(reconnect: true)),
-                  leading: const material.Icon(material.Icons.refresh_rounded,
-                      size: 18),
-                  child: const Text('Retry'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),
@@ -297,11 +298,11 @@ class _RedisViewState extends material.State<RedisView> {
               const Gap(8),
               const Text('Redis INFO returned no data.').muted().small(),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: () => unawaited(_load(reconnect: true)),
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -447,43 +448,39 @@ class _RedisViewState extends material.State<RedisView> {
           children: [
             if (widget.lastSelectedRedisKey != null &&
                 widget.onRestoreLastSelectedObject != null)
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Return to ${widget.lastSelectedRedisKey}',
+                icon: material.Icons.vpn_key_outlined,
                 onPressed: widget.onRestoreLastSelectedObject,
-                leading: const material.Icon(
-                  material.Icons.vpn_key_outlined,
-                  size: 18,
-                ),
-                child: Text('Return to ${widget.lastSelectedRedisKey}'),
+                size: QueryaControlSize.md,
               )
             else if (widget.lastSelectedRedisDb != null &&
                 widget.onRestoreLastSelectedObject != null)
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Return to db${widget.lastSelectedRedisDb}',
+                icon: material.Icons.memory_outlined,
                 onPressed: widget.onRestoreLastSelectedObject,
-                leading: const material.Icon(
-                  material.Icons.memory_outlined,
-                  size: 18,
-                ),
-                child: Text('Return to db${widget.lastSelectedRedisDb}'),
+                size: QueryaControlSize.md,
               ),
             if (widget.onBack != null)
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Explorer',
+                icon: material.Icons.grid_view_rounded,
                 onPressed: widget.onBack,
-                leading: const material.Icon(material.Icons.grid_view_rounded,
-                    size: 18),
-                child: const Text('Explorer'),
+                size: QueryaControlSize.md,
               ),
             if (widget.onCli != null)
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'CLI Console',
+                icon: material.Icons.terminal_rounded,
                 onPressed: widget.onCli,
-                leading: const material.Icon(material.Icons.terminal_rounded,
-                    size: 18),
-                child: const Text('CLI Console'),
+                size: QueryaControlSize.md,
               ),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Refresh',
+              icon: material.Icons.refresh_rounded,
               onPressed: () => unawaited(_refresh()),
-              leading:
-                  const material.Icon(material.Icons.refresh_rounded, size: 18),
-              child: const Text('Refresh'),
+              size: QueryaControlSize.md,
             ),
           ],
         ),

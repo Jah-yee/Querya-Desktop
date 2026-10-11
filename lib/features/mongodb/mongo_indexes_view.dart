@@ -6,6 +6,7 @@ import 'package:querya_desktop/core/database/mongodb_service.dart';
 import 'package:querya_desktop/features/mongodb/mongo_create_index_dialog.dart';
 import 'package:querya_desktop/features/mongodb/mongo_index_info.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Interactive view for managing, inspecting, creating, and dropping
 /// MongoDB collection indexes with disk size metrics.
@@ -215,10 +216,10 @@ class _MongoIndexesViewState extends material.State<MongoIndexesView> {
                       ),
                     ),
                   ),
-                  OutlineButton(
+                  QueryaButton.secondary(
+                    label: 'Retry',
                     onPressed: _load,
-                    size: ButtonSize.small,
-                    child: const Text('Retry'),
+                    size: QueryaControlSize.sm,
                   ),
                 ],
               ),
@@ -271,12 +272,11 @@ class _MongoIndexesViewState extends material.State<MongoIndexesView> {
           mainAxisSize: material.MainAxisSize.min,
           children: [
             if (widget.onBack != null) ...[
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Back to Documents',
+                icon: material.Icons.arrow_back_rounded,
                 onPressed: widget.onBack,
-                size: ButtonSize.small,
-                leading: const material.Icon(material.Icons.arrow_back_rounded,
-                    size: 14),
-                child: const Text('Back to Documents'),
+                size: QueryaControlSize.sm,
               ),
               const Gap(12),
             ],
@@ -309,12 +309,11 @@ class _MongoIndexesViewState extends material.State<MongoIndexesView> {
               onPressed: _load,
             ),
             const Gap(8),
-            PrimaryButton(
+            QueryaButton.primary(
+              label: 'Create Index',
+              icon: material.Icons.add_rounded,
               onPressed: _openCreateIndexDialog,
-              size: ButtonSize.small,
-              leading:
-                  const material.Icon(material.Icons.add_rounded, size: 14),
-              child: const Text('Create Index'),
+              size: QueryaControlSize.sm,
             ),
           ],
         ),

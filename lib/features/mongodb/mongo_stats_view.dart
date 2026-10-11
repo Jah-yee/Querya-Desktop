@@ -9,6 +9,7 @@ import 'package:querya_desktop/core/database/mongodb_service.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _defaultAutoRefresh = Duration(seconds: 3);
 const _summaryChipHeight = 88.0;
@@ -258,11 +259,11 @@ class _MongoStatsViewState extends material.State<MongoStatsView> {
                   style: material.TextStyle(
                       color: cs.mutedForeground, fontSize: 13)),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _load,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -285,11 +286,11 @@ class _MongoStatsViewState extends material.State<MongoStatsView> {
               const Gap(8),
               const Text('serverStatus returned no data.').muted().small(),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _load,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -415,38 +416,33 @@ class _MongoStatsViewState extends material.State<MongoStatsView> {
           children: [
             if (widget.lastSelectedMongoCollection != null &&
                 widget.onRestoreLastSelectedObject != null)
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Return to ${widget.lastSelectedMongoCollection}',
+                icon: material.Icons.table_chart_outlined,
                 onPressed: widget.onRestoreLastSelectedObject,
-                leading: const material.Icon(
-                  material.Icons.table_chart_outlined,
-                  size: 18,
-                ),
-                child: Text('Return to ${widget.lastSelectedMongoCollection}'),
+                size: QueryaControlSize.md,
               )
             else if (widget.lastSelectedMongoDb != null &&
                 widget.onRestoreLastSelectedObject != null)
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Return to ${widget.lastSelectedMongoDb}',
+                icon: material.Icons.folder_outlined,
                 onPressed: widget.onRestoreLastSelectedObject,
-                leading: const material.Icon(
-                  material.Icons.folder_outlined,
-                  size: 18,
-                ),
-                child: Text('Return to ${widget.lastSelectedMongoDb}'),
+                size: QueryaControlSize.md,
               ),
             if (widget.onBack != null)
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Explorer',
+                icon: material.Icons.grid_view_rounded,
                 onPressed: widget.onBack,
-                leading: const material.Icon(material.Icons.grid_view_rounded,
-                    size: 18),
-                child: const Text('Explorer'),
+                size: QueryaControlSize.md,
               ),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Refresh now',
+              icon: material.Icons.refresh_rounded,
+              loading: _manualRefreshing,
               onPressed: _manualRefreshing ? null : _refreshNow,
-              leading: _manualRefreshing
-                  ? const QueryaSpinner(size: QueryaSpinnerSize.sm)
-                  : const material.Icon(material.Icons.refresh_rounded,
-                      size: 18),
-              child: const Text('Refresh now'),
+              size: QueryaControlSize.md,
             ),
             material.SizedBox(
               width: 132,

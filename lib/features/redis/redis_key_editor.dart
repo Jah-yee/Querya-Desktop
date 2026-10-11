@@ -10,6 +10,7 @@ import 'package:querya_desktop/features/redis/editors/redis_zset_editor.dart';
 import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Viewer / editor for a single Redis key. Type-aware: string, hash,
 /// list, set, zset. Stream / module / unknown types are not GET/SET.
@@ -241,12 +242,10 @@ class _RedisKeyEditorState extends material.State<RedisKeyEditor> {
     return material.Padding(
       padding: const material.EdgeInsets.only(top: 12),
       child: material.Center(
-        child: OutlineButton(
+        child: QueryaButton.secondary(
+          label: _loadingMore ? 'Loading...' : 'Load more ($_loadedCount / $_collectionTotal)',
           onPressed: _loadingMore ? null : () => _loadMore(),
-          size: ButtonSize.small,
-          child: _loadingMore
-              ? const Text('Loading...')
-              : Text('Load more ($_loadedCount / $_collectionTotal)'),
+          size: QueryaControlSize.sm,
         ),
       ),
     );
@@ -1048,11 +1047,13 @@ class _RedisTtlDialogContentState
         ],
       ),
       actions: [
-        GhostButton(
+        QueryaButton.ghost(
+          label: 'Cancel',
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          size: QueryaControlSize.md,
         ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Apply',
           onPressed: () {
             final val = int.tryParse(_controller.text.trim());
             if (val != null) {
@@ -1060,7 +1061,7 @@ class _RedisTtlDialogContentState
             }
             Navigator.of(context).pop();
           },
-          child: const Text('Apply'),
+          size: QueryaControlSize.md,
         ),
       ],
     );
@@ -1112,18 +1113,20 @@ class _RedisRenameDialogContentState
         ],
       ),
       actions: [
-        GhostButton(
+        QueryaButton.ghost(
+          label: 'Cancel',
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          size: QueryaControlSize.md,
         ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Rename',
           onPressed: () {
             final val = _controller.text.trim();
             if (val.isNotEmpty) {
               Navigator.of(context).pop(val);
             }
           },
-          child: const Text('Rename'),
+          size: QueryaControlSize.md,
         ),
       ],
     );

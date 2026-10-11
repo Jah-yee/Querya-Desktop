@@ -6,6 +6,7 @@ import 'package:querya_desktop/features/mongodb/mongo_aggregation_stage.dart';
 import 'package:querya_desktop/features/mongodb/mongo_documents_json_view.dart';
 import 'package:querya_desktop/features/mongodb/mongo_documents_table_view.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Workspace for visually and interactively building, running, and inspecting
 /// MongoDB Aggregation Pipelines step-by-step.
@@ -270,12 +271,11 @@ class _MongoAggregationWorkspaceState
           mainAxisSize: material.MainAxisSize.min,
           children: [
             if (widget.onBack != null) ...[
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Back to Documents',
+                icon: material.Icons.arrow_back_rounded,
                 onPressed: widget.onBack,
-                size: ButtonSize.small,
-                leading: const material.Icon(material.Icons.arrow_back_rounded,
-                    size: 14),
-                child: const Text('Back to Documents'),
+                size: QueryaControlSize.sm,
               ),
               const Gap(12),
             ],
@@ -301,30 +301,26 @@ class _MongoAggregationWorkspaceState
               ),
             ],
             const Gap(16),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Add Stage',
+              icon: material.Icons.add_rounded,
               onPressed: () => _addStage(),
-              size: ButtonSize.small,
-              leading:
-                  const material.Icon(material.Icons.add_rounded, size: 14),
-              child: const Text('Add Stage'),
+              size: QueryaControlSize.sm,
             ),
             const Gap(8),
-            OutlineButton(
+            QueryaButton.secondary(
+              label: 'Export Code',
+              icon: material.Icons.code_rounded,
               onPressed: _showExportDialog,
-              size: ButtonSize.small,
-              leading:
-                  const material.Icon(material.Icons.code_rounded, size: 14),
-              child: const Text('Export Code'),
+              size: QueryaControlSize.sm,
             ),
             const Gap(8),
-            PrimaryButton(
+            QueryaButton.primary(
+              label: _executing ? 'Running...' : 'Run Pipeline',
+              icon: material.Icons.play_arrow_rounded,
+              loading: _executing,
               onPressed: _executing ? null : () => _runPipeline(),
-              size: ButtonSize.small,
-              leading: _executing
-                  ? const QueryaSpinner(size: QueryaSpinnerSize.sm)
-                  : const material.Icon(material.Icons.play_arrow_rounded,
-                      size: 16),
-              child: Text(_executing ? 'Running...' : 'Run Pipeline'),
+              size: QueryaControlSize.sm,
             ),
           ],
         ),
@@ -357,14 +353,11 @@ class _MongoAggregationWorkspaceState
               itemBuilder: (context, index) {
                 if (index == _stages.length) {
                   return material.Center(
-                    child: OutlineButton(
+                    child: QueryaButton.secondary(
+                      label: 'Add Next Stage',
+                      icon: material.Icons.add_circle_outline_rounded,
                       onPressed: () => _addStage(),
-                      size: ButtonSize.small,
-                      leading: const material.Icon(
-                        material.Icons.add_circle_outline_rounded,
-                        size: 14,
-                      ),
-                      child: const Text('Add Next Stage'),
+                      size: QueryaControlSize.sm,
                     ),
                   );
                 }
@@ -685,14 +678,11 @@ class _StageCardState extends material.State<_StageCard> {
             // Footer actions: run up to here
             material.Row(
               children: [
-                GhostButton(
+                QueryaButton.ghost(
+                  label: 'Run up to here',
+                  icon: material.Icons.play_circle_outline_rounded,
                   onPressed: stage.isEnabled ? widget.onRunUpToHere : null,
-                  size: ButtonSize.small,
-                  leading: const material.Icon(
-                    material.Icons.play_circle_outline_rounded,
-                    size: 14,
-                  ),
-                  child: const Text('Run up to here'),
+                  size: QueryaControlSize.sm,
                 ),
                 const Gap(8),
                 material.Expanded(
@@ -830,11 +820,14 @@ class _ExportDialogState extends material.State<_ExportDialog> {
         ],
       ),
       actions: [
-        OutlineButton(
+        QueryaButton.ghost(
+          label: 'Close',
           onPressed: () => material.Navigator.of(context).pop(),
-          child: const Text('Close'),
+          size: QueryaControlSize.md,
         ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Copy to Clipboard',
+          icon: material.Icons.copy_rounded,
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: code));
             if (context.mounted) {
@@ -846,8 +839,7 @@ class _ExportDialogState extends material.State<_ExportDialog> {
               material.Navigator.of(context).pop();
             }
           },
-          leading: const material.Icon(material.Icons.copy_rounded, size: 16),
-          child: const Text('Copy to Clipboard'),
+          size: QueryaControlSize.md,
         ),
       ],
     );

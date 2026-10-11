@@ -5,6 +5,7 @@ import 'package:querya_desktop/features/main_screen/main_screen_workspace_state.
 import 'package:querya_desktop/features/mongodb/mongo_stats_view.dart';
 import 'package:querya_desktop/features/redis/redis_view.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 
 void main() {
   final createdAt = DateTime.utc(2025).toIso8601String();
@@ -75,7 +76,7 @@ void main() {
       );
 
       final buttonFinder = find.widgetWithText(
-        shadcn.OutlineButton,
+        QueryaButton,
         'Return to orders',
       );
       expect(buttonFinder, findsOneWidget);
@@ -102,7 +103,7 @@ void main() {
       );
 
       final buttonFinder = find.widgetWithText(
-        shadcn.OutlineButton,
+        QueryaButton,
         'Return to ecommerce',
       );
       expect(buttonFinder, findsOneWidget);
@@ -130,7 +131,7 @@ void main() {
       );
 
       final buttonFinder = find.widgetWithText(
-        shadcn.OutlineButton,
+        QueryaButton,
         'Return to cache:config:app',
       );
       expect(buttonFinder, findsOneWidget);
@@ -156,7 +157,7 @@ void main() {
       );
 
       final buttonFinder = find.widgetWithText(
-        shadcn.OutlineButton,
+        QueryaButton,
         'Return to db5',
       );
       expect(buttonFinder, findsOneWidget);

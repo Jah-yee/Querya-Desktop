@@ -12,6 +12,7 @@ import 'package:querya_desktop/features/mongodb/mongo_ejson.dart';
 import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Full-screen JSON editor for a single MongoDB document.
 class MongoDocumentEditor extends material.StatefulWidget {
@@ -281,33 +282,28 @@ class _MongoDocumentEditorState extends material.State<MongoDocumentEditor> {
                 child: Text(idStr).semiBold().small(),
               ),
               // Format button
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Format',
+                icon: material.Icons.format_align_left_rounded,
                 onPressed: _format,
-                size: ButtonSize.small,
-                leading: const material.Icon(
-                    material.Icons.format_align_left_rounded,
-                    size: 14),
-                child: const Text('Format'),
+                size: QueryaControlSize.sm,
               ),
               const Gap(8),
               // Save button
-              PrimaryButton(
+              QueryaButton.primary(
+                label: _saving ? 'Saving...' : 'Save',
+                icon: material.Icons.save_rounded,
+                loading: _saving,
                 onPressed: _saving ? null : _save,
-                size: ButtonSize.small,
-                leading: _saving
-                    ? const QueryaSpinner(size: QueryaSpinnerSize.sm)
-                    : const material.Icon(material.Icons.save_rounded,
-                        size: 14),
-                child: Text(_saving ? 'Saving...' : 'Save'),
+                size: QueryaControlSize.sm,
               ),
               const Gap(8),
               // Delete button
-              DestructiveButton(
+              QueryaButton.destructive(
+                label: 'Delete',
+                icon: material.Icons.delete_rounded,
                 onPressed: _deleting ? null : _delete,
-                size: ButtonSize.small,
-                leading: const material.Icon(material.Icons.delete_rounded,
-                    size: 14),
-                child: const Text('Delete'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ),
