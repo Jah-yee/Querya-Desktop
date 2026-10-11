@@ -6,6 +6,10 @@ import 'querya_colors.dart';
 import 'querya_editor_theme.dart';
 import 'querya_workbench_theme.dart';
 
+/// The type of [QueryaTheme.colorScheme], nameable by widgets that must not
+/// import the UI library behind it.
+typedef QueryaThemeColorScheme = ColorScheme;
+
 /// Full Querya theme: workbench chrome + editor tokens + shadcn [ColorScheme].
 class QueryaTheme {
   const QueryaTheme({

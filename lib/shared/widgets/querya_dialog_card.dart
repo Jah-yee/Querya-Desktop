@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Dialog shell: [Material] popover fill (ListTile ink host) under the same
 /// [Container] constraints as the pre-migration shell.
@@ -21,8 +22,8 @@ class QueryaDialogCard extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final theme = Theme.of(context).colorScheme;
-    final radius = Theme.of(context).radiusXxl;
+    final theme = context.queryaTheme.colorScheme;
+    final radius = QueryaControlMetrics.surfaceRadius;
     final borderRadius = material.BorderRadius.circular(radius);
     final textStyle = material.DefaultTextStyle.of(context).style;
     final iconTheme = material.IconTheme.of(context);

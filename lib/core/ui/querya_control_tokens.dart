@@ -20,6 +20,9 @@ abstract final class QueryaControlMetrics {
   /// One corner radius for buttons, icon buttons, dropdown triggers, search
   /// fields and tab pills.
   static const double radius = 6;
+
+  /// Corner radius of dialog cards and other floating surfaces.
+  static const double surfaceRadius = 14;
 }
 
 /// One of the three control sizes of the Querya UI kit. Buttons, icon buttons,

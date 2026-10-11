@@ -6,9 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:querya_desktop/core/layout/ui_scale.dart';
 import 'package:querya_desktop/core/motion/querya_motion.dart';
 import 'package:querya_desktop/core/motion/querya_motion_context.dart';
+import 'package:querya_desktop/core/theme/querya_theme.dart';
+import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/widgets/querya_dropdown_tokens.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 export 'querya_dropdown_tokens.dart';
 
@@ -29,7 +30,7 @@ class QueryaDropdownItem<T> {
 
 /// Stable dropdown built on [material.MenuAnchor] (no Overlay portal).
 ///
-/// Visual metrics: [QueryaDropdownTokens]. Colors from shadcn [ColorScheme].
+/// Visual metrics: [QueryaDropdownTokens]. Colors from shadcn [QueryaThemeColorScheme].
 ///
 /// **Exit motion:** item pick and trigger-toggle delay [MenuController.close]
 /// so fade-slide can run. Outside-tap / focus-loss closes via [MenuAnchor]
@@ -148,7 +149,7 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
     return QueryaControlScope.maybeOf(context) ?? QueryaControlSize.lg;
   }
 
-  List<material.Widget> _menuChildren(ColorScheme cs, QueryaControlSize size) {
+  List<material.Widget> _menuChildren(QueryaThemeColorScheme cs, QueryaControlSize size) {
     if (_cachedMenuChildren != null &&
         listEquals(_cachedMenuItems, widget.items) &&
         _cachedMenuValue == widget.value &&
@@ -167,7 +168,7 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
   material.Widget _triggerLabelText({
     required material.BuildContext context,
     required String label,
-    required ColorScheme cs,
+    required QueryaThemeColorScheme cs,
     required bool expand,
     required QueryaControlSize size,
   }) {
@@ -199,7 +200,7 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
 
   material.Widget _menuItem(
     QueryaDropdownItem<T> item,
-    ColorScheme cs,
+    QueryaThemeColorScheme cs,
     QueryaControlSize size,
   ) {
     return _QueryaDropdownMenuItem<T>(
@@ -219,7 +220,7 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
   material.Widget _buildTrigger({
     required material.BuildContext context,
     required material.MenuController controller,
-    required ColorScheme cs,
+    required QueryaThemeColorScheme cs,
     required String label,
     required double? fieldWidth,
   }) {
@@ -339,7 +340,7 @@ class _QueryaDropdownState<T> extends material.State<QueryaDropdown<T>> {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.queryaTheme.colorScheme;
     final label = _labelFor(widget.value);
     final fieldWidth = widget.expandToParent
         ? null
@@ -501,7 +502,7 @@ class _QueryaDropdownMenuItem<T> extends material.StatefulWidget {
   final QueryaDropdownItem<T> item;
   final bool selected;
   final bool enabled;
-  final ColorScheme colorScheme;
+  final QueryaThemeColorScheme colorScheme;
   final bool compact;
   final QueryaControlSize size;
   final material.VoidCallback onPick;
@@ -516,7 +517,7 @@ class _QueryaDropdownMenuItemState<T>
   bool _hovered = false;
   bool _focused = false;
 
-  material.Widget _leading(material.BuildContext context, ColorScheme cs) {
+  material.Widget _leading(material.BuildContext context, QueryaThemeColorScheme cs) {
     final slot = context.scaled(QueryaDropdownTokens.selectedCheckSlotWidth);
     final checkSize = context.scaled(QueryaDropdownTokens.selectedCheckSize);
     if (widget.selected) {
