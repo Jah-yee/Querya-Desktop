@@ -16,7 +16,6 @@ void main() {
     'lib/shared/widgets/querya_action_button.dart',
     'lib/shared/widgets/querya_action_menu.dart',
     'lib/shared/widgets/querya_empty_state.dart',
-    'lib/shared/widgets/querya_modal_dialog.dart',
     'lib/shared/widgets/widgets.dart',
   };
 

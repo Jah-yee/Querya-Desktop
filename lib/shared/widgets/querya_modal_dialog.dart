@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart' as material;
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 import 'app_dialog.dart';
+import 'querya_button.dart';
 import 'querya_dialog_card.dart';
 
 /// Standard modal dialog shell with title, optional description, icon, content, and actions.
@@ -53,7 +54,7 @@ class QueryaModalDialog extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.colors;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
 
     material.Widget? leadingIcon = icon;
@@ -93,7 +94,7 @@ class QueryaModalDialog extends material.StatelessWidget {
               children: [
                 if (leadingIcon != null) ...[
                   leadingIcon,
-                  const Gap(14),
+                  const material.SizedBox(width: 14),
                 ],
                 material.Expanded(
                   child: material.Column(
@@ -109,7 +110,7 @@ class QueryaModalDialog extends material.StatelessWidget {
                         child: title,
                       ),
                       if (description != null) ...[
-                        const Gap(4),
+                        const material.SizedBox(height: 4),
                         material.DefaultTextStyle(
                           style: material.TextStyle(
                             fontSize: 13,
@@ -124,17 +125,12 @@ class QueryaModalDialog extends material.StatelessWidget {
                 if (showCloseButton || onClose != null)
                   material.Padding(
                     padding: const material.EdgeInsets.only(left: 8),
-                    child: material.IconButton(
-                      icon: const material.Icon(material.Icons.close_rounded, size: 18),
-                      splashRadius: 16,
-                      padding: material.EdgeInsets.zero,
-                      constraints: const material.BoxConstraints(
-                        minWidth: 28,
-                        minHeight: 28,
-                      ),
-                      color: cs.mutedForeground,
-                      hoverColor: cs.muted.withValues(alpha: 0.3),
-                      onPressed: onClose ?? () => Navigator.of(context).pop(),
+                    child: QueryaButton.icon(
+                      icon: material.Icons.close_rounded,
+                      tooltip: 'Close',
+                      size: QueryaControlSize.sm,
+                      onPressed:
+                          onClose ?? () => material.Navigator.of(context).pop(),
                     ),
                   ),
               ],
@@ -142,21 +138,25 @@ class QueryaModalDialog extends material.StatelessWidget {
 
             // Content
             if (content != null) ...[
-              const Gap(16),
+              const material.SizedBox(height: 16),
               content!,
             ],
 
             // Actions
             if (actions != null && actions!.isNotEmpty) ...[
-              const Gap(20),
+              const material.SizedBox(height: 20),
               material.Align(
                 alignment: material.Alignment.centerRight,
-                child: material.Wrap(
-                  alignment: material.WrapAlignment.end,
-                  crossAxisAlignment: material.WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: actions!,
+                // Buttons of the footer without an explicit size are `lg`.
+                child: QueryaControlScope(
+                  size: QueryaControlSize.lg,
+                  child: material.Wrap(
+                    alignment: material.WrapAlignment.end,
+                    crossAxisAlignment: material.WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: actions!,
+                  ),
                 ),
               ),
             ],
@@ -211,15 +211,15 @@ class QueryaConfirmDialog extends material.StatelessWidget {
         cancelLabel: cancelLabel,
         isDestructive: isDestructive,
         icon: icon,
-        onConfirm: () => Navigator.of(ctx).pop(true),
-        onCancel: () => Navigator.of(ctx).pop(false),
+        onConfirm: () => material.Navigator.of(ctx).pop(true),
+        onCancel: () => material.Navigator.of(ctx).pop(false),
       ),
     );
   }
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.colors;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
 
     final effectiveIconData = icon ??
@@ -232,24 +232,30 @@ class QueryaConfirmDialog extends material.StatelessWidget {
         : (workbench?.accent ?? cs.primary);
 
     return QueryaModalDialog(
-      title: Text(title),
-      description: Text(message),
+      title: material.Text(title),
+      description: material.Text(message),
       icon: material.Icon(effectiveIconData),
       iconColor: iconColor,
       actions: [
-        OutlineButton(
-          onPressed: onCancel ?? () => Navigator.of(context).pop(false),
-          child: Text(cancelLabel),
+        QueryaButton.ghost(
+          label: cancelLabel,
+          size: QueryaControlSize.lg,
+          onPressed:
+              onCancel ?? () => material.Navigator.of(context).pop(false),
         ),
         if (isDestructive)
-          DestructiveButton(
-            onPressed: onConfirm ?? () => Navigator.of(context).pop(true),
-            child: Text(confirmLabel),
+          QueryaButton.destructive(
+            label: confirmLabel,
+            size: QueryaControlSize.lg,
+            onPressed:
+                onConfirm ?? () => material.Navigator.of(context).pop(true),
           )
         else
-          PrimaryButton(
-            onPressed: onConfirm ?? () => Navigator.of(context).pop(true),
-            child: Text(confirmLabel),
+          QueryaButton.primary(
+            label: confirmLabel,
+            size: QueryaControlSize.lg,
+            onPressed:
+                onConfirm ?? () => material.Navigator.of(context).pop(true),
           ),
       ],
     );
