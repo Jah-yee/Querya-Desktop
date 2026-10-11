@@ -1273,7 +1273,7 @@ class ConnectionsPanelState extends State<ConnectionsPanel> {
                   ),
                 ),
               ),
-              Divider(
+              QueryaDivider(
                 height: 1,
                 color: theme.colorScheme.border.withValues(alpha: 0.22),
               ),

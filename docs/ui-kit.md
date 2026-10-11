@@ -218,6 +218,7 @@ Canonical labels and roles from the review:
 | shadcn `normal` / `small` size | `lg` (dialogs, forms) / `sm` or `md` (toolbars, by row) |
 | `QueryaActionButton` | `QueryaButton` `secondary`, `md` |
 | `QueryaActionMenu` trigger | `QueryaMenuButton` |
+| `Divider` / `VerticalDivider` (Material or shadcn) | `QueryaDivider` / `QueryaDivider.vertical` (workbench `borderSubtle`; a guard rejects the raw ones) |
 | split "Execute" assembled by hand | `QueryaSplitButton` |
 | shadcn / material `IconButton`, private `_TreeIconButton` | `QueryaIconButton` (with tooltip) |
 | `InkWell` / `GestureDetector` around an icon or text | `QueryaButton` or `QueryaIconButton` |

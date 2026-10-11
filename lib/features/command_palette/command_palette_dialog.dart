@@ -201,7 +201,7 @@ class _CommandPaletteDialogState extends State<CommandPaletteDialog> {
                   },
                 ),
               ),
-              const Divider(),
+              const QueryaDivider(),
               Expanded(
                 child: _objectPrefix
                     ? _PrefixHint(query: _objectQuery, onOpen: _openQuickSwitcher)

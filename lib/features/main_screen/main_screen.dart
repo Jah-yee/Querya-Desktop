@@ -1118,7 +1118,7 @@ class _MainScreenState extends State<MainScreen> {
                         );
                       },
                     ),
-                    Divider(
+                    QueryaDivider(
                         height: 1,
                         color: wb.borderSubtle.withValues(alpha: 0.22)),
                     Expanded(

@@ -214,7 +214,7 @@ class _MongoAggregationWorkspaceState
         children: [
           // Top action bar
           _buildActionBar(cs),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           // Main content: responsive layout
           material.Expanded(
             child: material.LayoutBuilder(
@@ -228,7 +228,7 @@ class _MongoAggregationWorkspaceState
                         width: (constraints.maxWidth * 0.45).clamp(380.0, 560.0),
                         child: _buildStagesPane(cs),
                       ),
-                      const VerticalDivider(width: 1),
+                      const QueryaDivider.vertical(width: 1),
                       // Right pane: Results
                       material.Expanded(
                         child: _buildResultsPane(cs),
@@ -243,7 +243,7 @@ class _MongoAggregationWorkspaceState
                         flex: 5,
                         child: _buildStagesPane(cs),
                       ),
-                      const Divider(height: 1),
+                      const QueryaDivider(height: 1),
                       material.Expanded(
                         flex: 5,
                         child: _buildResultsPane(cs),
@@ -344,7 +344,7 @@ class _MongoAggregationWorkspaceState
               ],
             ),
           ),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           material.Expanded(
             child: material.ListView.separated(
               padding: const material.EdgeInsets.all(12),
@@ -440,7 +440,7 @@ class _MongoAggregationWorkspaceState
             ],
           ),
         ),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         // Error banner if any
         if (_executionError != null)
           material.Container(

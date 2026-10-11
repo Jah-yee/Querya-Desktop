@@ -196,7 +196,7 @@ class _MongoIndexesViewState extends material.State<MongoIndexesView> {
         children: [
           // Header action bar
           _buildHeader(cs),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           // Error banner
           if (_error != null)
             material.Container(

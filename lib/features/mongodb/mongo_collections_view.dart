@@ -361,7 +361,7 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
                 : material.ListView.separated(
                     cacheExtent: 400,
                     itemCount: _collections.length,
-                    separatorBuilder: (_, __) => Divider(
+                    separatorBuilder: (_, __) => QueryaDivider(
                       height: 1,
                       color: cs.border.withValues(alpha: 0.15),
                     ),

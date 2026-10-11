@@ -604,7 +604,7 @@ class _MysqlStatsViewState extends material.State<MysqlStatsView> {
               ],
             ),
           ),
-          material.Divider(height: 1, color: cs.border.withValues(alpha: 0.3)),
+          QueryaDivider(height: 1, color: cs.border.withValues(alpha: 0.3)),
           for (final db in databases)
             material.Padding(
               padding: const material.EdgeInsets.symmetric(vertical: 5),

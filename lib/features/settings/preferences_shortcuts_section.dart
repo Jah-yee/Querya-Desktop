@@ -343,7 +343,7 @@ class _PreferencesShortcutsSectionState
               children: [
                 for (var i = 0; i < entry.value.length; i++) ...[
                   if (i > 0)
-                    Divider(
+                    QueryaDivider(
                       height: 1,
                       color: theme.colorScheme.border.withValues(alpha: 0.18),
                     ),

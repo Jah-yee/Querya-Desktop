@@ -9,6 +9,7 @@ import 'package:querya_desktop/shared/widgets/app_toast.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/widgets/querya_button.dart';
+import 'package:querya_desktop/shared/widgets/querya_divider.dart';
 
 /// Appends a key or list index to a JavaScript / JSON Path expression.
 ///
@@ -341,7 +342,7 @@ class _MongoDocumentTreeViewState extends State<MongoDocumentTreeView> {
           ),
           // Expanded Tree content
           if (isExpanded) ...[
-            material.Divider(
+            QueryaDivider(
               height: 1,
               color: cs.border.withValues(alpha: 0.2),
             ),

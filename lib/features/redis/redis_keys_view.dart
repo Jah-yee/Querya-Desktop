@@ -436,7 +436,7 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
       crossAxisAlignment: material.CrossAxisAlignment.stretch,
       children: [
         _buildFilterBar(cs),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         if (_error != null) _buildErrorBanner(cs),
         material.Expanded(child: contentWidget),
         _buildStatusBar(cs),

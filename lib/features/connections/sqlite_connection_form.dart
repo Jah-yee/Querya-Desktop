@@ -318,7 +318,7 @@ class _SqliteConnectionFormContentState
                   ),
                 ),
               ),
-              const material.Divider(height: 1),
+              const QueryaDivider(height: 1),
               // Test result banner
               if (_testResult != null)
                 material.Padding(

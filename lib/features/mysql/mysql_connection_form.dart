@@ -383,7 +383,7 @@ class _MysqlConnectionFormContentState
                 ],
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             material.Expanded(
               child: material.FocusTraversalGroup(
                 policy: material.WidgetOrderTraversalPolicy(),
@@ -484,7 +484,7 @@ class _MysqlConnectionFormContentState
                 ),
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             if (_testResult != null)
               material.Padding(
                 padding: const material.EdgeInsets.fromLTRB(24, 8, 16, 8),

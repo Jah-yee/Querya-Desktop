@@ -133,9 +133,9 @@ class _PrivilegesDialogBodyState extends material.State<_PrivilegesDialogBody> {
                   ],
                 ),
               ),
-              const material.Divider(height: 1),
+              const QueryaDivider(height: 1),
               material.Expanded(child: _buildListArea(theme)),
-              const material.Divider(height: 1),
+              const QueryaDivider(height: 1),
               material.Padding(
                 padding: const material.EdgeInsets.all(12),
                 child: material.Row(

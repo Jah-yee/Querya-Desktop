@@ -359,7 +359,7 @@ class _MongoExplorerViewState extends material.State<MongoExplorerView> {
             onRefresh: () => setState(() => _refreshToken++),
             onStats: () => setState(() => _showStats = !_showStats),
           ),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           // Content with fluid cross-fade morph between explorer and stats
           material.Expanded(
             child: QueryaSwitchingBody(

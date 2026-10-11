@@ -208,7 +208,7 @@ class _QuickSwitcherDialogState extends State<QuickSwitcherDialog> {
                   },
                 ),
               ),
-              const Divider(),
+              const QueryaDivider(),
               Expanded(child: _body(theme.colorScheme, hits, selectedIndex)),
             ],
           ),
