@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart' as material;
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 
 /// Preset sizes for the [QueryaSpinner] indicator.
@@ -47,12 +46,13 @@ class QueryaSpinner extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
+    final theme = QueryaThemeScope.maybeOf(context);
+    final workbench = theme?.workbench;
+    final fallback = material.Theme.of(context).colorScheme;
 
     final dimension = customDimension ?? size.dimension;
     final stroke = strokeWidth ?? size.strokeWidth;
-    final effectiveColor = color ?? workbench?.accent ?? cs.primary;
+    final effectiveColor = color ?? workbench?.accent ?? fallback.primary;
 
     final spinner = material.SizedBox(
       width: dimension,
@@ -72,12 +72,12 @@ class QueryaSpinner extends material.StatelessWidget {
       crossAxisAlignment: material.CrossAxisAlignment.center,
       children: [
         spinner,
-        const Gap(8),
+        const material.SizedBox(width: 8),
         material.Text(
           label!,
           style: material.TextStyle(
             fontSize: size == QueryaSpinnerSize.sm ? 11 : 12,
-            color: workbench?.mutedForeground ?? cs.mutedForeground,
+            color: workbench?.mutedForeground ?? fallback.onSurfaceVariant,
           ),
         ),
       ],

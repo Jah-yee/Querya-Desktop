@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart' as material;
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 
 /// Semantic status variant for [QueryaBadge.status].
@@ -106,7 +105,7 @@ class QueryaBadge extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final cs = context.queryaTheme.colorScheme;
     final workbench = QueryaThemeScope.maybeOf(context)?.workbench;
     final palette = context.semanticPalette;
 
@@ -197,7 +196,7 @@ class QueryaBadge extends material.StatelessWidget {
               ),
               child: effectiveIcon,
             ),
-            const Gap(4),
+            const material.SizedBox(width: 4),
           ],
           material.Text(
             effectiveLabel,
