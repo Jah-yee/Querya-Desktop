@@ -132,8 +132,8 @@ class _BlurredDialogScaffoldState extends State<_BlurredDialogScaffold> {
 
 /// Frosted, dimmed dialog backdrop at [progress] (0 = none, 1 = full).
 ///
-/// Both blur sigma and tint alpha scale with [progress], so the frost fades in
-/// and out without pop-in and without an enclosing `Opacity`.
+/// Uses constant blur sigma (8) whenever visible and fades the background
+/// tint alpha, eliminating per-frame Gaussian blur shader re-rasterization (#1341).
 class _DialogBackdrop extends StatelessWidget {
   const _DialogBackdrop({required this.progress});
 
@@ -151,7 +151,7 @@ class _DialogBackdrop extends StatelessWidget {
     if (t <= 0) return const SizedBox.expand();
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: sigma * t, sigmaY: sigma * t),
+        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
         child: ColoredBox(
           color: const Color(0xFF000000).withValues(alpha: tintAlpha * t),
         ),

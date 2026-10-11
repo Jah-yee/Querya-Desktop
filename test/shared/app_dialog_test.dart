@@ -143,7 +143,7 @@ void main() {
       return box.color;
     }
 
-    testWidgets('blur and tint scale in during enter; no Opacity wraps the filter',
+    testWidgets('constant blur with tint scaling during enter; no Opacity wraps the filter (#1341)',
         (tester) async {
       final ctx = await pumpHost(tester);
 
@@ -155,7 +155,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
 
       final filter = tester.widget<BackdropFilter>(find.byType(BackdropFilter));
-      expect(filter.filter, isNot(fullFilter), reason: 'sigma is still ramping');
+      expect(filter.filter, fullFilter, reason: 'sigma is constant to avoid per-frame blur re-rasterization');
       expect(tintOf(tester).a, greaterThan(0));
       expect(tintOf(tester).a, lessThan(fullTint.a));
 
@@ -190,7 +190,7 @@ void main() {
       );
     });
 
-    testWidgets('blur and tint fade out again on dismiss', (tester) async {
+    testWidgets('tint fades out on dismiss while blur remains constant until route pops (#1341)', (tester) async {
       final ctx = await pumpHost(tester);
 
       final future = showAppDialog<void>(
@@ -204,7 +204,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
 
       final filter = tester.widget<BackdropFilter>(find.byType(BackdropFilter));
-      expect(filter.filter, isNot(fullFilter));
+      expect(filter.filter, fullFilter);
       expect(tintOf(tester).a, lessThan(fullTint.a));
 
       await tester.pumpAndSettle();
