@@ -536,7 +536,7 @@ class UpdateDialogContentState extends material.State<UpdateDialogContent> {
               ),
             ],
           UpdateDialogPhase.upToDate => [
-              QueryaButton.primary(
+              QueryaButton.ghost(
                 label: 'Close',
                 onPressed: () => material.Navigator.of(context).pop(),
                 size: QueryaControlSize.lg,
