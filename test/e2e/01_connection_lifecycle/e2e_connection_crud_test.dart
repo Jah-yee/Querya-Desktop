@@ -1,9 +1,10 @@
 import 'package:flutter/gestures.dart' show kSecondaryButton;
-import 'package:flutter/widgets.dart' show Draggable, ValueKey;
+import 'package:flutter/widgets.dart' show Draggable, Text, ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:querya_desktop/core/storage/app_settings.dart';
 import 'package:querya_desktop/core/storage/folders_storage.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
+import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 import 'package:querya_desktop/features/connections/connections_panel.dart';
 
 import '../helpers/e2e_app_harness.dart';
@@ -96,6 +97,27 @@ void main() {
 
     await E2eConnections.remove(tester, id);
     await tester.runAsync(() => FoldersStorage.instance.remove('Team B'));
+    await app.close(tester);
+  });
+
+  testWidgets('Remove connection is drawn as a destructive menu item',
+      (tester) async {
+    await app.launch(tester);
+    final id = await E2eConnections.add(
+        tester, E2eConnections.redis('E2E Remover'));
+    await E2eConnections.reloadSidebar(tester);
+
+    await tester.tap(inSidebar('E2E Remover').first,
+        buttons: kSecondaryButton);
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final label = tester.widget<Text>(find.text('Remove connection').last);
+    final destructive = QueryaThemeScope.of(
+      tester.element(find.text('Remove connection').last),
+    ).workbench.destructive;
+    expect(label.style?.color, destructive);
+
+    await E2eConnections.remove(tester, id);
     await app.close(tester);
   });
 
