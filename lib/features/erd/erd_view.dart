@@ -40,6 +40,7 @@ import 'package:querya_desktop/features/erd/widgets/erd_table_card.dart';
 import 'package:querya_desktop/core/export/image_pdf.dart';
 import 'package:querya_desktop/core/export/svg_png.dart';
 import 'package:querya_desktop/core/storage/app_settings.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/widgets/app_toast.dart';
 import 'package:querya_desktop/features/workspace/sql_editor_chrome.dart';
 import 'package:querya_desktop/shared/widgets/querya_button.dart';
@@ -1688,7 +1689,9 @@ class _ErdViewState extends material.State<ErdView> {
         material.Container(
           decoration: SqlEditorChrome.sqlToolbarDecoration(context),
           padding: const material.EdgeInsets.all(8),
-          child: material.Wrap(
+          child: QueryaControlScope(
+            size: QueryaControlSize.md,
+            child: material.Wrap(
             spacing: 8,
             runSpacing: 8,
             crossAxisAlignment: material.WrapCrossAlignment.center,
@@ -1709,7 +1712,6 @@ class _ErdViewState extends material.State<ErdView> {
                     message: 'Table names only, key columns, or every column',
                     child: QueryaTabStrip(
                       key: const material.ValueKey('erd_detail'),
-                      dense: true,
                       labels: const ['Names', 'Keys', 'All'],
                       selectedIndex: ErdDetail.values.indexOf(_detail),
                       onSelected: (i) {
@@ -1772,6 +1774,7 @@ class _ErdViewState extends material.State<ErdView> {
                 ),
               ),
             ],
+            ),
           ),
         ),
         material.Expanded(child: material.ClipRect(child: body)),

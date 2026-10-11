@@ -406,7 +406,9 @@ class _ResultsTabState extends material.State<ResultsTab> {
               ),
               child: material.SingleChildScrollView(
                 scrollDirection: material.Axis.horizontal,
-                child: material.Row(
+                child: QueryaControlScope(
+                  size: QueryaControlSize.sm,
+                  child: material.Row(
                   mainAxisSize: material.MainAxisSize.min,
                   children: [
                     // Grid / Groupings View Selector
@@ -414,7 +416,6 @@ class _ResultsTabState extends material.State<ResultsTab> {
                     // let "Groupings" run into its neighbours at larger UI
                     // scales.
                     QueryaTabStrip(
-                      dense: true,
                       labels: const ['Grid', 'Groupings', 'Charts'],
                       selectedIndex: ResultViewMode.values.indexOf(_viewMode),
                       onSelected: (i) =>
@@ -440,7 +441,6 @@ class _ResultsTabState extends material.State<ResultsTab> {
 
                     // Toggle Quick Filter
                     QueryaIconButton(
-                      size: QueryaControlSize.sm,
                       icon: material.Icon(
                         _showFilterBar ? material.Icons.filter_alt : material.Icons.filter_alt_outlined,
                         size: 15,
@@ -461,7 +461,6 @@ class _ResultsTabState extends material.State<ResultsTab> {
                       builder: (context, _) {
                         final masked = PiiMaskingController.instance.enabled;
                         return QueryaIconButton(
-                          size: QueryaControlSize.sm,
                           key: const material.Key(
                               'results_mask_sensitive_toggle'),
                           icon: material.Icon(
@@ -484,7 +483,6 @@ class _ResultsTabState extends material.State<ResultsTab> {
 
                     // Toggle Value Side Panel
                     QueryaIconButton(
-                      size: QueryaControlSize.sm,
                       icon: material.Icon(
                         _showValuePanel ? material.Icons.dock : material.Icons.data_object_rounded,
                         size: 15,
@@ -533,6 +531,7 @@ class _ResultsTabState extends material.State<ResultsTab> {
                       },
                     ),
                   ],
+                  ),
                 ),
               ),
             ),

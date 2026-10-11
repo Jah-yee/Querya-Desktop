@@ -2,8 +2,10 @@ import 'package:flutter/material.dart' as material;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:querya_desktop/core/layout/ui_scale.dart';
 import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 import 'package:querya_desktop/shared/widgets/querya_dropdown.dart';
 import 'package:querya_desktop/shared/widgets/querya_icon_button.dart';
+import 'package:querya_desktop/shared/widgets/querya_menu_button.dart';
 import 'package:querya_desktop/shared/widgets/querya_search_field.dart';
 import 'package:querya_desktop/shared/widgets/querya_tab_strip.dart';
 
@@ -124,6 +126,64 @@ void main() {
         expect(
           tester.getSize(find.byKey(material.ValueKey(k))).height,
           28,
+          reason: k,
+        );
+      }
+    });
+
+    testWidgets('buttons, menus, dropdowns and tabs in one scope share a height',
+        (tester) async {
+      // A toolbar like the ERD one: nothing sets its own size.
+      await tester.pumpWidget(
+        queryaThemeTestShell(
+          child: material.Center(
+            child: QueryaControlScope(
+              size: QueryaControlSize.md,
+              child: material.Row(
+                mainAxisSize: material.MainAxisSize.min,
+                crossAxisAlignment: material.CrossAxisAlignment.start,
+                children: [
+                  QueryaButton.secondary(
+                    key: const material.ValueKey('button'),
+                    label: 'Refresh',
+                    onPressed: () {},
+                  ),
+                  QueryaTabStrip(
+                    key: const material.ValueKey('tabs'),
+                    labels: const ['Names', 'Keys', 'All'],
+                    selectedIndex: 0,
+                    onSelected: (_) {},
+                  ),
+                  QueryaMenuButton<String>(
+                    key: const material.ValueKey('menu'),
+                    label: 'Views',
+                    items: const [],
+                    onSelected: (_) {},
+                  ),
+                  material.SizedBox(
+                    width: 160,
+                    child: QueryaDropdown<String>(
+                      key: const material.ValueKey('dropdown'),
+                      value: 'a',
+                      items: const [
+                        QueryaDropdownItem(value: 'a', label: 'Alpha'),
+                      ],
+                      onSelected: (_) {},
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      for (final k in ['button', 'tabs', 'menu', 'dropdown']) {
+        expect(
+          tester.getSize(find.byKey(material.ValueKey(k))).height,
+          QueryaControlSize.md.height,
           reason: k,
         );
       }
