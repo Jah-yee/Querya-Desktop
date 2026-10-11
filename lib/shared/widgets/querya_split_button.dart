@@ -34,6 +34,9 @@ class QueryaSplitButton<T> extends material.StatelessWidget {
     this.tooltip,
     this.shortcutHint,
     this.menuTooltip = 'More actions',
+    this.compact = false,
+    this.mainKey,
+    this.menuKey,
   });
 
   final String label;
@@ -57,6 +60,14 @@ class QueryaSplitButton<T> extends material.StatelessWidget {
   /// Tooltip and spoken label of the chevron half.
   final String menuTooltip;
 
+  /// Icon only on the main half (narrow toolbars); the label becomes its
+  /// tooltip.
+  final bool compact;
+
+  /// Keys of the two halves (tests and shortcuts target them separately).
+  final material.Key? mainKey;
+  final material.Key? menuKey;
+
   @override
   material.Widget build(material.BuildContext context) {
     final wb = context.workbenchOrDefault;
@@ -74,7 +85,9 @@ class QueryaSplitButton<T> extends material.StatelessWidget {
     final enabled = onPressed != null && !loading;
 
     final main = QueryaButton(
+      key: mainKey,
       variant: halfVariant,
+      compact: compact,
       label: label,
       icon: icon,
       onPressed: onPressed,
@@ -91,6 +104,7 @@ class QueryaSplitButton<T> extends material.StatelessWidget {
       style: queryaMenuStyle(context),
       menuChildren: queryaMenuItems<T>(context, items, onSelected),
       builder: (context, controller, _) => QueryaButton(
+        key: menuKey,
         variant: halfVariant,
         icon: material.Icons.keyboard_arrow_down_rounded,
         semanticLabel: menuTooltip,

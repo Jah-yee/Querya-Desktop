@@ -5,7 +5,6 @@ import 'package:querya_desktop/features/settings/preferences_dialog.dart';
 import 'package:querya_desktop/features/settings/sql_statement_timeout_dropdown.dart';
 import 'package:querya_desktop/features/workspace/sql_execution_delegate.dart';
 import 'package:querya_desktop/features/workspace/sql_query_tab_session.dart';
-import 'package:querya_desktop/shared/widgets/querya_action_menu.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 
 /// Choices for the session options dropdown.
@@ -147,7 +146,6 @@ class SqlWorkspaceToolbar extends StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final accent = context.workbench.accent;
     return material.LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < compactWidthBreakpoint;
@@ -159,17 +157,15 @@ class SqlWorkspaceToolbar extends StatelessWidget {
                 headerBadge!,
                 const material.SizedBox(width: 12),
               ],
-              QueryaActionButton(
-                key: const material.ValueKey('run_script'),
+              QueryaSplitButton<bool>(
+                mainKey: const material.ValueKey('run_script'),
+                menuKey: const material.ValueKey('run_menu'),
                 label: 'Execute (F5)',
                 icon: material.Icons.play_arrow_rounded,
                 compact: compact,
                 loading: session.running,
                 onPressed: () => onExecute(false),
-              ),
-              const material.SizedBox(width: 4),
-              QueryaActionMenu<bool>(
-                key: const material.ValueKey('run_menu'),
+                menuTooltip: 'Run options',
                 items: [
                   QueryaActionMenuItem(
                     value: true,
@@ -187,10 +183,6 @@ class SqlWorkspaceToolbar extends StatelessWidget {
                     onExecute(atCursor);
                   }
                 },
-                child: const material.Icon(
-                  material.Icons.expand_more_rounded,
-                  size: 16,
-                ),
               ),
               if (delegate.supportsExplain) ...[
                 const material.SizedBox(width: 8),
@@ -267,44 +259,15 @@ class SqlWorkspaceToolbar extends StatelessWidget {
                 ],
                 const material.SizedBox(width: 8),
               ],
-              material.IgnorePointer(
-                ignoring: session.running,
-                child: material.Opacity(
-                  opacity: session.running ? 0.5 : 1,
-                  child: QueryaActionMenu<SqlWorkspaceSessionChoice>(
-                    key: const material.ValueKey('session_menu'),
-                    items: _sessionMenuItems(),
-                    onSelected: (choice) => _onSessionChoice(context, choice),
-                    child: material.Padding(
-                      padding: const material.EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      child: material.Row(
-                        mainAxisSize: material.MainAxisSize.min,
-                        children: [
-                          material.Icon(
-                            material.Icons.tune_rounded,
-                            size: 16,
-                            color: accent,
-                          ),
-                          const material.SizedBox(width: 6),
-                          if (!compact) ...[
-                            Text(autocommit
-                                ? 'Session · auto-commit'
-                                : 'Session · manual'),
-                            const material.SizedBox(width: 4),
-                          ],
-                          material.Icon(
-                            material.Icons.expand_more_rounded,
-                            size: 16,
-                            color: accent,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+              QueryaMenuButton<SqlWorkspaceSessionChoice>(
+                key: const material.ValueKey('session_menu'),
+                items: _sessionMenuItems(),
+                onSelected: (choice) => _onSessionChoice(context, choice),
+                enabled: !session.running,
+                icon: material.Icons.tune_rounded,
+                label: compact
+                    ? null
+                    : (autocommit ? 'Session · auto-commit' : 'Session · manual'),
               ),
               if (extraTrailing != null) ...[
                 const material.SizedBox(width: 8),

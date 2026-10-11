@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/erd/erd_saved_layout.dart';
-import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
-import 'package:querya_desktop/shared/widgets/querya_action_menu.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/querya_action_menu.dart'
+    show QueryaActionMenuItem;
+import 'package:querya_desktop/shared/widgets/querya_menu_button.dart';
 
 /// The toolbar's view switcher: All tables, the saved views, and the
 /// commands to save, rename and delete one.
@@ -34,9 +34,9 @@ class ErdViewsMenu extends material.StatelessWidget {
 
   @override
   material.Widget build(material.BuildContext context) {
-    final wb = context.workbench;
     final current = active;
-    return QueryaActionMenu<String>(
+    return QueryaMenuButton<String>(
+      key: const material.ValueKey('erd_views'),
       items: [
         // A mark on every row, so the labels line up.
         QueryaActionMenuItem(
@@ -86,23 +86,8 @@ class ErdViewsMenu extends material.StatelessWidget {
             if (v.startsWith('view:')) onSwitch(v.substring(5));
         }
       },
-      child: material.Padding(
-        key: const material.ValueKey('erd_views'),
-        padding:
-            const material.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: material.Row(
-          mainAxisSize: material.MainAxisSize.min,
-          children: [
-            material.Icon(material.Icons.bookmarks_outlined,
-                size: 16, color: wb.mutedForeground),
-            const material.SizedBox(width: 6),
-            Text(current == null ? 'All tables' : shortName(current.name)),
-            const material.SizedBox(width: 4),
-            material.Icon(material.Icons.expand_more_rounded,
-                size: 16, color: wb.mutedForeground),
-          ],
-        ),
-      ),
+      label: current == null ? 'All tables' : shortName(current.name),
+      icon: material.Icons.bookmarks_outlined,
     );
   }
 }

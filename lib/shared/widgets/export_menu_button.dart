@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart' as material;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 import 'package:querya_desktop/shared/services/data_export_service.dart';
-import 'package:querya_desktop/shared/widgets/querya_action_menu.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/shared/widgets/querya_action_menu.dart'
+    show QueryaActionMenuItem;
+import 'package:querya_desktop/shared/widgets/querya_menu_button.dart';
 
-class ExportMenuButton extends StatelessWidget {
+/// The Export / Copy menu of result and table toolbars: CSV, JSON, Markdown
+/// and SQL dump, saved to a file or copied ([isSave]).
+class ExportMenuButton extends material.StatelessWidget {
   const ExportMenuButton({
     super.key,
     required this.label,
@@ -18,8 +22,11 @@ class ExportMenuButton extends StatelessWidget {
   final bool isSave;
 
   @override
-  Widget build(BuildContext context) {
-    return QueryaActionMenu<DataExportFormat>(
+  material.Widget build(material.BuildContext context) {
+    return QueryaMenuButton<DataExportFormat>(
+      label: label,
+      icon: icon,
+      size: QueryaControlSize.sm,
       onSelected: onSelected,
       items: [
         QueryaActionMenuItem(
@@ -43,14 +50,6 @@ class ExportMenuButton extends StatelessWidget {
           label: isSave ? 'SQL INSERT Dump (.sql)' : 'Copy as SQL Dump',
         ),
       ],
-      child: material.Row(
-        mainAxisSize: material.MainAxisSize.min,
-        children: [
-          material.Icon(icon, size: 14),
-          const material.SizedBox(width: 6),
-          Text(label),
-        ],
-      ),
     );
   }
 }
