@@ -346,18 +346,14 @@ class _SshTunnelSectionState extends material.State<SshTunnelSection> {
                     placeholder: const Text('••••••••'),
                     features: [
                       InputFeature.trailing(
-                        IconButton.ghost(
-                          size: ButtonSize.small,
-                          icon: material.Icon(
-                            _obscurePassword
-                                ? material.Icons.visibility_off_outlined
-                                : material.Icons.visibility_outlined,
-                            size: 16,
-                          ),
+                        QueryaButton.icon(
+                          icon: _obscurePassword
+                              ? material.Icons.visibility_off_outlined
+                              : material.Icons.visibility_outlined,
+                          tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                          size: QueryaControlSize.sm,
                           onPressed: () {
-                            setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            );
+                            setState(() => _obscurePassword = !_obscurePassword);
                           },
                         ),
                       ),
@@ -404,18 +400,14 @@ class _SshTunnelSectionState extends material.State<SshTunnelSection> {
                     placeholder: const Text('Passphrase if key is encrypted'),
                     features: [
                       InputFeature.trailing(
-                        IconButton.ghost(
-                          size: ButtonSize.small,
-                          icon: material.Icon(
-                            _obscurePassphrase
-                                ? material.Icons.visibility_off_outlined
-                                : material.Icons.visibility_outlined,
-                            size: 16,
-                          ),
+                        QueryaButton.icon(
+                          icon: _obscurePassphrase
+                              ? material.Icons.visibility_off_outlined
+                              : material.Icons.visibility_outlined,
+                          tooltip: _obscurePassphrase ? 'Show passphrase' : 'Hide passphrase',
+                          size: QueryaControlSize.sm,
                           onPressed: () {
-                            setState(
-                              () => _obscurePassphrase = !_obscurePassphrase,
-                            );
+                            setState(() => _obscurePassphrase = !_obscurePassphrase);
                           },
                         ),
                       ),

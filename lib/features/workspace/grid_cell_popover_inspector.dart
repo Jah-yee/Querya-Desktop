@@ -320,13 +320,11 @@ class _GridCellInspectorDialogState
                     ),
                     const Gap(6),
                   ],
-                  IconButton.ghost(
-                    density: ButtonDensity.compact,
+                  QueryaButton.icon(
+                    icon: material.Icons.close_rounded,
+                    tooltip: 'Close',
+                    size: QueryaControlSize.sm,
                     onPressed: () => material.Navigator.of(context).pop(null),
-                    icon: const material.Icon(
-                      material.Icons.close_rounded,
-                      size: 16,
-                    ),
                   ),
                   if (_isHex()) ...[
                     QueryaButton.ghost(

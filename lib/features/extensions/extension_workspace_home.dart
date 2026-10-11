@@ -6,6 +6,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/extensions/extension_sql_workspace.dart';
 import 'package:querya_desktop/features/extensions/extension_stats_view.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// When an extension database driver connection is selected without a table or view:
 /// provides level 2 Universal UI Standard tabs: Server Stats (Overview) or SQL editor.
@@ -109,14 +110,11 @@ class _ExtensionWorkspaceHomeState
               if (widget.lastSelectedExtensionObject != null &&
                   widget.onRestoreLastSelectedObject != null) ...[
                 const Gap(12),
-                OutlineButton(
-                  size: ButtonSize.small,
+                QueryaButton.secondary(
+                  label: 'Return to ${widget.lastSelectedExtensionObject!.name}',
+                  icon: material.Icons.table_chart_outlined,
                   onPressed: widget.onRestoreLastSelectedObject,
-                  leading: const material.Icon(
-                    material.Icons.table_chart_outlined,
-                    size: 14,
-                  ),
-                  child: Text('Return to ${widget.lastSelectedExtensionObject!.name}'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
               material.Expanded(

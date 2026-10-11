@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/database/redis_bulk.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Editor for a Redis string key. Binary (non-UTF-8) values are shown as
 /// read-only hex / base64. The [controller] is owned by the parent so it can
@@ -64,12 +65,11 @@ class RedisStringEditor extends material.StatelessWidget {
             const Text('Value').semiBold(),
             if (!isReadOnly) ...[
               const Spacer(),
-              PrimaryButton(
+              QueryaButton.primary(
+                label: 'Save',
+                icon: material.Icons.save_rounded,
                 onPressed: onSave,
-                size: ButtonSize.small,
-                leading:
-                    const material.Icon(material.Icons.save_rounded, size: 14),
-                child: const Text('Save'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ],

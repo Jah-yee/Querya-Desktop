@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/ui/querya_icon_sizes.dart';
 import 'package:querya_desktop/core/ui/querya_icons.dart';
 import 'package:querya_desktop/core/ui/querya_tree_tokens.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Inline error block for connection tree lazy-load failures.
 ///
@@ -74,9 +75,10 @@ class TreeLoadError extends material.StatelessWidget {
           ),
           if (onRetry != null) ...[
             const material.SizedBox(height: 6),
-            GhostButton(
+            QueryaButton.ghost(
+              label: retryLabel,
               onPressed: onRetry,
-              child: Text(retryLabel),
+              size: QueryaControlSize.md,
             ),
           ],
         ],

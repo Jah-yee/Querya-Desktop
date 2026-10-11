@@ -5,6 +5,8 @@ import 'package:querya_desktop/core/editor/querya_code_language.dart';
 import 'package:querya_desktop/features/mongodb/mongo_ejson.dart';
 import 'package:querya_desktop/shared/widgets/app_toast.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 
 /// Full-page formatted Extended JSON viewer using [QueryaCodeEditor].
 class MongoDocumentsJsonView extends StatefulWidget {
@@ -92,14 +94,11 @@ class _MongoDocumentsJsonViewState extends State<MongoDocumentsJsonView> {
                   .muted()
                   .small(),
               const Spacer(),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Copy JSON',
+                icon: material.Icons.copy_rounded,
                 onPressed: _copyJson,
-                size: ButtonSize.small,
-                leading: const material.Icon(
-                  material.Icons.copy_rounded,
-                  size: 13,
-                ),
-                child: const Text('Copy JSON'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ),

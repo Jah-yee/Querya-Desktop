@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows a dialog to create a new folder (same style as new connection).
 /// Returns the folder name or null if cancelled.
@@ -100,18 +101,20 @@ class _NewFolderDialogContentState
             child: material.Row(
               mainAxisAlignment: material.MainAxisAlignment.end,
               children: [
-                GhostButton(
+                QueryaButton.ghost(
+                  label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  size: QueryaControlSize.lg,
                 ),
                 const material.SizedBox(width: 12),
                 ListenableBuilder(
                   listenable: _nameController,
-                  builder: (context, __) => PrimaryButton(
+                  builder: (context, __) => QueryaButton.primary(
+                    label: 'Create',
                     onPressed: _name.isEmpty
                         ? null
                         : () => material.Navigator.of(context).pop(_name),
-                    child: const Text('Create'),
+                    size: QueryaControlSize.lg,
                   ),
                 ),
               ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows dialog to create a new MongoDB database.
 Future<String?> showCreateMongoDBDialog(material.BuildContext context) async {
@@ -92,16 +93,18 @@ class _CreateMongoDBDialogContentState
             child: material.Row(
               mainAxisAlignment: material.MainAxisAlignment.end,
               children: [
-                GhostButton(
+                QueryaButton.ghost(
+                  label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  size: QueryaControlSize.lg,
                 ),
                 const Gap(12),
                 ListenableBuilder(
                   listenable: _nameController,
-                  builder: (context, __) => PrimaryButton(
+                  builder: (context, __) => QueryaButton.primary(
+                    label: 'Create',
                     onPressed: _formValid ? _save : null,
-                    child: const Text('Create'),
+                    size: QueryaControlSize.lg,
                   ),
                 ),
               ],

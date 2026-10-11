@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Asks for the name of a saved diagram view (#1284); null when cancelled.
 Future<String?> showErdViewNameDialog(
@@ -98,17 +99,19 @@ class _ErdViewNameDialogState extends material.State<_ErdViewNameDialog> {
             child: material.Row(
               mainAxisAlignment: material.MainAxisAlignment.end,
               children: [
-                GhostButton(
+                QueryaButton.ghost(
+                  label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  size: QueryaControlSize.lg,
                 ),
                 const material.SizedBox(width: 12),
                 ListenableBuilder(
                   listenable: _name,
-                  builder: (context, _) => PrimaryButton(
+                  builder: (context, _) => QueryaButton.primary(
                     key: const material.ValueKey('erd_view_submit'),
+                    label: widget.action,
                     onPressed: _name.text.trim().isEmpty ? null : _submit,
-                    child: Text(widget.action),
+                    size: QueryaControlSize.lg,
                   ),
                 ),
               ],

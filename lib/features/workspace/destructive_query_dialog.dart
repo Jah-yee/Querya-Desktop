@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:flutter/services.dart';
 import 'package:querya_desktop/core/database/destructive_sql_detector.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Opens a confirmation dialog when destructive SQL statements (DROP, TRUNCATE, etc.)
 /// are detected before execution.
@@ -316,20 +317,19 @@ class _DestructiveQueryDialogState
                     alignment: material.WrapAlignment.end,
                     crossAxisAlignment: material.WrapCrossAlignment.center,
                     children: [
-                      GhostButton(
+                      QueryaButton.ghost(
+                        label: 'Cancel',
                         onPressed: () =>
                             material.Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
+                        size: QueryaControlSize.lg,
                       ),
-                      DestructiveButton(
+                      QueryaButton.destructive(
+                        label: 'Execute Destructive Statement',
+                        icon: material.Icons.delete_forever_rounded,
                         onPressed: _acknowledged
                             ? () => material.Navigator.of(context).pop(true)
                             : null,
-                        leading: const material.Icon(
-                          material.Icons.delete_forever_rounded,
-                          size: 16,
-                        ),
-                        child: const Text('Execute Destructive Statement'),
+                        size: QueryaControlSize.lg,
                       ),
                     ],
                   ),

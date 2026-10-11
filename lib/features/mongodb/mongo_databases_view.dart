@@ -6,6 +6,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// View that displays MongoDB databases list and server status.
 class MongoDatabasesView extends StatefulWidget {
@@ -247,11 +248,11 @@ class _MongoDatabasesViewState extends State<MongoDatabasesView> {
                     material.TextStyle(color: cs.mutedForeground, fontSize: 13),
               ),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _connectAndLoad,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -309,12 +310,11 @@ class _MongoDatabasesViewState extends State<MongoDatabasesView> {
                   ),
                 ),
                 const Gap(8),
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Create',
+                  icon: material.Icons.add_rounded,
                   onPressed: _createDatabase,
-                  size: ButtonSize.small,
-                  leading:
-                      const material.Icon(material.Icons.add_rounded, size: 16),
-                  child: const Text('Create'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),

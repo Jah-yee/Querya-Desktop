@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:path/path.dart' as p;
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 class ExtensionSideloadRequest {
   const ExtensionSideloadRequest({
@@ -114,13 +115,15 @@ class _ExtensionSideloadDialogState
         ),
       ),
       actions: [
-        OutlineButton(
+        QueryaButton.ghost(
+          label: 'Cancel',
           onPressed: () => material.Navigator.pop(context),
-          child: const material.Text('Cancel'),
+          size: QueryaControlSize.lg,
         ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Install',
           onPressed: _submit,
-          child: const material.Text('Install'),
+          size: QueryaControlSize.lg,
         ),
       ],
     );

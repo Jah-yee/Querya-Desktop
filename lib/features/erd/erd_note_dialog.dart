@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Asks for the text of a sticky note (#1283); null when cancelled.
 Future<String?> showErdNoteDialog(
@@ -92,20 +93,22 @@ class _ErdNoteDialogState extends material.State<_ErdNoteDialog> {
             child: material.Row(
               mainAxisAlignment: material.MainAxisAlignment.end,
               children: [
-                GhostButton(
+                QueryaButton.ghost(
+                  label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  size: QueryaControlSize.lg,
                 ),
                 const material.SizedBox(width: 12),
                 ListenableBuilder(
                   listenable: _text,
-                  builder: (context, _) => PrimaryButton(
+                  builder: (context, _) => QueryaButton.primary(
                     key: const material.ValueKey('erd_note_submit'),
+                    label: widget.action,
                     onPressed: _text.text.trim().isEmpty
                         ? null
                         : () => material.Navigator.of(context)
                             .pop(_text.text.trim()),
-                    child: Text(widget.action),
+                    size: QueryaControlSize.lg,
                   ),
                 ),
               ],

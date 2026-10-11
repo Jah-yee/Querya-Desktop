@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/features/settings/theme_editor_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 export 'package:querya_desktop/features/settings/theme_editor_dialog.dart'
     show showThemeEditorDialog, ThemeEditorDialog;
@@ -55,19 +56,11 @@ class ThemeEditorSection extends material.StatelessWidget {
             ),
           ),
           const material.SizedBox(width: 12),
-          OutlineButton(
+          QueryaButton.secondary(
+            label: 'Edit theme colors…',
+            icon: material.Icons.tune_rounded,
             onPressed: () => unawaited(showThemeEditorDialog(context)),
-            child: const material.Row(
-              mainAxisSize: material.MainAxisSize.min,
-              children: [
-                material.Icon(
-                  material.Icons.tune_rounded,
-                  size: 14,
-                ),
-                material.SizedBox(width: 6),
-                material.Text('Edit theme colors…'),
-              ],
-            ),
+            size: QueryaControlSize.md,
           ),
         ],
       ),

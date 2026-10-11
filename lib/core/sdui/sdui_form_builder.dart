@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:file_selector/file_selector.dart';
 import 'package:querya_desktop/core/sdui/sdui_form_schema.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Renders a connection / settings form from an SDUI JSON schema (Block A).
 ///
@@ -275,9 +276,10 @@ class SduiFormBuilderState extends material.State<SduiFormBuilder> {
                   ),
                 ),
                 const Gap(8),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Browse',
                   onPressed: () => _pickFile(field),
-                  child: const Text('Browse'),
+                  size: QueryaControlSize.md,
                 ),
               ],
             ),

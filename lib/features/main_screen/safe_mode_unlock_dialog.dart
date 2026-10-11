@@ -3,6 +3,7 @@ import 'package:querya_desktop/core/security/connection_environment.dart';
 import 'package:querya_desktop/core/security/safe_mode.dart';
 import 'package:querya_desktop/shared/widgets/connection_environment_badge.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Asks the user to type the connection name before a Production connection
 /// is made writable. Resolves to `true` only after a matching confirmation.
@@ -76,14 +77,16 @@ class _SafeModeUnlockDialogState extends material.State<SafeModeUnlockDialog> {
         ],
       ),
       actions: [
-        OutlineButton(
+        QueryaButton.ghost(
+          label: 'Cancel',
           onPressed: () => material.Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          size: QueryaControlSize.lg,
         ),
-        DestructiveButton(
+        QueryaButton.destructive(
           key: const material.Key('safe_mode_unlock_confirm'),
+          label: 'Unlock for $minutes minutes',
           onPressed: _valid ? _confirm : null,
-          child: Text('Unlock for $minutes minutes'),
+          size: QueryaControlSize.lg,
         ),
       ],
     );
