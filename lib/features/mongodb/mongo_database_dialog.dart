@@ -71,7 +71,7 @@ class _CreateMongoDBDialogContentState
               ],
             ),
           ),
-          const material.Divider(height: 1),
+          const QueryaDivider(height: 1),
           material.Padding(
             padding: const material.EdgeInsets.all(24),
             child: material.Column(
@@ -86,7 +86,7 @@ class _CreateMongoDBDialogContentState
               ],
             ),
           ),
-          const material.Divider(height: 1),
+          const QueryaDivider(height: 1),
           material.Container(
             padding: const material.EdgeInsets.symmetric(
                 horizontal: 24, vertical: 16),

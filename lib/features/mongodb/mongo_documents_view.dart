@@ -383,7 +383,7 @@ class _MongoDocumentsViewState extends material.State<MongoDocumentsView> {
       children: [
         // Filter bar
         _buildFilterBar(cs),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         // Error banner
         if (_error != null) _buildErrorBanner(cs),
         // Document content (mode-dependent)
@@ -877,7 +877,7 @@ class MongoFieldList extends StatelessWidget {
     );
   }
 
-  Widget _buildDivider() => material.Divider(
+  Widget _buildDivider() => QueryaDivider(
         height: 1,
         color: colorScheme.border.withValues(alpha: 0.2),
       );

@@ -120,7 +120,7 @@ class _MongoAddDocumentDialogState extends material.State<MongoAddDocumentDialog
               ],
             ),
           ),
-          const material.Divider(height: 1),
+          const QueryaDivider(height: 1),
           if (_error != null) ...[
             material.Container(
               padding: const material.EdgeInsets.symmetric(
@@ -141,7 +141,7 @@ class _MongoAddDocumentDialogState extends material.State<MongoAddDocumentDialog
                 ],
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
           ],
           material.Padding(
             padding: const material.EdgeInsets.all(24),
@@ -172,7 +172,7 @@ class _MongoAddDocumentDialogState extends material.State<MongoAddDocumentDialog
               ],
             ),
           ),
-          const material.Divider(height: 1),
+          const QueryaDivider(height: 1),
           material.Container(
             padding: const material.EdgeInsets.symmetric(
                 horizontal: 24, vertical: 16),

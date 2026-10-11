@@ -232,7 +232,7 @@ class _ThemeEditorDialogState extends material.State<ThemeEditorDialog> {
                                 i < themeEditorMvpColorFields.length;
                                 i++) ...[
                               if (i > 0)
-                                Divider(
+                                QueryaDivider(
                                   height: 1,
                                   color: cs.border.withValues(alpha: 0.18),
                                 ),

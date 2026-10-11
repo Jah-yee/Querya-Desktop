@@ -536,7 +536,7 @@ class _PostgresConnectionFormContentState
                 ],
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             // Form body
             material.Expanded(
               child: material.FocusTraversalGroup(
@@ -704,7 +704,7 @@ class _PostgresConnectionFormContentState
                 ),
               ),
             ),
-            const material.Divider(height: 1),
+            const QueryaDivider(height: 1),
             // Test result banner
             if (_testResult != null)
               material.Padding(

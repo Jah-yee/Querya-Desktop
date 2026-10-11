@@ -232,7 +232,7 @@ class _MongoQueryWorkspaceState extends material.State<MongoQueryWorkspace> {
               : material.ListView.separated(
                   shrinkWrap: true,
                   itemCount: history.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, __) => const QueryaDivider(height: 1),
                   itemBuilder: (context, i) {
                     final item = history[i];
                     return material.ListTile(
@@ -304,10 +304,10 @@ class _MongoQueryWorkspaceState extends material.State<MongoQueryWorkspace> {
           children: [
             // Top action bar
             _buildTopBar(cs),
-            const Divider(height: 1),
+            const QueryaDivider(height: 1),
             // Tab strip
             _buildTabStrip(cs),
-            const Divider(height: 1),
+            const QueryaDivider(height: 1),
             // Main content split
             material.Expanded(
               child: material.Column(
@@ -326,10 +326,10 @@ class _MongoQueryWorkspaceState extends material.State<MongoQueryWorkspace> {
                       ),
                     ),
                   ),
-                  const Divider(height: 1),
+                  const QueryaDivider(height: 1),
                   // Result bar & timing stats
                   _buildResultBar(cs, tab),
-                  const Divider(height: 1),
+                  const QueryaDivider(height: 1),
                   // Results view (bottom half)
                   material.Expanded(
                     flex: 6,

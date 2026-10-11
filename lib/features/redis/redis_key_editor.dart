@@ -702,7 +702,7 @@ class _RedisKeyEditorState extends material.State<RedisKeyEditor> {
           ),
         // Header
         _buildHeader(cs, shadcnCs),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         // Content
         material.Expanded(
           child: material.Padding(

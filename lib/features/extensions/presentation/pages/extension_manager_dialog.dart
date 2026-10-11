@@ -254,7 +254,7 @@ class _ExtensionManagerContentState
                   onSelected: (index) => setState(() => _tabIndex = index),
                 ),
               ),
-              material.Divider(height: 1, color: theme.border),
+              QueryaDivider(height: 1, color: theme.border),
               material.Expanded(
                 child: QueryaCrossFadeStack(
                   index: _tabIndex,

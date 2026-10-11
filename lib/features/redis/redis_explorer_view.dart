@@ -308,7 +308,7 @@ class _RedisExplorerViewState extends material.State<RedisExplorerView> {
             isStatsActive: _showStats,
             isReadOnly: widget.isReadOnly,
           ),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           // Content with fluid cross-fade morph between keys, stats and CLI
           material.Expanded(
             child: QueryaSwitchingBody(

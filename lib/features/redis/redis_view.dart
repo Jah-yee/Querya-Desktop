@@ -231,7 +231,7 @@ class _RedisViewState extends material.State<RedisView> {
             padding: const material.EdgeInsets.fromLTRB(24, 20, 24, 16),
             child: _header(context),
           ),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           material.Expanded(
             child: _buildBody(context, cs),
           ),

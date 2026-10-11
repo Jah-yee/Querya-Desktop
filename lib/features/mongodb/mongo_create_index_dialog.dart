@@ -288,7 +288,7 @@ class _MongoCreateIndexDialogState
             ),
           ),
           const Gap(16),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           const Gap(12),
           // Options
           const Text('Index Options').semiBold().small(),

@@ -1262,7 +1262,7 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
               onTimeoutChanged: _onStmtTimeoutChanged,
             ),
           ),
-          const Divider(height: 1),
+          const QueryaDivider(height: 1),
           Expanded(
             child: QueryEditorTab(
               controller: session.controller,

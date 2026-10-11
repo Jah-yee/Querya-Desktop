@@ -116,7 +116,7 @@ class _DriverManagerDialogContent extends material.StatelessWidget {
                 shrinkWrap: true,
                 padding: const material.EdgeInsets.symmetric(vertical: 8),
                 itemCount: drivers.length,
-                separatorBuilder: (_, __) => material.Divider(
+                separatorBuilder: (_, __) => QueryaDivider(
                   height: 1,
                   color: theme.border.withValues(alpha: 0.3),
                 ),

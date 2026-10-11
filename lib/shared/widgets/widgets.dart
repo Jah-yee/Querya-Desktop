@@ -5,7 +5,7 @@
 /// - Card, PrimaryButton, OutlineButton, GhostButton
 /// - Tabs, TabItem, IndexedStack
 /// - TextField, Text (with .semiBold(), .muted(), .small())
-/// - Gap, VerticalDivider
+/// - Gap
 library;
 
 export 'app_dialog.dart';
@@ -25,6 +25,7 @@ export 'querya_badge.dart';
 export 'querya_button.dart';
 export 'querya_button_group.dart';
 export 'querya_dialog_actions.dart';
+export 'querya_divider.dart';
 export 'querya_menu_button.dart';
 export 'querya_split_button.dart';
 export 'querya_empty_state.dart';

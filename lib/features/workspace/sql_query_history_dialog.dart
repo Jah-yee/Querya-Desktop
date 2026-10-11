@@ -317,7 +317,7 @@ class _SqlQueryHistoryDialogContentState
                       ),
                       itemCount: items.length,
                       separatorBuilder: (_, __) =>
-                          material.Divider(height: 1, color: scheme.border),
+                          QueryaDivider(height: 1, color: scheme.border),
                       itemBuilder: (context, i) {
                         final e = items[i];
                         final when = _formatWhen(e.recordedAt);

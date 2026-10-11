@@ -162,7 +162,7 @@ class _DataGridGroupingsViewState
                 ),
 
                 const Gap(12),
-                material.VerticalDivider(
+                QueryaDivider.vertical(
                   width: 1,
                   thickness: 1,
                   indent: 8,
@@ -214,7 +214,7 @@ class _DataGridGroupingsViewState
                 ],
 
                 const Gap(12),
-                material.VerticalDivider(
+                QueryaDivider.vertical(
                   width: 1,
                   thickness: 1,
                   indent: 8,
@@ -276,7 +276,7 @@ class _DataGridGroupingsViewState
         material.Expanded(
           child: material.ListView.separated(
             itemCount: groups.length,
-            separatorBuilder: (_, __) => material.Divider(
+            separatorBuilder: (_, __) => QueryaDivider(
               height: 1,
               color: cs.border.withValues(alpha: 0.2),
             ),

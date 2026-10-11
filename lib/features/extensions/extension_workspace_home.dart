@@ -130,7 +130,7 @@ class _ExtensionWorkspaceHomeState
             ],
           ),
         ),
-        const Divider(height: 1),
+        const QueryaDivider(height: 1),
         Expanded(
           child: QueryaCrossFadeStack(
             index: _tab,

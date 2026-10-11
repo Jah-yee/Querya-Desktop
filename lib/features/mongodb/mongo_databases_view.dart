@@ -340,7 +340,7 @@ class _MongoDatabasesViewState extends State<MongoDatabasesView> {
           // Database rows
           for (var i = 0; i < _databases.length; i++) ...[
             if (i > 0)
-              Divider(height: 1, color: cs.border.withValues(alpha: 0.15)),
+              QueryaDivider(height: 1, color: cs.border.withValues(alpha: 0.15)),
             _DatabaseRow(
               database: _databases[i],
               colorScheme: cs,
