@@ -191,7 +191,7 @@ void main() {
       expect(find.text('Collection: orders'), findsOneWidget);
 
       // Initially field name is empty, tap "Create Index" should trigger validation error
-      await tester.tap(find.widgetWithText(PrimaryButton, 'Create Index'));
+      await tester.tap(find.widgetWithText(QueryaButton, 'Create Index'));
       await tester.pumpAndSettle();
 
       expect(find.text('All field names must be specified'), findsOneWidget);
@@ -207,7 +207,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Submit
-      await tester.tap(find.widgetWithText(PrimaryButton, 'Create Index'));
+      await tester.tap(find.widgetWithText(QueryaButton, 'Create Index'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 5));
 
@@ -273,7 +273,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Submit
-      await tester.tap(find.widgetWithText(PrimaryButton, 'Create Index'));
+      await tester.tap(find.widgetWithText(QueryaButton, 'Create Index'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 5));
 
