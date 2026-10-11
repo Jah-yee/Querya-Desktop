@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart' as material;
+import 'package:querya_desktop/core/theme/querya_theme_scope.dart';
 import 'package:querya_desktop/core/ui/querya_tree_tokens.dart';
-import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 import 'querya_spinner.dart';
 
@@ -38,8 +38,17 @@ class ConnectionTreeLoadingRow extends material.StatelessWidget {
             customDimension: spinnerSize,
             strokeWidth: strokeWidth,
           ),
-          Gap(gap),
-          Text(label).muted().xSmall(),
+          material.SizedBox(width: gap),
+          material.Text(
+            label,
+            style: material.DefaultTextStyle.of(context).style.copyWith(
+                  fontSize: 12,
+                  color: QueryaThemeScope.maybeOf(context)
+                          ?.workbench
+                          .mutedForeground ??
+                      material.Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
         ],
       ),
     );
