@@ -81,27 +81,15 @@ class _ErdNoteDialogState extends material.State<_ErdNoteDialog> {
               ],
             ),
           ),
-          material.Container(
-            padding: const material.EdgeInsets.symmetric(
-                horizontal: 24, vertical: 16),
-            decoration: material.BoxDecoration(
-              border: material.Border(
-                top: material.BorderSide(
-                    color: theme.border.withValues(alpha: 0.3)),
-              ),
-            ),
-            child: material.Row(
-              mainAxisAlignment: material.MainAxisAlignment.end,
-              children: [
-                QueryaButton.ghost(
+          ListenableBuilder(
+            listenable: _text,
+            builder: (context, _) => QueryaDialogActions(
+              cancel: QueryaButton.ghost(
                   label: 'Cancel',
                   onPressed: () => material.Navigator.of(context).pop(),
                   size: QueryaControlSize.lg,
                 ),
-                const material.SizedBox(width: 12),
-                ListenableBuilder(
-                  listenable: _text,
-                  builder: (context, _) => QueryaButton.primary(
+              primary: QueryaButton.primary(
                     key: const material.ValueKey('erd_note_submit'),
                     label: widget.action,
                     onPressed: _text.text.trim().isEmpty
@@ -110,8 +98,6 @@ class _ErdNoteDialogState extends material.State<_ErdNoteDialog> {
                             .pop(_text.text.trim()),
                     size: QueryaControlSize.lg,
                   ),
-                ),
-              ],
             ),
           ),
         ],
