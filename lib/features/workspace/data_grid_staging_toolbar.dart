@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/features/workspace/data_grid_staging_buffer.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Toolbar for managing staged data changes (Add, Delete, Revert, Save).
 class DataGridStagingToolbar extends StatelessWidget {
@@ -102,28 +103,20 @@ class DataGridStagingToolbar extends StatelessWidget {
                       message: 'Discard all pending edits (Ctrl+Z / Cmd+Z)',
                       waitDuration: const Duration(milliseconds: 400),
                       child: compact
-                          ? OutlineButton(
-                              size: ButtonSize.small,
-                              density: ButtonDensity.icon,
-                              onPressed: isSaving
+                          ? QueryaButton.icon(
+                            icon: material.Icons.undo_rounded,
+                            tooltip: 'Revert All',
+                            size: QueryaControlSize.sm,
+                            onPressed: isSaving ? null : () => stagingBuffer.revertAll(),
+                          )
+                          : QueryaButton.secondary(
+                            label: 'Revert All',
+                            icon: material.Icons.undo_rounded,
+                            onPressed: isSaving
                                   ? null
                                   : () => stagingBuffer.revertAll(),
-                              child: const material.Icon(
-                                material.Icons.undo_rounded,
-                                size: 14,
-                              ),
-                            )
-                          : OutlineButton(
-                              size: ButtonSize.small,
-                              onPressed: isSaving
-                                  ? null
-                                  : () => stagingBuffer.revertAll(),
-                              leading: const material.Icon(
-                                material.Icons.undo_rounded,
-                                size: 14,
-                              ),
-                              child: const Text('Revert All'),
-                            ),
+                            size: QueryaControlSize.sm,
+                          ),
                     ),
                   ] else
                     material.Row(
@@ -144,23 +137,12 @@ class DataGridStagingToolbar extends StatelessWidget {
                         ? 'Review and save pending changes (Ctrl+S / Cmd+S)'
                         : 'No pending changes to save',
                     waitDuration: const Duration(milliseconds: 400),
-                    child: PrimaryButton(
-                      size: ButtonSize.small,
+                    child: QueryaButton.primary(
+                      label: isSaving ? 'Saving…' : (compact ? 'Save' : 'Save Changes'),
+                      icon: material.Icons.save_rounded,
+                      loading: isSaving,
                       onPressed: isDirty && !isSaving ? onApplyChanges : null,
-                      leading: isSaving
-                          ? QueryaSpinner(
-                              size: QueryaSpinnerSize.sm,
-                              color: cs.primaryForeground,
-                            )
-                          : const material.Icon(
-                              material.Icons.save_rounded,
-                              size: 14,
-                            ),
-                      child: Text(
-                        isSaving
-                            ? 'Saving…'
-                            : (compact ? 'Save' : 'Save Changes'),
-                      ),
+                      size: QueryaControlSize.sm,
                     ),
                   ),
                 ],

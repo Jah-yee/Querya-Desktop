@@ -12,6 +12,7 @@ import 'package:querya_desktop/features/sqlite/sqlite_result_utils.dart';
 import 'package:querya_desktop/features/sqlite/sqlite_table_utils.dart';
 import 'package:querya_desktop/features/workspace/workspace.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _defaultLimit = 200;
 
@@ -342,9 +343,10 @@ class _SqliteTableViewState extends material.State<SqliteTableView> {
                 const Gap(16),
                 material.Align(
                   alignment: material.Alignment.centerRight,
-                  child: OutlineButton(
+                  child: QueryaButton.ghost(
+                    label: 'Close',
                     onPressed: () => material.Navigator.of(ctx).pop(),
-                    child: const Text('Close'),
+                    size: QueryaControlSize.md,
                   ),
                 ),
               ],
@@ -396,14 +398,11 @@ class _SqliteTableViewState extends material.State<SqliteTableView> {
               if (widget.onNavigateHome != null) ...[
                 material.Tooltip(
                   message: 'Return to overview',
-                  child: OutlineButton(
-                    size: ButtonSize.small,
+                  child: QueryaButton.secondary(
+                    label: 'Overview',
+                    icon: material.Icons.dns_outlined,
                     onPressed: () => unawaited(state.navigateHome()),
-                    leading: const material.Icon(
-                      material.Icons.dns_outlined,
-                      size: 14,
-                    ),
-                    child: const Text('Overview'),
+                    size: QueryaControlSize.sm,
                   ),
                 ),
                 const Gap(10),
@@ -466,48 +465,39 @@ class _SqliteTableViewState extends material.State<SqliteTableView> {
                               state.buildEditModeButton(),
                               const Gap(4),
                             ],
-                            OutlineButton(
-                              size: ButtonSize.small,
+                            QueryaButton.secondary(
+                              label: 'DDL',
                               onPressed: state.isLoading
                                   ? null
                                   : () => unawaited(_showDdlDialog()),
-                              child: const Text('DDL'),
+                              size: QueryaControlSize.sm,
                             ),
                             const Gap(4),
-                            OutlineButton(
-                              size: ButtonSize.small,
+                            QueryaButton.secondary(
+                              label: 'Refresh',
+                              icon: material.Icons.refresh_rounded,
                               onPressed: state.isLoading
                                   ? null
                                   : () => unawaited(state.refresh()),
-                              leading: const material.Icon(
-                                material.Icons.refresh_rounded,
-                                size: 14,
-                              ),
-                              child: const Text('Refresh'),
+                              size: QueryaControlSize.sm,
                             ),
                             const Gap(4),
-                            OutlineButton(
-                              size: ButtonSize.small,
+                            QueryaButton.secondary(
+                              label: 'Prev',
+                              icon: material.Icons.chevron_left_rounded,
                               onPressed: (!state.canGoPrevious || state.isLoading)
                                   ? null
                                   : state.goToPreviousPage,
-                              leading: const material.Icon(
-                                material.Icons.chevron_left_rounded,
-                                size: 16,
-                              ),
-                              child: const Text('Prev'),
+                              size: QueryaControlSize.sm,
                             ),
                             const Gap(4),
-                            OutlineButton(
-                              size: ButtonSize.small,
+                            QueryaButton.secondary(
+                              label: 'Next',
+                              icon: material.Icons.chevron_right_rounded,
                               onPressed: (!state.canGoNext || state.isLoading)
                                   ? null
                                   : state.goToNextPage,
-                              leading: const material.Icon(
-                                material.Icons.chevron_right_rounded,
-                                size: 16,
-                              ),
-                              child: const Text('Next'),
+                              size: QueryaControlSize.sm,
                             ),
                           ],
                         ),

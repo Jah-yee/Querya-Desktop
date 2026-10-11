@@ -12,6 +12,7 @@ import 'package:querya_desktop/features/extensions/extension_table_toolbar.dart'
 import 'package:querya_desktop/features/workspace/workspace.dart';
 import 'package:querya_desktop/shared/services/data_export_service.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 const _defaultPageSize = 200;
 
@@ -419,9 +420,10 @@ class _ExtensionTableViewState extends material.State<ExtensionTableView> {
                 const Gap(16),
                 material.Align(
                   alignment: material.Alignment.centerRight,
-                  child: OutlineButton(
+                  child: QueryaButton.ghost(
+                    label: 'Close',
                     onPressed: () => material.Navigator.of(ctx).pop(),
-                    child: const Text('Close'),
+                    size: QueryaControlSize.md,
                   ),
                 ),
               ],
@@ -511,23 +513,23 @@ class _ExtensionTableViewState extends material.State<ExtensionTableView> {
                     ),
                   ),
                   const Gap(8),
-                  OutlineButton(
-                    size: ButtonSize.small,
+                  QueryaButton.secondary(
+                    label: 'Apply',
                     onPressed: () {
                       final st = _genericKey.currentState;
                       if (st != null) _applyFilter(st);
                     },
-                    child: const Text('Apply'),
+                    size: QueryaControlSize.sm,
                   ),
                   if (_filterController.text.isNotEmpty) ...[
                     const Gap(6),
-                    GhostButton(
-                      size: ButtonSize.small,
+                    QueryaButton.ghost(
+                      label: 'Clear',
                       onPressed: () {
                         final st = _genericKey.currentState;
                         if (st != null) _clearFilter(st);
                       },
-                      child: const Text('Clear'),
+                      size: QueryaControlSize.sm,
                     ),
                   ],
                 ],
@@ -608,9 +610,10 @@ Future<void> _showSaveFileErrorDialog(material.BuildContext context) {
             const Gap(20),
             material.Align(
               alignment: material.Alignment.centerRight,
-              child: PrimaryButton(
+              child: QueryaButton.primary(
+                label: 'OK',
                 onPressed: () => material.Navigator.of(ctx).pop(),
-                child: const Text('OK'),
+                size: QueryaControlSize.md,
               ),
             ),
           ],

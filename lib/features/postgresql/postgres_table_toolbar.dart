@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Toolbar for [PostgresTableView]: title, pagination chip, actions (scrollable when narrow).
 class PostgresTableToolbar extends material.StatelessWidget {
@@ -62,14 +63,11 @@ class PostgresTableToolbar extends material.StatelessWidget {
           if (onNavigateHome != null) ...[
             material.Tooltip(
               message: 'Return to server overview',
-              child: OutlineButton(
-                size: ButtonSize.small,
+              child: QueryaButton.secondary(
+                label: 'Server',
+                icon: material.Icons.dns_outlined,
                 onPressed: onNavigateHome,
-                leading: const material.Icon(
-                  material.Icons.dns_outlined,
-                  size: 14,
-                ),
-                child: const Text('Server'),
+                size: QueryaControlSize.sm,
               ),
             ),
             const Gap(10),
@@ -124,79 +122,57 @@ class PostgresTableToolbar extends material.StatelessWidget {
                           editAction!,
                           const Gap(4),
                         ],
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'SQL',
+                          icon: material.Icons.code_rounded,
                           onPressed: onOpenSql,
-                          leading: const material.Icon(
-                            material.Icons.code_rounded,
-                            size: 16,
-                          ),
-                          child: const Text('SQL'),
+                          size: QueryaControlSize.sm,
                         ),
                         const Gap(4),
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Privileges',
+                          icon: material.Icons.admin_panel_settings_rounded,
                           onPressed: onOpenPrivileges,
-                          leading: const material.Icon(
-                            material.Icons.admin_panel_settings_rounded,
-                            size: 15,
-                          ),
-                          child: const Text('Privileges'),
+                          size: QueryaControlSize.sm,
                         ),
                         if (isMaterializedView && !customSqlActive) ...[
                           const Gap(4),
-                          OutlineButton(
-                            size: ButtonSize.small,
-                            onPressed:
-                                loading ? null : onRefreshMaterializedView,
-                            leading: const material.Icon(
-                              material.Icons.sync_rounded,
-                              size: 15,
-                            ),
-                            child: const Text('Refresh MV'),
+                          QueryaButton.secondary(
+                            label: 'Refresh MV',
+                            icon: material.Icons.sync_rounded,
+                            onPressed: loading ? null : onRefreshMaterializedView,
+                            size: QueryaControlSize.sm,
                           ),
                         ],
                         if (customSqlActive) ...[
                           const Gap(4),
-                          OutlineButton(
-                            size: ButtonSize.small,
+                          QueryaButton.secondary(
+                            label: 'Table',
+                            icon: material.Icons.table_chart_rounded,
                             onPressed: loading ? null : onExitCustomMode,
-                            leading: const material.Icon(
-                              material.Icons.table_chart_rounded,
-                              size: 16,
-                            ),
-                            child: const Text('Table'),
+                            size: QueryaControlSize.sm,
                           ),
                         ],
                         const Gap(4),
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Prev',
+                          icon: material.Icons.chevron_left_rounded,
                           onPressed: canGoPrevious ? onGoPrevious : null,
-                          leading: const material.Icon(
-                            material.Icons.chevron_left_rounded,
-                            size: 16,
-                          ),
-                          child: const Text('Prev'),
+                          size: QueryaControlSize.sm,
                         ),
                         const Gap(4),
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Next',
+                          icon: material.Icons.chevron_right_rounded,
                           onPressed: canGoNext ? onGoNext : null,
-                          leading: const material.Icon(
-                            material.Icons.chevron_right_rounded,
-                            size: 16,
-                          ),
-                          child: const Text('Next'),
+                          size: QueryaControlSize.sm,
                         ),
                         const Gap(8),
-                        OutlineButton(
-                          size: ButtonSize.small,
+                        QueryaButton.secondary(
+                          label: 'Refresh',
+                          icon: material.Icons.refresh_rounded,
                           onPressed: loading ? null : onRefresh,
-                          leading: const material.Icon(
-                            material.Icons.refresh_rounded,
-                            size: 14,
-                          ),
-                          child: const Text('Refresh'),
+                          size: QueryaControlSize.sm,
                         ),
                       ],
                     ),

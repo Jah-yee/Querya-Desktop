@@ -8,6 +8,7 @@ import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/core/ui/querya_icons.dart';
 import 'package:querya_desktop/features/connections/driver_icon.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Task-oriented empty workspace shown before a connection is selected.
 class WorkspaceEmptyHero extends StatefulWidget {
@@ -149,44 +150,36 @@ class _WorkspaceEmptyHeroState extends State<WorkspaceEmptyHero> {
                     spacing: 10,
                     runSpacing: 10,
                     children: [
-                      PrimaryButton(
+                      QueryaButton.primary(
                         key: const Key('empty_new_connection'),
+                        label: 'New connection',
+                        icon: material.Icons.add_link_rounded,
                         onPressed: widget.onNewConnection,
-                        leading: const material.Icon(
-                          material.Icons.add_link_rounded,
-                          size: 18,
-                        ),
-                        child: const Text('New connection'),
+                        size: QueryaControlSize.md,
                       ),
                       if (widget.onLaunchDemo != null)
-                        OutlineButton(
+                        QueryaButton.secondary(
                           key: const Key('empty_try_demo_playground'),
+                          label: 'Demo Playground',
+                          icon: material.Icons.play_circle_outline_rounded,
                           onPressed: widget.onLaunchDemo,
-                          leading: const material.Icon(
-                            material.Icons.play_circle_outline_rounded,
-                            size: 18,
-                          ),
-                          child: const Text('Demo Playground'),
+                          size: QueryaControlSize.md,
                         ),
                       if (widget.onNewConnectionFromUrl != null)
-                        OutlineButton(
+                        QueryaButton.secondary(
                           key: const Key('empty_new_from_url'),
+                          label: 'New from URL',
+                          icon: material.Icons.link_rounded,
                           onPressed: widget.onNewConnectionFromUrl,
-                          leading: const material.Icon(
-                            material.Icons.link_rounded,
-                            size: 18,
-                          ),
-                          child: const Text('New from URL'),
+                          size: QueryaControlSize.md,
                         ),
                       if (widget.onOpenSqlite != null)
-                        OutlineButton(
+                        QueryaButton.secondary(
                           key: const Key('empty_open_sqlite'),
+                          label: 'Open SQLite file',
+                          icon: material.Icons.folder_open_rounded,
                           onPressed: widget.onOpenSqlite,
-                          leading: const material.Icon(
-                            material.Icons.folder_open_rounded,
-                            size: 18,
-                          ),
-                          child: const Text('Open SQLite file'),
+                          size: QueryaControlSize.md,
                         ),
                     ],
                   ),
