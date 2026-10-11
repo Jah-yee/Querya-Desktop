@@ -150,6 +150,7 @@ class _VirtualResultGridState extends material.State<VirtualResultGrid> {
   DateTime? _lastTapUpTime;
   ResultGridCellCoordinate? _lastTapCell;
   Timer? _autoScrollTimer;
+  Timer? _selectionValuesDebounce;
   List<double> _currentDisplayOffsets = const [0];
   double _currentAvailableWidth = 0.0;
 
@@ -260,6 +261,7 @@ class _VirtualResultGridState extends material.State<VirtualResultGrid> {
 
   @override
   void dispose() {
+    _selectionValuesDebounce?.cancel();
     PiiMaskingController.instance.removeListener(_onPiiMaskingChanged);
     _stopAutoScroll();
     _rowWidgets.clear();
