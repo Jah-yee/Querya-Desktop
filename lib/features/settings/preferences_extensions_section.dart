@@ -112,11 +112,13 @@ class PreferencesExtensionsSectionState
           children: [
             QueryaButton.secondary(
               label: _installing ? 'Installing…' : 'Install from file…',
+              icon: material.Icons.upload_file_outlined,
               onPressed: busy ? null : () => unawaited(_installFromFile()),
               size: QueryaControlSize.md,
             ),
             QueryaButton.secondary(
               label: _openingFolder ? 'Opening…' : 'Open extensions folder',
+              icon: material.Icons.folder_open_outlined,
               onPressed: busy ? null : () => unawaited(_openExtensionsFolder()),
               size: QueryaControlSize.md,
             ),

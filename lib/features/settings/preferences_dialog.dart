@@ -428,7 +428,7 @@ class PreferencesDialogContentState
                           'Changes apply immediately and persist locally.',
                         ),
                       ),
-                      QueryaButton.primary(
+                      QueryaButton.secondary(
                         label: 'Close',
                         onPressed: () => material.Navigator.of(context).pop(),
                         size: QueryaControlSize.lg,
