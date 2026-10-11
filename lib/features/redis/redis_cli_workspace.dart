@@ -9,6 +9,7 @@ import 'package:querya_desktop/core/database/redis_connection.dart';
 import 'package:querya_desktop/core/storage/local_db.dart';
 import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Known Redis commands for auto-completion.
 const List<String> kRedisCommands = [
@@ -627,29 +628,23 @@ class _RedisCliWorkspaceState extends material.State<RedisCliWorkspace> {
                   ),
                 ),
                 const Spacer(),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: 'Clear',
+                  icon: material.Icons.cleaning_services_rounded,
                   onPressed: () {
                     setState(() {
                       _entries.clear();
                     });
                   },
-                  size: ButtonSize.small,
-                  leading: const material.Icon(
-                    material.Icons.cleaning_services_rounded,
-                    size: 13,
-                  ),
-                  child: const Text('Clear'),
+                  size: QueryaControlSize.sm,
                 ),
                 if (widget.onBack != null) ...[
                   const Gap(8),
-                  OutlineButton(
+                  QueryaButton.secondary(
+                    label: 'Close CLI',
+                    icon: material.Icons.close_rounded,
                     onPressed: widget.onBack,
-                    size: ButtonSize.small,
-                    leading: const material.Icon(
-                      material.Icons.close_rounded,
-                      size: 14,
-                    ),
-                    child: const Text('Close CLI'),
+                    size: QueryaControlSize.sm,
                   ),
                 ],
               ],
@@ -771,16 +766,12 @@ class _RedisCliWorkspaceState extends material.State<RedisCliWorkspace> {
                   ),
                 ),
                 const Gap(8),
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Run',
+                  icon: material.Icons.play_arrow_rounded,
+                  loading: _executing,
                   onPressed: _executing ? null : _submitCommand,
-                  size: ButtonSize.small,
-                  leading: _executing
-                      ? const QueryaSpinner(size: QueryaSpinnerSize.sm)
-                      : const material.Icon(
-                          material.Icons.play_arrow_rounded,
-                          size: 16,
-                        ),
-                  child: const Text('Run'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),

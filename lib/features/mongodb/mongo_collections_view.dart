@@ -9,6 +9,7 @@ import 'package:querya_desktop/core/database/mongodb_service.dart';
 import 'package:querya_desktop/features/workspace/destructive_query_dialog.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Displays the list of collections in a MongoDB database.
 class MongoCollectionsView extends material.StatefulWidget {
@@ -239,11 +240,11 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
                   style: material.TextStyle(
                       color: cs.mutedForeground, fontSize: 13)),
               const Gap(24),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Retry',
+                icon: material.Icons.refresh_rounded,
                 onPressed: _load,
-                leading: const material.Icon(material.Icons.refresh_rounded,
-                    size: 18),
-                child: const Text('Retry'),
+                size: QueryaControlSize.md,
               ),
             ],
           ),
@@ -305,14 +306,11 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
                   ),
                 ),
                 if (widget.onOpenQueryConsole != null) ...[
-                  OutlineButton(
+                  QueryaButton.secondary(
+                    label: 'MQL Console',
+                    icon: material.Icons.terminal_rounded,
                     onPressed: widget.onOpenQueryConsole,
-                    size: ButtonSize.small,
-                    leading: const material.Icon(
-                      material.Icons.terminal_rounded,
-                      size: 14,
-                    ),
-                    child: const Text('MQL Console'),
+                    size: QueryaControlSize.sm,
                   ),
                   const Gap(8),
                 ],
@@ -324,12 +322,11 @@ class _MongoCollectionsViewState extends material.State<MongoCollectionsView> {
                   ),
                 ),
                 const Gap(8),
-                PrimaryButton(
+                QueryaButton.primary(
+                  label: 'Create',
+                  icon: material.Icons.add_rounded,
                   onPressed: _createCollection,
-                  size: ButtonSize.small,
-                  leading:
-                      const material.Icon(material.Icons.add_rounded, size: 16),
-                  child: const Text('Create'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ),

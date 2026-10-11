@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as material;
 import 'package:querya_desktop/core/database/redis_bulk.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Editor for a Redis list: RPUSH add bar plus an indexed item list with
 /// in-place edit (LSET) and remove (LREM).
@@ -79,15 +80,15 @@ class _RedisListEditorState extends material.State<RedisListEditor> {
                 ),
               ),
               const Gap(8),
-              PrimaryButton(
+              QueryaButton.primary(
+                label: 'RPUSH',
                 onPressed: () {
                   final v = _valueController.text;
                   if (v.isEmpty) return;
                   widget.onPush(v);
                   _valueController.clear();
                 },
-                size: ButtonSize.small,
-                child: const Text('RPUSH'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ),
@@ -168,15 +169,17 @@ class RedisEditListDialogContentState
         ],
       ),
       actions: [
-        GhostButton(
+        QueryaButton.ghost(
+          label: 'Cancel',
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          size: QueryaControlSize.md,
         ),
-        PrimaryButton(
+        QueryaButton.primary(
+          label: 'Save',
           onPressed: () {
             Navigator.of(context).pop(_controller.text);
           },
-          child: const Text('Save'),
+          size: QueryaControlSize.md,
         ),
       ],
     );

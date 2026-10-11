@@ -7,6 +7,8 @@ import 'package:querya_desktop/features/mongodb/mongo_ejson.dart';
 import 'package:querya_desktop/features/mongodb/mongo_field_codec.dart';
 import 'package:querya_desktop/shared/widgets/app_toast.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
+import 'package:querya_desktop/shared/widgets/querya_button.dart';
 
 /// Appends a key or list index to a JavaScript / JSON Path expression.
 ///
@@ -188,38 +190,30 @@ class _MongoDocumentTreeViewState extends State<MongoDocumentTreeView> {
               ),
               const Gap(8),
               if (_searchQuery.isNotEmpty)
-                GhostButton(
+                QueryaButton.icon(
+                  icon: material.Icons.close_rounded,
+                  tooltip: 'Clear search',
+                  size: QueryaControlSize.sm,
                   onPressed: () {
                     _searchController.clear();
                     setState(() {
                       _searchQuery = '';
                     });
                   },
-                  size: ButtonSize.small,
-                  child: const material.Icon(
-                    material.Icons.close_rounded,
-                    size: 14,
-                  ),
                 ),
               const Spacer(),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Expand All',
+                icon: material.Icons.unfold_more_rounded,
                 onPressed: _expandAll,
-                size: ButtonSize.small,
-                leading: const material.Icon(
-                  material.Icons.unfold_more_rounded,
-                  size: 14,
-                ),
-                child: const Text('Expand All'),
+                size: QueryaControlSize.sm,
               ),
               const Gap(8),
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Collapse All',
+                icon: material.Icons.unfold_less_rounded,
                 onPressed: _collapseAll,
-                size: ButtonSize.small,
-                leading: const material.Icon(
-                  material.Icons.unfold_less_rounded,
-                  size: 14,
-                ),
-                child: const Text('Collapse All'),
+                size: QueryaControlSize.sm,
               ),
             ],
           ),

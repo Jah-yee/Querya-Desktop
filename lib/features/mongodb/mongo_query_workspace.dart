@@ -11,6 +11,7 @@ import 'package:querya_desktop/features/mongodb/mongo_documents_table_view.dart'
 import 'package:querya_desktop/features/mongodb/mongo_query_executor.dart';
 import 'package:querya_desktop/features/mongodb/mql_parser.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 enum _ResultViewMode {
   grid,
@@ -266,9 +267,10 @@ class _MongoQueryWorkspaceState extends material.State<MongoQueryWorkspace> {
                   },
                 ),
           actions: [
-            OutlineButton(
+            QueryaButton.ghost(
+              label: 'Close',
               onPressed: () => material.Navigator.of(ctx).pop(),
-              child: const Text('Close'),
+              size: QueryaControlSize.md,
             ),
           ],
         );
@@ -352,14 +354,11 @@ class _MongoQueryWorkspaceState extends material.State<MongoQueryWorkspace> {
           mainAxisSize: material.MainAxisSize.min,
           children: [
             if (widget.onBack != null) ...[
-              OutlineButton(
+              QueryaButton.secondary(
+                label: 'Back to Documents',
+                icon: material.Icons.arrow_back_rounded,
                 onPressed: widget.onBack,
-                size: ButtonSize.small,
-                leading: const material.Icon(
-                  material.Icons.arrow_back_rounded,
-                  size: 14,
-                ),
-                child: const Text('Back to Documents'),
+                size: QueryaControlSize.sm,
               ),
               const Gap(12),
             ],
@@ -382,13 +381,12 @@ class _MongoQueryWorkspaceState extends material.State<MongoQueryWorkspace> {
             ),
             const Gap(8),
             // Run Query button
-            PrimaryButton(
+            QueryaButton.primary(
+              label: 'Run Query (Ctrl+Enter)',
+              icon: material.Icons.play_arrow_rounded,
+              loading: _activeTab.isLoading,
               onPressed: _activeTab.isLoading ? null : _executeActiveTab,
-              size: ButtonSize.small,
-              leading: _activeTab.isLoading
-                  ? const QueryaSpinner(size: QueryaSpinnerSize.sm)
-                  : const material.Icon(material.Icons.play_arrow_rounded, size: 16),
-              child: const Text('Run Query (Ctrl+Enter)'),
+              size: QueryaControlSize.sm,
             ),
           ],
         ),

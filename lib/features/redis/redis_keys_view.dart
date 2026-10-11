@@ -8,6 +8,7 @@ import 'package:querya_desktop/shared/widgets/widgets.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
 
 import 'redis_key_tree_engine.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 export 'redis_key_tree_engine.dart' show RedisKeyInfo;
 
@@ -317,12 +318,10 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
                   .muted(),
               if (_hasMore) ...[
                 const Gap(16),
-                OutlineButton(
+                QueryaButton.secondary(
+                  label: _loadingMore ? 'Scanning...' : 'Continue scanning',
                   onPressed: _loadingMore ? null : _loadMore,
-                  size: ButtonSize.small,
-                  child: _loadingMore
-                      ? const Text('Scanning...')
-                      : const Text('Continue scanning'),
+                  size: QueryaControlSize.sm,
                 ),
               ],
             ],
@@ -340,12 +339,10 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
             return material.Padding(
               padding: const material.EdgeInsets.only(top: 12),
               child: material.Center(
-                child: OutlineButton(
+                child: QueryaButton.secondary(
+                  label: _loadingMore ? 'Loading...' : 'Load more (${_keys.length} / $_dbSize)',
                   onPressed: _loadingMore ? null : _loadMore,
-                  size: ButtonSize.small,
-                  child: _loadingMore
-                      ? const Text('Loading...')
-                      : Text('Load more (${_keys.length} / $_dbSize)'),
+                  size: QueryaControlSize.sm,
                 ),
               ),
             );
@@ -377,12 +374,10 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
             return material.Padding(
               padding: const material.EdgeInsets.only(top: 12),
               child: material.Center(
-                child: OutlineButton(
+                child: QueryaButton.secondary(
+                  label: _loadingMore ? 'Loading...' : 'Load more (${_keys.length} / $_dbSize)',
                   onPressed: _loadingMore ? null : _loadMore,
-                  size: ButtonSize.small,
-                  child: _loadingMore
-                      ? const Text('Loading...')
-                      : Text('Load more (${_keys.length} / $_dbSize)'),
+                  size: QueryaControlSize.sm,
                 ),
               ),
             );
@@ -470,16 +465,16 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
             ),
           ),
           const Gap(8),
-          OutlineButton(
+          QueryaButton.secondary(
+            label: 'Search',
             onPressed: _applyFilter,
-            size: ButtonSize.small,
-            child: const Text('Search'),
+            size: QueryaControlSize.sm,
           ),
           const Gap(4),
-          GhostButton(
+          QueryaButton.ghost(
+            label: 'Clear',
             onPressed: _clearFilter,
-            size: ButtonSize.small,
-            child: const Text('Clear'),
+            size: QueryaControlSize.sm,
           ),
           material.Container(
             height: 20,
@@ -567,30 +562,25 @@ class _RedisKeysViewState extends material.State<RedisKeysView> {
               ],
             ),
             const Gap(4),
-            material.Tooltip(
-              message: _expandedFolders.isEmpty
+            QueryaButton.icon(
+              icon: _expandedFolders.isEmpty
+                  ? material.Icons.unfold_more_rounded
+                  : material.Icons.unfold_less_rounded,
+              tooltip: _expandedFolders.isEmpty
                   ? 'Expand all folders'
                   : 'Collapse all folders',
-              child: GhostButton(
-                size: ButtonSize.small,
-                onPressed: () {
-                  setState(() {
-                    if (_expandedFolders.isEmpty) {
-                      final tree = _buildTree();
-                      _expandedFolders.addAll(
-                          _collectAllFolderPrefixes(tree.rootFolders));
-                    } else {
-                      _expandedFolders.clear();
-                    }
-                  });
-                },
-                child: material.Icon(
-                  _expandedFolders.isEmpty
-                      ? material.Icons.unfold_more_rounded
-                      : material.Icons.unfold_less_rounded,
-                  size: 16,
-                ),
-              ),
+              size: QueryaControlSize.sm,
+              onPressed: () {
+                setState(() {
+                  if (_expandedFolders.isEmpty) {
+                    final tree = _buildTree();
+                    _expandedFolders.addAll(
+                        _collectAllFolderPrefixes(tree.rootFolders));
+                  } else {
+                    _expandedFolders.clear();
+                  }
+                });
+              },
             ),
           ],
         ],
