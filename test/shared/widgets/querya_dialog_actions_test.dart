@@ -99,8 +99,8 @@ void main() {
       primary: QueryaButton.primary(label: 'Save', onPressed: () => saved++),
     );
 
-    bindings[const SingleActivator(LogicalKeyboardKey.escape)]!();
-    bindings[const SingleActivator(LogicalKeyboardKey.enter)]!();
+    bindings[const material.SingleActivator(LogicalKeyboardKey.escape)]!();
+    bindings[const material.SingleActivator(LogicalKeyboardKey.enter)]!();
 
     expect(cancelled, 1);
     expect(saved, 1);

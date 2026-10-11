@@ -197,7 +197,8 @@ void main() {
       await tester.tap(find.byType(QueryaButton).first);
       await tester.pump();
       await tester.tap(find.byTooltip('More actions'));
-      await tester.pumpAndSettle();
+      // The loading spinner animates forever: pump a frame, do not settle.
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(runs, 0);
       expect(find.text('SVG'), findsNothing);
