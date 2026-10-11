@@ -290,13 +290,14 @@ class _QuickChartViewState extends material.State<QuickChartView> {
           padding: const material.EdgeInsets.all(8),
           // Wrap, not Row: on a narrow chart the controls move to a second
           // line instead of overflowing and pushing the export buttons away.
-          child: material.Wrap(
+          child: QueryaControlScope(
+            size: QueryaControlSize.sm,
+            child: material.Wrap(
             spacing: 12,
             runSpacing: 8,
             crossAxisAlignment: material.WrapCrossAlignment.center,
             children: [
               QueryaTabStrip(
-                dense: true,
                 labels: const ['Bar', 'Line', 'Pie'],
                 selectedIndex: QuickChartType.values.indexOf(_type),
                 onSelected: (i) => setState(() {
@@ -413,6 +414,7 @@ class _QuickChartViewState extends material.State<QuickChartView> {
                 size: QueryaControlSize.sm,
               ),
             ],
+            ),
           ),
         ),
         material.Expanded(
