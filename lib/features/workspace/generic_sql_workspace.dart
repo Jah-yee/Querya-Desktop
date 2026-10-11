@@ -548,13 +548,14 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
     final text = session.controller.text;
     final selected = selection.isValid && !selection.isCollapsed;
     final scope = selected ? selection.textInside(text) : text;
-    final spans = _runSpans(
+    final spans = await _runSpans(
       scope,
       statementAtCursor: statementAtCursor,
       selected: selected,
       caret: selection.isValid ? selection.baseOffset : scope.length,
     );
     if (spans.isEmpty) return;
+    if (!mounted) return;
     final scopeStart = selected ? selection.start : 0;
     final texts = [for (final s in spans) s.textIn(scope)];
     final runSql = statementAtCursor ? texts.single : scope.trim();
@@ -792,12 +793,12 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
   /// The ranges of [scope] a run covers. A caret run takes the statement at
   /// [caret]; a selected caret run is the selection as one statement; a script
   /// is every statement.
-  static List<SqlStatementSpan> _runSpans(
+  static Future<List<SqlStatementSpan>> _runSpans(
     String scope, {
     required bool statementAtCursor,
     required bool selected,
     required int caret,
-  }) {
+  }) async {
     if (statementAtCursor && selected) {
       final start = scope.length - scope.trimLeft().length;
       final end = scope.trimRight().length;
@@ -805,7 +806,7 @@ class GenericSqlWorkspaceState extends material.State<GenericSqlWorkspace> {
           ? [SqlStatementSpan(start: start, end: end, line: 1)]
           : const [];
     }
-    final all = SqlStatementSplitter.spans(scope);
+    final all = await SqlStatementSplitter.spansAsync(scope);
     if (!statementAtCursor) return all;
     final at = SqlStatementSplitter.at(all, caret);
     return at == null ? const [] : [at];

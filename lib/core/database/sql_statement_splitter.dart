@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// One statement of a script, as offsets into the script.
 class SqlStatementSpan {
   const SqlStatementSpan({
@@ -26,6 +28,35 @@ abstract final class SqlStatementSplitter {
   /// start of the script). One compiled instance for every dollar sign.
   static final RegExp _dollarTag = RegExp(r'\$([a-zA-Z0-9_]*)\$');
 
+  static const int _chDash = 0x2D;
+  static const int _chSlash = 0x2F;
+  static const int _chAsterisk = 0x2A;
+  static const int _chDollar = 0x24;
+  static const int _chSingleQuote = 0x27;
+  static const int _chDoubleQuote = 0x22;
+  static const int _chBacktick = 0x60;
+  static const int _chSemicolon = 0x3B;
+  static const int _chBackslash = 0x5C;
+  static const int _chLf = 0x0A;
+  static const int _chCr = 0x0D;
+
+  /// Default script size threshold (64 KB) above which [spansAsync] offloads
+  /// parsing to a background isolate via [compute].
+  static const int defaultIsolateThreshold = 64 * 1024;
+
+  /// Splits [sql] into statement ranges asynchronously. If [sql.length] exceeds
+  /// [isolateThreshold], parsing runs in a background isolate via [compute] so
+  /// large scripts do not block the UI thread (#1350).
+  static Future<List<SqlStatementSpan>> spansAsync(
+    String sql, {
+    int isolateThreshold = defaultIsolateThreshold,
+  }) async {
+    if (sql.length <= isolateThreshold) {
+      return spans(sql);
+    }
+    return compute(spans, sql);
+  }
+
   static List<SqlStatementSpan> spans(String sql) {
     final out = <SqlStatementSpan>[];
     final len = sql.length;
@@ -39,7 +70,7 @@ abstract final class SqlStatementSplitter {
     var line = 1;
     int lineAt(int offset) {
       while (lineCountedTo < offset) {
-        if (sql.codeUnitAt(lineCountedTo) == 0x0A) line++;
+        if (sql.codeUnitAt(lineCountedTo) == _chLf) line++;
         lineCountedTo++;
       }
       return line;
@@ -60,20 +91,26 @@ abstract final class SqlStatementSplitter {
     }
 
     while (i < len) {
-      final c = sql[i];
+      final code = sql.codeUnitAt(i);
 
       // Line comment: runs to the end of the line.
-      if (c == '-' && i + 1 < len && sql[i + 1] == '-') {
-        while (i < len && sql[i] != '\n' && sql[i] != '\r') {
+      if (code == _chDash && i + 1 < len && sql.codeUnitAt(i + 1) == _chDash) {
+        while (i < len &&
+            sql.codeUnitAt(i) != _chLf &&
+            sql.codeUnitAt(i) != _chCr) {
           i++;
         }
         continue;
       }
 
       // Block comment.
-      if (c == '/' && i + 1 < len && sql[i + 1] == '*') {
+      if (code == _chSlash &&
+          i + 1 < len &&
+          sql.codeUnitAt(i + 1) == _chAsterisk) {
         i += 2;
-        while (i + 1 < len && !(sql[i] == '*' && sql[i + 1] == '/')) {
+        while (i + 1 < len &&
+            !(sql.codeUnitAt(i) == _chAsterisk &&
+                sql.codeUnitAt(i + 1) == _chSlash)) {
           i++;
         }
         i = i + 1 < len ? i + 2 : len;
@@ -81,7 +118,7 @@ abstract final class SqlStatementSplitter {
       }
 
       // Dollar quote: $tag$ ... $tag$.
-      if (c == '\$') {
+      if (code == _chDollar) {
         final match = _dollarTag.matchAsPrefix(sql, i);
         if (match != null) {
           final tag = match.group(0)!;
@@ -92,17 +129,18 @@ abstract final class SqlStatementSplitter {
       }
 
       // String literal, with doubled quotes and backslash escapes.
-      if (c == "'") {
+      if (code == _chSingleQuote) {
         i++;
         while (i < len) {
-          if (sql[i] == "'") {
-            if (i + 1 < len && sql[i + 1] == "'") {
+          final curr = sql.codeUnitAt(i);
+          if (curr == _chSingleQuote) {
+            if (i + 1 < len && sql.codeUnitAt(i + 1) == _chSingleQuote) {
               i += 2;
             } else {
               i++;
               break;
             }
-          } else if (sql[i] == '\\' && i + 1 < len) {
+          } else if (curr == _chBackslash && i + 1 < len) {
             i += 2;
           } else {
             i++;
@@ -112,11 +150,13 @@ abstract final class SqlStatementSplitter {
       }
 
       // Quoted identifier: "name" (PostgreSQL) or `name` (MySQL).
-      if (c == '"' || c == '`') {
+      if (code == _chDoubleQuote || code == _chBacktick) {
+        final quoteChar = code;
         i++;
         while (i < len) {
-          if (sql[i] == c) {
-            if (i + 1 < len && sql[i + 1] == c) {
+          final curr = sql.codeUnitAt(i);
+          if (curr == quoteChar) {
+            if (i + 1 < len && sql.codeUnitAt(i + 1) == quoteChar) {
               i += 2;
             } else {
               i++;
@@ -129,7 +169,7 @@ abstract final class SqlStatementSplitter {
         continue;
       }
 
-      if (c == ';') {
+      if (code == _chSemicolon) {
         close(i);
         i++;
         segmentStart = i;

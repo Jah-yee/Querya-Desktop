@@ -131,5 +131,38 @@ void main() {
         ['select \$1', 'select \$2, \$3'],
       );
     });
+
+    test('spansAsync matches spans synchronously below threshold', () async {
+      const sql = 'SELECT 1; SELECT 2; SELECT 3;';
+      final syncSpans = SqlStatementSplitter.spans(sql);
+      final asyncSpans = await SqlStatementSplitter.spansAsync(
+        sql,
+        isolateThreshold: 1024,
+      );
+
+      expect(asyncSpans.length, syncSpans.length);
+      for (var i = 0; i < syncSpans.length; i++) {
+        expect(asyncSpans[i].start, syncSpans[i].start);
+        expect(asyncSpans[i].end, syncSpans[i].end);
+        expect(asyncSpans[i].line, syncSpans[i].line);
+      }
+    });
+
+    test('spansAsync offloads to isolate above threshold', () async {
+      final sql = List.generate(200, (i) => 'SELECT $i AS col_$i;').join('\n');
+      final syncSpans = SqlStatementSplitter.spans(sql);
+      // Force isolate execution with a tiny threshold
+      final asyncSpans = await SqlStatementSplitter.spansAsync(
+        sql,
+        isolateThreshold: 64,
+      );
+
+      expect(asyncSpans.length, syncSpans.length);
+      for (var i = 0; i < syncSpans.length; i++) {
+        expect(asyncSpans[i].start, syncSpans[i].start);
+        expect(asyncSpans[i].end, syncSpans[i].end);
+        expect(asyncSpans[i].line, syncSpans[i].line);
+      }
+    });
   });
 }
