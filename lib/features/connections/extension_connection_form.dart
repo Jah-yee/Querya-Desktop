@@ -279,41 +279,26 @@ class _ExtensionConnectionFormContentState
             ),
             material.FocusTraversalGroup(
               policy: material.WidgetOrderTraversalPolicy(),
-              child: material.Container(
-                padding: const material.EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                decoration: material.BoxDecoration(
-                  border: material.Border(
-                    top: material.BorderSide(
-                      color: theme.border.withValues(alpha: 0.3),
-                    ),
-                  ),
-                ),
-                child: material.Row(
-                  children: [
-                    QueryaButton.secondary(
+              child: QueryaDialogActions(
+                secondary: [
+                  QueryaButton.secondary(
                       label: 'Test Connection',
                       icon: material.Icons.bolt_rounded,
                       loading: _testing,
                       size: QueryaControlSize.lg,
                       onPressed: _schema == null || _testing ? null : _testConnection,
                     ),
-                    const Spacer(),
-                    QueryaButton.ghost(
+                ],
+                cancel: QueryaButton.ghost(
                       label: 'Cancel',
                       onPressed: () => material.Navigator.of(context).pop(),
                       size: QueryaControlSize.lg,
                     ),
-                    const material.SizedBox(width: 12),
-                    QueryaButton.primary(
+                primary: QueryaButton.primary(
                       label: 'Save',
                       onPressed: _schema == null ? null : _save,
                       size: QueryaControlSize.lg,
                     ),
-                  ],
-                ),
               ),
             ),
           ],
