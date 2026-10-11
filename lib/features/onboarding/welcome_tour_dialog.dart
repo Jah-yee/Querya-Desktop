@@ -7,6 +7,7 @@ import 'package:querya_desktop/core/layout/window_layout.dart';
 import 'package:querya_desktop/core/storage/app_settings.dart';
 import 'package:querya_desktop/core/theme/querya_workbench_theme.dart';
 import 'package:querya_desktop/shared/widgets/widgets.dart';
+import 'package:querya_desktop/core/ui/querya_control_tokens.dart';
 
 /// Shows or toggles the interactive Welcome Tour dialog.
 Future<void> showWelcomeTourDialog(
@@ -261,15 +262,12 @@ class _WelcomeTourDialogState extends State<WelcomeTourDialog> {
                       ),
                     ),
                     if (widget.onGoHome != null) ...[
-                      GhostButton(
+                      QueryaButton.ghost(
                         key: const Key('welcome_tour_home_button'),
-                        density: ButtonDensity.compact,
+                        label: 'Home',
+                        icon: material.Icons.home_rounded,
                         onPressed: _goHomeAndClose,
-                        leading: const material.Icon(
-                          material.Icons.home_rounded,
-                          size: 16,
-                        ),
-                        child: const Text('Home'),
+                        size: QueryaControlSize.sm,
                       ),
                       const material.SizedBox(width: 4),
                     ],
@@ -348,27 +346,28 @@ class _WelcomeTourDialogState extends State<WelcomeTourDialog> {
 
                     // Action buttons
                     if (_currentStep > 0)
-                      OutlineButton(
+                      QueryaButton.secondary(
                         key: const Key('welcome_tour_prev_button'),
+                        label: 'Back',
                         onPressed: _previous,
-                        child: const Text('Back'),
+                        size: QueryaControlSize.lg,
                       )
                     else
-                      GhostButton(
+                      QueryaButton.ghost(
                         key: const Key('welcome_tour_skip_button'),
+                        label: 'Skip',
                         onPressed: _finish,
-                        child: const Text('Skip'),
+                        size: QueryaControlSize.lg,
                       ),
                     const material.SizedBox(width: 8),
 
-                    PrimaryButton(
+                    QueryaButton.primary(
                       key: const Key('welcome_tour_next_button'),
-                      onPressed: _next,
-                      child: Text(
-                        _currentStep == _totalSteps - 1
+                      label: _currentStep == _totalSteps - 1
                             ? 'Get Started'
                             : 'Next',
-                      ),
+                      onPressed: _next,
+                      size: QueryaControlSize.lg,
                     ),
                   ],
                 ),
@@ -695,28 +694,24 @@ class _HotkeysMatrixSlideView extends StatelessWidget {
           children: [
             if (onLaunchDemo != null)
               material.Expanded(
-                child: OutlineButton(
+                child: QueryaButton.secondary(
                   key: const Key('welcome_tour_demo_button'),
+                  label: 'Try Demo Playground',
+                  icon: material.Icons.play_arrow_rounded,
                   onPressed: onLaunchDemo,
-                  leading: const material.Icon(
-                    material.Icons.play_arrow_rounded,
-                    size: 18,
-                  ),
-                  child: const Text('Try Demo Playground'),
+                  size: QueryaControlSize.lg,
                 ),
               ),
             if (onLaunchDemo != null && onGoHome != null)
               const material.SizedBox(width: 8),
             if (onGoHome != null)
               material.Expanded(
-                child: GhostButton(
+                child: QueryaButton.ghost(
                   key: const Key('welcome_tour_slide_home_button'),
+                  label: 'Start Screen',
+                  icon: material.Icons.home_rounded,
                   onPressed: onGoHome,
-                  leading: const material.Icon(
-                    material.Icons.home_rounded,
-                    size: 16,
-                  ),
-                  child: const Text('Start Screen'),
+                  size: QueryaControlSize.lg,
                 ),
               ),
           ],
